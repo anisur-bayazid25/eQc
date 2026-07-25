@@ -1284,7 +1284,7 @@ function updateFrameworkCell(docId: ID, codeId: ID, text: string) {
     <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px', fontSize: '14px', lineHeight: '1.8', color: 'var(--text-dim)' }}>
       <p><strong style={{ color: 'var(--text)' }}>Made by:</strong> Anisur Rahman Bayazid <em>(with help from borrowed intellect)</em></p>
       <p><strong style={{ color: 'var(--text)' }}>Contact:</strong> <a href="mailto:anisur.rahman.bayazid@gmail.com" style={{ color: 'var(--accent)', textDecoration: 'none' }}>anisur.rahman.bayazid@gmail.com</a></p>
-      <p><strong style={{ color: 'var(--text)' }}>License:</strong> CC0 1.0 Universal (Public Domain Dedication)</p>
+      <p><strong style={{ color: 'var(--text)' }}>License:</strong> MIT License - Open and free for commercial and non-commercial use.</p>
       <p><strong style={{ color: 'var(--text)' }}>Year:</strong> 2026</p>
     </div>
   </main>

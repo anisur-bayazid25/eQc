@@ -59,14 +59,10 @@ export interface QvBridge {
   exportDocAsDocx(payload: { name: string; content: string }): Promise<string | null>;
   
   exportText(payload: { title: string; defaultName: string; content: string; extension: string; filterName: string }): Promise<string | null>;
-  exportDocxTable(payload: {
-  kind: 'table' | 'outline';
-  title: string;
-  headers?: string[];
-  rows?: string[][];
-  outline?: { depth: number; name: string; summary?: string }[];
-  filenameBase: string;
-}): Promise<string | null>;
+  exportDocxTable: (payload:
+    | { kind: 'table'; title: string; headers: string[]; rows: (string | number)[][]; filenameBase: string }
+    | { kind: 'outline'; title: string; outline: Array<{ name: string; depth: number; summary?: string; quotes?: string[] }>; filenameBase: string }
+  ) => Promise<string | null>;
 
   exportReport(project: Project, html: string): Promise<string | null>;
 }

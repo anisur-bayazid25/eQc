@@ -39,6 +39,15 @@ export interface CodedSegment {
   createdAt: number;
   source: 'manual' | 'csv-import' | 'auto-code' | 'qdpx-import';
   note?: string;          // segment-level memo (e.g. from REFI-QDA import)
+  starred?: boolean;      // marked as a "key quote" for manuscript writing
+}
+
+export interface CodeRelationNote {
+  id: ID;
+  codeAId: ID;
+  codeBId: ID;   // canonical: always the lexicographically smaller id first, so A×B and B×A share one note
+  note: string;
+  updatedAt: number;
 }
 
 export interface FrameworkCell {
@@ -58,6 +67,7 @@ export interface Project {
   codes: Code[];
   codedSegments: CodedSegment[];
   frameworkCells?: FrameworkCell[];   // case × theme summary matrix (framework analysis)
+  relationNotes?: CodeRelationNote[]; // analytic memos on code-pair relationships (co-occurrence)
 }
 
 export interface ProjectSummary {
@@ -79,7 +89,8 @@ export function newProject(name: string): Project {
     docs: [],
     codes: [],
     codedSegments: [],
-    frameworkCells: []
+    frameworkCells: [],
+    relationNotes: []
   };
 }
 

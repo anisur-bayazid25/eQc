@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
-  Project, ProjectSummary, Folder, SourceDoc, Code, CodedSegment, FrameworkCell,
+  Project, ProjectSummary, Folder, SourceDoc, Code, CodedSegment, FrameworkCell, CodeRelationNote,
   ID, uid, newProject, randomColor, childCodes, descendantCodeIds
 } from './domain';
 import CodeTree from './components/CodeTree';
@@ -98,6 +98,20 @@ function sortFrequencyTree(
   return rows;
 }
 
+function findCooccurringExcerpts(project: Project, codeAId: ID, codeBId: ID): Array<{ docName: string; text: string }> {
+  const segsA = project.codedSegments.filter(s => s.codeId === codeAId);
+  const segsB = project.codedSegments.filter(s => s.codeId === codeBId);
+  const results: Array<{ docName: string; text: string }> = [];
+  for (const a of segsA) {
+    const hasMatch = segsB.some(b => b.docId === a.docId && b.start === a.start && b.end === a.end);
+    if (hasMatch) {
+      const doc = project.docs.find(d => d.id === a.docId);
+      results.push({ docName: doc?.name || 'Unknown source', text: a.text });
+    }
+  }
+  return results;
+}
+
 // Small CSV helper reused by every per-view analysis export below.
 function toCsv(headers: string[], rows: string[][]): string {
   const esc = (v: string | number) => {
@@ -140,6 +154,9 @@ export default function App() {
   const [docNotesDraft, setDocNotesDraft] = useState('');
   const [editingNoteFor, setEditingNoteFor] = useState<ID | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
+  const [projectModalOpen, setProjectModalOpen] = useState(false);
+  const [projectNameDraft, setProjectNameDraft] = useState('');
+  const [deleteStep, setDeleteStep] = useState<0 | 1 | 2>(0); // 0 = rename view, 1 = first confirm, 2 = final confirm
 
 useEffect(() => {
   document.documentElement.setAttribute('data-theme', theme);
@@ -341,6 +358,43 @@ useEffect(() => {
     const name = await prompt('Rename project', project.name, 'Rename');
     if (!name) return;
     persist({ ...project, name });
+  }
+
+function openProjectSettings() {
+    if (!project) return;
+    setProjectNameDraft(project.name);
+    setDeleteStep(0);
+    setProjectModalOpen(true);
+  }
+
+  function saveProjectName() {
+    if (!project) return;
+    const trimmed = projectNameDraft.trim();
+    if (trimmed) persist({ ...project, name: trimmed });
+    setProjectModalOpen(false);
+  }
+
+  async function confirmDeleteProject() {
+    if (!project) return;
+    await window.qv.deleteProject(project.id);
+    setProjectModalOpen(false);
+    setDeleteStep(0);
+
+    const list = await window.qv.listProjects();
+    setProjects(list);
+    if (list.length > 0) {
+      const p = await window.qv.loadProject(list[0].id);
+      if (p) {
+        setProject(p);
+        setSelectedDocId(null);
+        setCodebookSelectedCodeId(null);
+      }
+    } else {
+      const fresh = newProject('Untitled Project');
+      await saveToDisk(fresh).catch(() => {});
+      setProject(fresh);
+    }
+    showToast('Project deleted.');
   }
 
   async function handleExportBackup() {
@@ -722,6 +776,96 @@ function updateSegmentNote(segId: ID, note: string) {
     });
   }
 
+function toggleStarSegment(segId: ID) {
+    if (!project) return;
+    persist({
+      ...project,
+      codedSegments: project.codedSegments.map(s =>
+        s.id === segId ? { ...s, starred: !s.starred } : s
+      )
+    });
+  }
+
+  async function handleExportStarredQuotes(kind: 'csv' | 'docx') {
+    if (!project) return;
+    const starred = project.codedSegments.filter(s => s.starred);
+    if (starred.length === 0) {
+      showToast('No starred quotes yet — star an excerpt first.');
+      return;
+    }
+    const headers = ['Quote', 'Code', 'Document'];
+    const rows = starred.map(s => [
+      s.text,
+      codesById.get(s.codeId)?.name || 'Unknown code',
+      project.docs.find(d => d.id === s.docId)?.name || 'Unknown source'
+    ]);
+    const filenameBase = `${project.name.replace(/[^\w\- ]/g, '_')}_starred_quotes`;
+
+    const path = kind === 'csv'
+      ? await window.qv.exportText({
+          title: 'Export Starred Quotes (CSV)',
+          defaultName: `${filenameBase}.csv`,
+          content: toCsv(headers, rows.map(r => r.map(String))),
+          extension: 'csv',
+          filterName: 'CSV file'
+        })
+      : await window.qv.exportDocxTable({
+          kind: 'table',
+          title: `${project.name} — Starred Quotes`,
+          headers,
+          rows,
+          filenameBase
+        });
+    if (path) showToast(`Exported ${starred.length} starred quotes to ${path}`);
+  }
+
+async function handleExportManuscriptSkeleton() {
+    if (!project) return;
+
+    const outline: Array<{ name: string; depth: number; summary?: string; quotes?: string[] }> = [];
+    const totalStarred = project!.codedSegments.filter(s => s.starred).length;
+    let codesWithSummary = 0;
+    let quotesMatched = 0;
+
+    function walk(parentId: ID | null, depth: number) {
+      for (const code of childCodes(project!.codes, parentId)) {
+        const summary = code.summary?.trim();
+        if (summary) {
+          codesWithSummary++;
+          const starredQuotes = project!.codedSegments
+            .filter(s => s.codeId === code.id && s.starred)
+            .map(s => {
+              const doc = project!.docs.find(d => d.id === s.docId);
+              return `"${s.text}" (${doc?.name || 'Unknown source'})`;
+            });
+          quotesMatched += starredQuotes.length;
+
+          outline.push({
+            name: code.name,
+            depth,
+            summary,
+            quotes: starredQuotes.length > 0 ? starredQuotes : undefined
+          });
+        }
+        walk(code.id, depth + 1);
+      }
+    }
+    walk(null, 0);
+
+    if (outline.length === 0) {
+      showToast('No codes with a summary/memo yet — write at least one code memo first.');
+      return;
+    }
+
+    const path = await window.qv.exportDocxTable({
+      kind: 'outline',
+      title: `${project!.name} — Results Skeleton`,
+      outline,
+      filenameBase: `${project!.name.replace(/[^\w\- ]/g, '_')}_results_skeleton`
+    } as any);
+    if (path) showToast(`Manuscript skeleton exported to ${path}`);
+  }
+
   function updateDocNotes(docId: ID, notes: string) {
     if (!project) return;
     persist({
@@ -749,6 +893,24 @@ function updateFrameworkCell(docId: ID, codeId: ID, text: string) {
       nextCells = [...cells, { id: uid('fw'), docId, codeId, text: trimmed, updatedAt: Date.now() }];
     }
     persist({ ...project, frameworkCells: nextCells });
+  }
+
+function updateRelationNote(codeAId: ID, codeBId: ID, note: string) {
+    if (!project) return;
+    const [a, b] = codeAId < codeBId ? [codeAId, codeBId] : [codeBId, codeAId];
+    const notes = project.relationNotes || [];
+    const trimmed = note.trim();
+    const existing = notes.find(n => n.codeAId === a && n.codeBId === b);
+
+    let next: CodeRelationNote[];
+    if (!trimmed) {
+      next = notes.filter(n => !(n.codeAId === a && n.codeBId === b));
+    } else if (existing) {
+      next = notes.map(n => (n.codeAId === a && n.codeBId === b) ? { ...n, note: trimmed, updatedAt: Date.now() } : n);
+    } else {
+      next = [...notes, { id: uid('rel'), codeAId: a, codeBId: b, note: trimmed, updatedAt: Date.now() }];
+    }
+    persist({ ...project, relationNotes: next });
   }
 
   const docSegments = useMemo(
@@ -900,7 +1062,7 @@ function updateFrameworkCell(docId: ID, codeId: ID, text: string) {
           </select>
           
           <button className="icon-btn" title="New project" onClick={handleNewProject}>➕</button>
-          <button className="icon-btn" title="Rename project" onClick={handleRenameProject}>✏️</button>
+          <button className="icon-btn" title="Rename project" onClick={openProjectSettings}>✏️</button>
           <button className="icon-btn" title="Export backup (.json)" onClick={handleExportBackup}>⬇️ Export</button>
           <button className="icon-btn" title="Import backup (.json)" onClick={handleImportBackup}>⬆️ Import</button>
           <button className="icon-btn" title="Merge project(s) into current" onClick={handleMerge}>🔀 Merge</button>
@@ -1104,11 +1266,16 @@ function updateFrameworkCell(docId: ID, codeId: ID, text: string) {
           {segmentPopup && (
             <div className="segment-popup" style={{ left: segmentPopup.x, top: segmentPopup.y }}>
               <div className="segment-popup-title">Codes applied here</div>
-              {segmentPopup.segments.map(s => (
+              {segmentPopup.segments.map(snapshotSeg => {
+                const s = project.codedSegments.find(cs => cs.id === snapshotSeg.id) || snapshotSeg;
+                return (
                 <div key={s.id} className="segment-popup-row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span className="code-swatch" style={{ background: codesById.get(s.codeId)?.color }} />
                     <span style={{ flex: 1 }}>{codesById.get(s.codeId)?.name || 'Unknown code'}</span>
+                    <button className="mini-btn" onClick={() => toggleStarSegment(s.id)} title={s.starred ? 'Unstar' : 'Star as key quote'}>
+                      {s.starred ? '⭐' : '☆'}
+                    </button>
                     <button className="mini-btn" onClick={() => removeCodedSegment(s.id)}>Remove</button>
                   </div>
 
@@ -1141,7 +1308,8 @@ function updateFrameworkCell(docId: ID, codeId: ID, text: string) {
                     </button>
                   )}
                 </div>
-              ))}
+                );
+              })}
               <button className="close-popup" onClick={() => setSegmentPopup(null)}>Close</button>
             </div>
           )}
@@ -1155,6 +1323,10 @@ function updateFrameworkCell(docId: ID, codeId: ID, text: string) {
               <button onClick={addRootCode}>+ Root Code</button>
               <button onClick={handleCsvImport}>➕ Import Dataset (CSV)</button>
               <button onClick={handleQdpxImport}>➕ Import REFI-QDA (.qdpx)</button>
+              <button onClick={() => handleExportStarredQuotes('csv')}>⭐ Starred (CSV)</button>
+              <button onClick={() => handleExportStarredQuotes('docx')}>⭐ Starred (DOCX)</button>
+              <button onClick={handleExportManuscriptSkeleton}>📄 Manuscript Skeleton</button>
+
               <div className="panel-toolbar">
   <select value={exportScope} onChange={e => setExportScope(e.target.value as ExportScope)}>
     {Object.entries(SCOPE_LABELS).map(([key, label]) => (
@@ -1203,9 +1375,14 @@ function updateFrameworkCell(docId: ID, codeId: ID, text: string) {
               }}
             >
               <div className="excerpt-doc">{doc?.name || 'Unknown source'}</div>
-              <div className="excerpt-text">“{seg.text}”</div>
-              <button className="mini-btn" onClick={() => removeCodedSegment(seg.id)}>Remove</button>
-            </div>
+                        <div className="excerpt-text">"{seg.text}"</div>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button className="mini-btn" onClick={() => toggleStarSegment(seg.id)}>
+                            {seg.starred ? '⭐ Starred' : '☆ Star'}
+                          </button>
+                          <button className="mini-btn" onClick={() => removeCodedSegment(seg.id)}>Remove</button>
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
@@ -1331,11 +1508,64 @@ function updateFrameworkCell(docId: ID, codeId: ID, text: string) {
       )}
 
       {tab === 'analysis' && (
-        <AnalysisTab project={project} onExportReport={handleExportReport} onSaveCell={updateFrameworkCell} showToast={showToast} />
+        <AnalysisTab project={project} onExportReport={handleExportReport} onSaveCell={updateFrameworkCell} onSaveRelationNote={updateRelationNote} showToast={showToast} />
       )}
 
       {toast && <div className="toast">{toast}</div>}
       {promptModal}
+      {projectModalOpen && project && (
+        <div className="modal-overlay">
+          <div className="modal-box">
+            {deleteStep === 0 && (
+              <>
+                <div className="modal-title">Rename project</div>
+                <input
+                  className="modal-input"
+                  value={projectNameDraft}
+                  onChange={e => setProjectNameDraft(e.target.value)}
+                  autoFocus
+                  onKeyDown={e => { if (e.key === 'Enter') saveProjectName(); }}
+                />
+                <div className="modal-actions" style={{ justifyContent: 'space-between' }}>
+                  <button className="mini-btn" style={{ color: '#f87171' }} onClick={() => setDeleteStep(1)}>
+                    🗑 Delete this project…
+                  </button>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => setProjectModalOpen(false)}>Cancel</button>
+                    <button className="primary-btn" onClick={saveProjectName}>Rename</button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {deleteStep === 1 && (
+              <>
+                <div className="modal-title">Delete "{project.name}"?</div>
+                <p style={{ color: 'var(--text-dim)', marginBottom: 14 }}>
+                  Are you sure you want to delete this project and its contents?
+                </p>
+                <div className="modal-actions">
+                  <button className="safe-btn" onClick={() => setDeleteStep(0)}>No</button>
+                  <button className="primary-btn" onClick={() => setDeleteStep(2)}>Yes</button>
+                </div>
+              </>
+            )}
+
+            {deleteStep === 2 && (
+              <>
+                <div className="modal-title">Are you absolutely sure?</div>
+                <p style={{ color: 'var(--text-dim)', marginBottom: 14 }}>
+                  This action cannot be reverted. Proceed with caution.
+                </p>
+                <div className="modal-actions">
+                  <button className="safe-btn" onClick={() => setDeleteStep(0)}>Keep</button>
+                  <button className="primary-btn" onClick={confirmDeleteProject}>Delete</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1390,12 +1620,25 @@ function AnalysisExportButtons({
   );
 }
 
-function AnalysisTab({ project, onExportReport, onSaveCell, showToast }: { project: Project; onExportReport: () => void; onSaveCell: (docId: ID, codeId: ID, text: string) => void; showToast: (msg: string) => void }) {
+function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, showToast }: { project: Project; onExportReport: () => void; onSaveCell: (docId: ID, codeId: ID, text: string) => void; onSaveRelationNote: (codeAId: ID, codeBId: ID, note: string) => void; showToast: (msg: string) => void }) {
   const [subTab, setSubTab] = useState<'frequency' | 'docMatrix' | 'coMatrix' | 'framework'>('frequency');
+  /*const [coocView, setCoocView] = useState<{ codeAName: string; codeBName: string; excerpts: Array<{ docName: string; text: string }> } | null>(null);*/
   const [freqSort, setFreqSort] = useState<FreqSortKey>('groupedNameAsc');
   const freqTree = useMemo(() => sortFrequencyTree(project, freqSort), [project, freqSort]);
   const docMatrix = useMemo(() => codeDocumentMatrix(project), [project]);
   const coMatrix = useMemo(() => codeCooccurrenceMatrix(project), [project]);
+  const activeCoocCodes = useMemo(
+    () => project.codes.filter(code =>
+      project.codes.some(other => other.id !== code.id && (coMatrix.get(code.id)?.get(other.id) || 0) > 0)
+    ),
+    [project.codes, coMatrix]
+  );
+  const relationNotesMap = useMemo(() => {
+    const m = new Map<string, string>();
+    (project.relationNotes || []).forEach(n => m.set(`${n.codeAId}::${n.codeBId}`, n.note));
+    return m;
+  }, [project.relationNotes]);
+  const [coocView, setCoocView] = useState<{ codeAId: ID; codeBId: ID; codeAName: string; codeBName: string; excerpts: Array<{ docName: string; text: string }> } | null>(null);
   const maxRolledUp = Math.max(1, ...freqTree.map(f => f.rolledUpCount));
   const frameworkRows = useMemo(() => childCodes(project.codes, null), [project.codes]);
   const frameworkCellMap = useMemo(() => {
@@ -1513,40 +1756,95 @@ function AnalysisTab({ project, onExportReport, onSaveCell, showToast }: { proje
       {subTab === 'coMatrix' && (
         <section>
           <div className="sort-row">
-            <span className="section-hint">How often codes co-occur on the same passage</span>
+            <span className="section-hint">How often codes co-occur on the same passage — click a cell to see the excerpts</span>
             <AnalysisExportButtons
               title={`${project.name} — Code Co-occurrence Matrix`}
               filenameBase={`${project.name.replace(/[^\w\- ]/g, '_')}_code_cooccurrence_matrix`}
-              headers={['', ...project.codes.map(c => c.name)]}
-              rows={project.codes.map(rowCode => [
+              headers={['', ...activeCoocCodes.map(c => c.name)]}
+              rows={activeCoocCodes.map(rowCode => [
                 rowCode.name,
-                ...project.codes.map(colCode => (rowCode.id === colCode.id ? '' : coMatrix.get(rowCode.id)?.get(colCode.id) || 0))
+                ...activeCoocCodes.map(colCode => (rowCode.id === colCode.id ? '' : coMatrix.get(rowCode.id)?.get(colCode.id) || 0))
               ])}
               showToast={showToast}
             />
           </div>
-          <div className="matrix-wrap">
-            <table className="matrix-table">
-              <thead>
-                <tr>
-                  <th />
-                  {project.codes.map(c => <th key={c.id}>{c.name}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {project.codes.map(rowCode => (
-                  <tr key={rowCode.id}>
-                    <td className="matrix-code-cell"><span className="code-swatch" style={{ background: rowCode.color }} />{rowCode.name}</td>
-                    {project.codes.map(colCode => (
-                      <td key={colCode.id} className={rowCode.id === colCode.id ? 'diag-cell' : ''}>
-                        {rowCode.id === colCode.id ? '\u2014' : coMatrix.get(rowCode.id)?.get(colCode.id) || 0}
-                      </td>
+
+          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+            <div className="matrix-wrap" style={{ flex: coocView ? '1 1 55%' : '1 1 100%' }}>
+              {activeCoocCodes.length === 0 ? (
+                <div className="empty-hint">
+                  No overlapping codes yet — co-occurrence appears once two different codes are applied to the exact same excerpt.
+                </div>
+              ) : (
+                <table className="matrix-table">
+                  <thead>
+                    <tr>
+                      <th />
+                      {activeCoocCodes.map(c => <th key={c.id}>{c.name}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activeCoocCodes.map(rowCode => (
+                      <tr key={rowCode.id}>
+                        <td className="matrix-code-cell"><span className="code-swatch" style={{ background: rowCode.color }} />{rowCode.name}</td>
+                        {activeCoocCodes.map(colCode => (
+                          <td
+                            key={colCode.id}
+                            className={rowCode.id === colCode.id ? 'diag-cell' : 'matrix-cell-clickable'}
+                            onClick={() => {
+                              if (rowCode.id === colCode.id) return;
+                              const [a, b] = rowCode.id < colCode.id ? [rowCode.id, colCode.id] : [colCode.id, rowCode.id];
+                              setCoocView({
+                                codeAId: a,
+                                codeBId: b,
+                                codeAName: rowCode.name,
+                                codeBName: colCode.name,
+                                excerpts: findCooccurringExcerpts(project, rowCode.id, colCode.id)
+                              });
+                            }}
+                          >
+                            {rowCode.id === colCode.id ? '—' : coMatrix.get(rowCode.id)?.get(colCode.id) || 0}
+                          </td>
+                        ))}
+                      </tr>
                     ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {project.codes.length === 0 && <div className="empty-hint">No codes yet.</div>}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {coocView && (
+              <div className="cooc-panel">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                  <h3 style={{ margin: 0 }}>{coocView.codeAName} × {coocView.codeBName}</h3>
+                  <button className="mini-btn" onClick={() => setCoocView(null)}>Close</button>
+                </div>
+                <div className="section-hint" style={{ margin: '4px 0 10px' }}>
+                  {coocView.excerpts.length} shared excerpt{coocView.excerpts.length === 1 ? '' : 's'}
+                </div>
+
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-dim)', marginBottom: 4 }}>
+                  Relationship memo
+                </label>
+                <FrameworkCellInput
+                  initialValue={relationNotesMap.get(`${coocView.codeAId}::${coocView.codeBId}`) || ''}
+                  onSave={text => onSaveRelationNote(coocView.codeAId, coocView.codeBId, text)}
+                />
+
+                <div style={{ marginTop: 12 }}>
+                  {coocView.excerpts.length === 0 ? (
+                    <div className="empty-hint">No shared excerpts.</div>
+                  ) : (
+                    coocView.excerpts.map((e, i) => (
+                      <div key={i} className="excerpt-card" style={{ marginBottom: 8 }}>
+                        <div className="excerpt-doc">{e.docName}</div>
+                        <div className="excerpt-text">"{e.text}"</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </section>
       )}

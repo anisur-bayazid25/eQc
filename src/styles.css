@@ -58,6 +58,12 @@ button:hover { background: var(--button-hover); }
 button.primary-btn { background: var(--accent); border-color: var(--accent); }
 button.primary-btn:hover { background: #2563eb; }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.safe-btn {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: white;
+}
+button.safe-btn:hover { background: #15803d; }
 
 input, select, textarea {
   font-family: inherit;
@@ -172,6 +178,10 @@ input, select, textarea {
   overflow: hidden;
 }
 
+.excerpt-starred {
+  border-left: 3px solid #fbbf24 !important;
+}
+
 .codebook-grid {
   display: flex; /* Flex allows the center to grow/shrink smoothly */
   height: 100%;
@@ -181,6 +191,16 @@ input, select, textarea {
 
 .panel {
   overflow-y: auto;
+  padding: 12px;
+}
+
+.cooc-panel {
+  flex: 0 0 340px;
+  max-height: 560px;
+  overflow-y: auto;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
   padding: 12px;
 }
 
@@ -405,6 +425,12 @@ input, select, textarea {
 .matrix-table th { background: var(--panel-alt); }
 .matrix-code-cell { text-align: left !important; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .diag-cell { color: var(--text-dim); }
+.matrix-cell-clickable {
+  cursor: pointer;
+}
+.matrix-cell-clickable:hover {
+  background: var(--accent-dim);
+}
 
 .framework-cell {
   padding: 4px !important;

@@ -346,11 +346,21 @@ function buildOutlineDocx(title, nodes) {
     if (node.summary) {
       children.push(new Paragraph({ text: node.summary, indent: { left: 360 * (node.depth + 1) } }));
     }
+    if (Array.isArray(node.quotes)) {
+      for (const q of node.quotes) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: q, italics: true })],
+          indent: { left: 360 * (node.depth + 1) + 180 },
+          spacing: { after: 80 }
+        }));
+      }
+    }
   }
   return new Document({ sections: [{ children }] });
 }
 
 ipcMain.handle('export:docx', async (_e, payload) => {
+  console.log('export:docx payload received:', JSON.stringify(payload).slice(0, 2000));
   const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
     title: 'Export as Word file',
     defaultPath: `${payload.filenameBase.replace(/[^\w\- ]/g, '_')}.docx`,
@@ -388,6 +398,22 @@ const HEADER_MAP = {
   child2: ['child node 2', 'child 2']
 };
 
+const iconv = require('iconv-lite');
+
+// Excel's plain "CSV" export (as opposed to "CSV UTF-8") writes
+// Windows-1252, not UTF-8 — smart quotes/apostrophes are the most common
+// casualty, decoding as U+FFFD when forced through a UTF-8 decoder. Detect
+// that and fall back to Windows-1252 decoding of the same bytes.
+function readCsvSmart(filePath) {
+  const buffer = fs.readFileSync(filePath);
+  const hasBom = buffer.length >= 3 && buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf;
+  const utf8Text = hasBom ? buffer.slice(3).toString('utf-8') : buffer.toString('utf-8');
+  if (!hasBom && utf8Text.includes('\uFFFD')) {
+    return iconv.decode(buffer, 'win1252');
+  }
+  return utf8Text;
+}
+
 ipcMain.handle('csv:pickAndParse', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
     title: 'Import Dataset (CSV)',
@@ -396,7 +422,7 @@ ipcMain.handle('csv:pickAndParse', async () => {
   });
   if (canceled || filePaths.length === 0) return null;
 
-  const raw = fs.readFileSync(filePaths[0], 'utf-8');
+  const raw = readCsvSmart(filePaths[0]);
   const parsed = Papa.parse(raw, { header: true, skipEmptyLines: true });
   const fields = (parsed.meta.fields || []).map(f => ({ raw: f, norm: normalizeHeader(f) }));
 

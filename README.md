@@ -1,1 +1,498 @@
-eQc — Easy Qual CodingComplete User Guide & Documentation (v1.1.0)Welcome to eQc — Easy Qual Coding, a lightweight, local-first qualitative data analysis (QDA) desktop application built with Electron, React, and SQLite. eQc is designed to strip away the overwhelming complexity of traditional QDA tools, providing researchers with an intuitive, flexible, and responsive workspace to weave text into meaningful insights.1. Overview & ArchitectureKey HighlightsLocal-First & Secure: All project data, raw text, codes, memos, and matrices are stored locally on your device in a high-performance SQLite database. Your data never leaves your computer.Flexible Dual-Theme Support: Toggle seamlessly between a default Dark Mode (slate dark background) and a warm Light Mode (paperwhite aesthetic).Flexible Workspace: Resizable, draggable panels let you adapt your reading, coding, and memoing environment to any screen size.Multiformat Support: Native support for .txt, .docx, .pdf, and scanned PDF documents via integrated OCR.2. Header Bar & Project ManagementThe top control header manages project state, global settings, and project backup operations.Project OperationsCreating a New Project: Click the + button next to the project selection dropdown to initiate a fresh database schema.Switching Active Projects: Use the project dropdown to switch between saved research projects stored in your local database.Renaming Projects: Click the pencil icon (✏️) adjacent to the dropdown to edit the active project name.Exporting Projects (.json): Click ⬇️ Export to download a complete, standalone .json backup containing all documents, code trees, highlights, memos, and relationships.Importing / Restoring Projects (.json): Click ⬆️ Import to load a previously exported .json project file as a new active project.Merging Projects (🔀 Merge): Combine external .json project files into your currently active project. This is ideal for collaborative team research where multiple coders work on separate documents independently.Global ControlsUndo / Redo: Revert or re-apply coding operations and code tree modifications.Theme Toggle (☀️ Light / 🌙 Dark): Switch between Dark Mode and Light Paperwhite Mode. All panels, text containers, search inputs, and tabs dynamically adjust contrast.Save State (💾 Save): Force-sync current changes to the local SQLite database.3. The Workspace Tab (Document Editor & Manual Coding)The Workspace is your primary station for managing data sources, organizing code hierarchies, and performing manual coding.Left Panel: DocumentsCenter Panel: Document EditorRight Panel: Code LegendActions:• + Root / Subfolders• + Doc / + Scanned PDF(Resizable: Drag Left Handle)Features:• Text Display & Selection• Highlighting Overlays• Text editing and saving• Creating Notes(Flexibly Expands / Contracts)Structure:• Code Legend• Tree Hierarchy(Resizable: Drag Right Handle)3.1 Document Management (Left Panel)Creating Folders: Click + Root Folder to establish main categories (e.g., Interviews, Focus Groups, Field Notes). Hover over any existing folder and click + Folder to build nested subfolders.Uploading Standard Documents: Click + Doc inside any folder to upload plain text (.txt), Word documents (.docx), or searchable digital PDFs (.pdf). Batch uploads are supported.Scanned PDF (OCR) Uploads: Click + Scanned PDF (OCR) to import image-only or scanned PDFs. The built-in Optical Character Recognition engine parses visual text directly into selectable, codeable text segments.Sorting Data Sources: Use the Sort by dropdown to arrange your source documents by: Name (Alphabetical), Date Added, Size, or Heavily Coded (Ranks documents by total applied segment highlights).3.2 Document Editor (Center Panel)Click any document in the left panel to load its content into the center view.The editor renders coded text with semi-transparent, color-coded overlays corresponding to assigned codes.Hovering or clicking on any highlighted excerpt opens an inline code badge inspector to view or remove applied codes.3.3 The Code Legend (Right Panel)Creating Codes: Click + Root Code to create top-level analytical categories. Hover over an existing code and click + to create subcodes.Expanding / Collapsing: Toggle tree visibility using the arrow indicators (▶ or ▼).3.4 Manual Coding WorkflowHighlight: Select a passage of text in the center document editor using your mouse.Drag & Drop: Click and hold the highlighted selection, then drag and drop it directly onto the target code in the right-hand Code Legend.Click-to-Code Alternative: Alternatively, highlight the text and simply click the desired code in the Code Legend.4. The Codebook Manager (Codebook Tab)The Codebook tab is dedicated to managing overall thematic framework, reviewing collated excerpts across sources, writing analytical memos, and importing structured CSV datasets.Code Hierarchy TreeCollated ExcerptsCode Memo & DefinitionSelect a code from your framework to inspect its linked data.Displays all highlighted text segments for the chosen code across all documents.Write operational definitions, theories, or thematic summaries here.Core FeaturesCollated Excerpt Review: Select any code from the left tree to view all linked text segments across every document in your project in the center column.Writing Memos & Definitions: Use the right-hand memo editor to write operational definitions, grounded theories, or thematic summaries for the selected code.⚡ Pull Child Summaries: Click ⚡ Pull Child Summaries to pull all summaries written for subcodes and append them directly into the parent code's memo text area.Recoloring & Renaming: Modify code names or change assigned hex colors directly within the memo inspector.4.1 Importing Coded Datasets (CSV Format)eQc allows you to import external pre-coded data (e.g., structured survey responses or tabular qualitative datasets) directly into your workspace and codebook. Click ➕ Import Dataset (CSV) in the Codebook tab to launch the importer.Required CSV Header MappingThe system automatically maps columns based on header key phrases (case-insensitive):CategoryAccepted Header VariationsDescription / PurposeRequired?Document NameParticipant, Document, SourceCreates a new document in the workspace (or appends to an existing one).YesExcerpt / QuoteQuote, Quotes, Excerpt, TextThe text passage that will be highlighted and coded in the workspace.YesParent CodeParent Node, ParentThe top-level theme assigned to the quote.OptionalChild Code 1Child Node 1, Child 1Second-level subcode assigned to the quote.OptionalChild Code 2Child Node 2, Child 2Third-level subcode assigned to the quote.OptionalSummaries / MemosSummary of Parent, Child 1 SummaryPopulation text for code definitions/memos in the codebook.OptionalExample CSV StructureParticipantParent NodeChild Node 1QuoteChild 1 SummaryInterview_01InfrastructureDrainage"The main problem was the blocked drainage."Mentions physical blockages in the sewer system.Interview_01CommunityMutual Aid"Neighbors helped stack sandbags."Grassroots support and volunteering.Survey_ResGovernmentDelay"City officials took three days to arrive."Frustration with official response time.5. Auto-Coder TabThe Auto-Coder automates repetitive coding tasks by scanning your entire project for target keywords or key phrases and automatically applying codes.Execution StepsSearch Keyword / Phrase: Enter the query phrase (e.g., "climate change", "resilience").Select Capture Boundary:Exact Match Only: Highlights only the explicit keyword/phrase matching the query.Enclosing Sentence: Automatically expands the highlight boundary to capture the entire sentence surrounding the keyword match.Language Selection: Required when using Enclosing Sentence boundaries to ensure sentence punctuation rules parse correctly.Target Code: Select the code from your codebook tree to apply across matches.Click Execute Auto-Code Job.6. Analysis Dashboard TabThe Analysis tab provides quantitative and relational summaries of your qualitative data. All tables and matrices can be exported to .csv or .docx.Matrix TypeDescriptionUse CaseCoding FrequencyBar chart showing total segments per code.Identify dominant themes or rare codes quickly.Code × DocumentGrid mapping every code against every document.Compare themes across different participants or groups.Co-occurrenceIllustrates how frequently two codes overlap on the exact same text excerpt.Discover strong conceptual links in narratives.Framework MatrixSummarizes coded content by document and code.Provides a structured overview of the entire dataset.1. Coding Frequency ChartA bar chart displaying the total volume of coded segments per code. This helps quickly identify dominant themes, rare codes, or coding imbalances across the dataset.2. Code x Document MatrixA tabular grid mapping every code against every document.Rows: CodesColumns: Source DocumentsCells: Count of applied segmentsUse Case: Essential for comparative analysis between different participants, time points, or demographic groups.3. Code Co-occurrence MatrixA matrix illustrating how frequently two codes overlap on the exact same text excerpt. High numerical intersections indicate strong conceptual or thematic links in your participants' narratives.4. Framework MatrixA case (document) × theme (code) summary matrix, where cells are short editable summaries.7. The About TabThe About tab provides core metadata and licensing details regarding your software installation:Application Name: eQc - Easy Qual CodingVersion: 1.1.0 (2026)Author: Anisur Rahman Bayazid (with help from borrowed intellect)Contact: anisur.rahman.bayazid@gmail.comLicense: MIT.8. Summary Table of Supported File TypesTask / FeatureFile FormatDetailsProject Backup & Transfer.jsonFull export, import, or multi-user merging.Project Input.qdpxREFI-QDA Project exchange files, standard format for QDA softwares.Standard Text Documents.txt, .docx, .pdfDirect import into workspace folders.Scanned Documents.pdfProcessed through local OCR to create editable text.Structured Datasets.csvImports structured tabular data into documents and codebooks.
+# eQc — Easy Qual Coding
+
+> **Complete User Guide & Documentation (v1.1.0)**
+
+Welcome to **eQc — Easy Qual Coding**, a lightweight, local-first qualitative data analysis (QDA) desktop application built with **Electron**, **React**, and **SQLite**.
+
+eQc is designed to remove the complexity of traditional QDA software while providing researchers with an intuitive, flexible, and responsive workspace for coding, memoing, and analyzing qualitative data.
+
+---
+
+# Table of Contents
+
+* [1. Overview & Architecture](#1-overview--architecture)
+* [2. Header Bar & Project Management](#2-header-bar--project-management)
+* [3. Workspace Tab](#3-workspace-tab)
+
+  * [3.1 Document Management](#31-document-management)
+  * [3.2 Document Editor](#32-document-editor)
+  * [3.3 Code Legend](#33-the-code-legend)
+  * [3.4 Manual Coding Workflow](#34-manual-coding-workflow)
+* [4. Codebook Tab](#4-codebook-tab)
+
+  * [4.1 Importing Coded Datasets (CSV)](#41-importing-coded-datasets-csv)
+* [5. Auto-Coder Tab](#5-auto-coder-tab)
+* [6. Analysis Dashboard](#6-analysis-dashboard)
+* [7. About](#7-about)
+* [8. Supported File Types](#8-supported-file-types)
+
+---
+
+# 1. Overview & Architecture
+
+## Key Highlights
+
+### 🔒 Local-First & Secure
+
+* All project data is stored locally using SQLite.
+* Documents, codes, memos, highlights, and analysis never leave your computer.
+
+### 🎨 Dual Theme Support
+
+* Dark Mode
+* Paperwhite Light Mode
+
+Switch anytime without affecting your project.
+
+### 🖥 Flexible Workspace
+
+Resizable and draggable panels allow you to customize your workspace for any screen size.
+
+### 📄 Multi-format Support
+
+Supported document formats include:
+
+* `.txt`
+* `.docx`
+* `.pdf`
+* Scanned PDFs (OCR)
+
+---
+
+# 2. Header Bar & Project Management
+
+The header controls project management, backups, and application settings.
+
+## Project Operations
+
+### Create a New Project
+
+Click the **➕** button beside the project selector.
+
+Creates a fresh local project database.
+
+---
+
+### Switch Projects
+
+Use the project dropdown to change the active project.
+
+---
+
+### Rename a Project
+
+Click the **✏️** icon beside the project name.
+
+---
+
+### Export Project
+
+Click **⬇ Export**
+
+Exports the complete project as a standalone JSON file containing:
+
+* Documents
+* Codes
+* Highlights
+* Memos
+* Relationships
+
+---
+
+### Import / Restore Project
+
+Click **⬆ Import**
+
+Imports a previously exported JSON project.
+
+---
+
+### Merge Projects
+
+Click **🔀 Merge**
+
+Merge another exported project into the currently open project.
+
+Useful for collaborative coding.
+
+---
+
+## Global Controls
+
+| Feature      | Description                                   |
+| ------------ | --------------------------------------------- |
+| Undo / Redo  | Reverse or reapply coding operations          |
+| Theme Toggle | Switch between Dark and Light modes           |
+| Save         | Force-save all changes to the SQLite database |
+
+---
+
+# 3. Workspace Tab
+
+The Workspace is the primary environment for:
+
+* Managing documents
+* Creating folders
+* Coding text
+* Writing notes
+
+| Left Panel        | Center Panel    | Right Panel    |
+| ----------------- | --------------- | -------------- |
+| Documents         | Document Editor | Code Legend    |
+| Folder Management | Text Editing    | Code Hierarchy |
+| File Upload       | Highlighting    | Code Tree      |
+
+---
+
+# 3.1 Document Management
+
+## Creating Folders
+
+Use:
+
+* **+ Root Folder**
+* **+ Folder**
+
+Organize data into categories such as:
+
+* Interviews
+* Focus Groups
+* Field Notes
+
+Nested folders are supported.
+
+---
+
+## Upload Documents
+
+Click **+ Doc**
+
+Supported formats:
+
+* TXT
+* DOCX
+* PDF
+
+Batch uploads are supported.
+
+---
+
+## Upload Scanned PDFs
+
+Click:
+
+**+ Scanned PDF (OCR)**
+
+OCR converts image-based PDFs into searchable, selectable text.
+
+---
+
+## Sort Documents
+
+Available sorting methods:
+
+* Name
+* Date Added
+* Size
+* Most Coded
+
+---
+
+# 3.2 Document Editor
+
+Selecting a document loads it into the center editor.
+
+Features include:
+
+* Editable text
+* Highlight overlays
+* Color-coded coded segments
+* Inline code inspector
+* Remove applied codes
+
+---
+
+# 3.3 The Code Legend
+
+The right panel contains the complete coding hierarchy.
+
+## Create Codes
+
+* **+ Root Code**
+* **+ Subcode**
+
+Supports unlimited nesting.
+
+---
+
+## Expand / Collapse
+
+Use:
+
+* ▶ Expand
+* ▼ Collapse
+
+to navigate large code trees.
+
+---
+
+# 3.4 Manual Coding Workflow
+
+## Method 1 — Drag & Drop
+
+1. Select text.
+2. Drag the highlighted text.
+3. Drop onto the desired code.
+
+---
+
+## Method 2 — Click to Code
+
+1. Highlight text.
+2. Click the desired code.
+
+The selected passage is immediately coded.
+
+---
+
+# 4. Codebook Tab
+
+The Codebook manages:
+
+* Code definitions
+* Memos
+* Summaries
+* Collated excerpts
+
+| Panel       | Purpose                        |
+| ----------- | ------------------------------ |
+| Code Tree   | Select codes                   |
+| Excerpts    | Review all coded segments      |
+| Memo Editor | Definitions and thematic notes |
+
+---
+
+## Features
+
+### Collated Excerpts
+
+Selecting a code displays every excerpt coded with that theme across all documents.
+
+---
+
+### Code Definitions
+
+Store:
+
+* Operational definitions
+* Theoretical notes
+* Theme descriptions
+* Analytical memos
+
+---
+
+### Pull Child Summaries
+
+Click:
+
+**⚡ Pull Child Summaries**
+
+Automatically appends all child summaries into the selected parent memo.
+
+---
+
+### Rename & Recolor Codes
+
+Modify:
+
+* Code names
+* Display colors
+
+directly from the memo panel.
+
+---
+
+# 4.1 Importing Coded Datasets (CSV)
+
+Click:
+
+**➕ Import Dataset (CSV)**
+
+to import structured qualitative datasets.
+
+## Automatic Header Mapping
+
+| Category      | Accepted Headers                   | Required |
+| ------------- | ---------------------------------- | -------- |
+| Document Name | Participant, Document, Source      | ✅        |
+| Quote         | Quote, Quotes, Excerpt, Text       | ✅        |
+| Parent Code   | Parent Node, Parent                | Optional |
+| Child Code 1  | Child Node 1, Child 1              | Optional |
+| Child Code 2  | Child Node 2, Child 2              | Optional |
+| Summaries     | Summary of Parent, Child 1 Summary | Optional |
+
+---
+
+## Example CSV
+
+| Participant  | Parent Node    | Child Node | Quote                                      | Summary                                          |
+| ------------ | -------------- | ---------- | ------------------------------------------ | ------------------------------------------------ |
+| Interview_01 | Infrastructure | Drainage   | The main problem was the blocked drainage. | Mentions physical blockages in the sewer system. |
+| Interview_01 | Community      | Mutual Aid | Neighbors helped stack sandbags.           | Grassroots volunteering.                         |
+| Survey_Res   | Government     | Delay      | City officials took three days to arrive.  | Delayed official response.                       |
+
+---
+
+# 5. Auto-Coder Tab
+
+Automatically code large datasets using keywords or phrases.
+
+## Workflow
+
+### Step 1
+
+Enter a keyword or phrase.
+
+Example:
+
+```
+climate change
+```
+
+---
+
+### Step 2
+
+Choose capture boundary.
+
+Options:
+
+* Exact Match
+* Enclosing Sentence
+
+---
+
+### Step 3
+
+Select language
+
+Required for sentence detection.
+
+---
+
+### Step 4
+
+Choose the target code.
+
+---
+
+### Step 5
+
+Click:
+
+**Execute Auto-Code Job**
+
+---
+
+# 6. Analysis Dashboard
+
+Generate quantitative summaries of coded qualitative data.
+
+All outputs can be exported as:
+
+* CSV
+* DOCX
+
+---
+
+## Available Analyses
+
+| Analysis         | Description             | Use                             |
+| ---------------- | ----------------------- | ------------------------------- |
+| Coding Frequency | Counts coded segments   | Identify dominant themes        |
+| Code × Document  | Code-by-document matrix | Compare participants            |
+| Co-occurrence    | Code overlap matrix     | Discover relationships          |
+| Framework Matrix | Case × Theme summaries  | Structured qualitative analysis |
+
+---
+
+## Coding Frequency
+
+Displays a bar chart showing:
+
+* Most frequent codes
+* Rare codes
+* Coding balance
+
+---
+
+## Code × Document Matrix
+
+Rows:
+
+* Codes
+
+Columns:
+
+* Documents
+
+Cells:
+
+* Number of coded excerpts
+
+Useful for comparing participants or groups.
+
+---
+
+## Code Co-occurrence Matrix
+
+Shows how frequently two codes overlap on the same text.
+
+High values indicate strong conceptual relationships.
+
+---
+
+## Framework Matrix
+
+Creates an editable:
+
+**Case (Document) × Theme (Code)**
+
+summary table.
+
+---
+
+# 7. About
+
+| Item        | Value                                                                     |
+| ----------- | ------------------------------------------------------------------------- |
+| Application | eQc – Easy Qual Coding                                                    |
+| Version     | 1.1.0 (2026)                                                              |
+| Author      | Anisur Rahman Bayazid *(with help from borrowed intellect)*               |
+| Contact     | [anisur.rahman.bayazid@gmail.com](mailto:anisur.rahman.bayazid@gmail.com) |
+| License     | MIT                                                                       |
+
+---
+
+# 8. Supported File Types
+
+| Task               | Format                  | Notes                               |
+| ------------------ | ----------------------- | ----------------------------------- |
+| Project Backup     | `.json`                 | Export, import, merge               |
+| QDA Exchange       | `.qdpx`                 | REFI-QDA compatible                 |
+| Documents          | `.txt`, `.docx`, `.pdf` | Standard imports                    |
+| Scanned Documents  | `.pdf`                  | OCR supported                       |
+| Structured Dataset | `.csv`                  | Imports documents and codebook data |
+
+---
+
+# License
+
+This project is released under the **MIT License**.
+
+---
+
+# Version
+
+**eQc — Easy Qual Coding**
+Version **1.1.0 (2026)**

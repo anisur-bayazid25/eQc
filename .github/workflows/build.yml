@@ -3,13 +3,16 @@ name: Build and Release eQc
 on:
   push:
     tags:
-      - 'v*' # Triggers the build ONLY when you push a version tag (e.g., v1.1.0)
+      - 'v*'
+
+# THIS IS THE MAGIC KEY TO UPLOAD FILES:
+permissions:
+  contents: write
 
 jobs:
   build:
     strategy:
       matrix:
-        # Run parallel builds on GitHub's cloud Windows and Mac machines
         os: [windows-latest, macos-latest]
     
     runs-on: ${{ matrix.os }}
@@ -31,9 +34,8 @@ jobs:
         if: runner.os == 'macOS'
         run: npm install dmg-license --no-save
 
-      # Build the app and upload the artifacts to GitHub Releases automatically
       - name: Build and Publish Electron app
         run: npx electron-builder --publish always
         env:
-          # GitHub automatically provides this token to upload files to your repository
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          

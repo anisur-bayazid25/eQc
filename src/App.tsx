@@ -102,14 +102,40 @@ function findCooccurringExcerpts(project: Project, codeAId: ID, codeBId: ID): Ar
   const segsA = project.codedSegments.filter(s => s.codeId === codeAId);
   const segsB = project.codedSegments.filter(s => s.codeId === codeBId);
   const results: Array<{ docName: string; text: string }> = [];
+  const seen = new Set<string>(); // avoids duplicate entries when several A/B pairs overlap the same stretch
+
   for (const a of segsA) {
-    const hasMatch = segsB.some(b => b.docId === a.docId && b.start === a.start && b.end === a.end);
-    if (hasMatch) {
+    for (const b of segsB) {
+      if (a.docId !== b.docId) continue;
+      const overlaps = a.start < b.end && b.start < a.end; // standard interval-overlap test
+      if (!overlaps) continue;
+
+      // Show the union of both ranges, so the reader sees the full
+      // overlapping context rather than just whichever code's span happens
+      // to be narrower.
+      const unionStart = Math.min(a.start, b.start);
+      const unionEnd = Math.max(a.end, b.end);
+      const key = `${a.docId}:${unionStart}:${unionEnd}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
       const doc = project.docs.find(d => d.id === a.docId);
-      results.push({ docName: doc?.name || 'Unknown source', text: a.text });
+      results.push({ docName: doc?.name || 'Unknown source', text: doc?.content.slice(unionStart, unionEnd) || '' });
     }
   }
   return results;
+}
+
+type NameCountSort = 'nameAsc' | 'nameDesc' | 'countDesc' | 'countAsc';
+
+function sortByNameOrCount<T>(items: T[], getName: (t: T) => string, getCount: (t: T) => number, sortKey: NameCountSort): T[] {
+  const copy = [...items];
+  switch (sortKey) {
+    case 'nameAsc': return copy.sort((a, b) => getName(a).localeCompare(getName(b)));
+    case 'nameDesc': return copy.sort((a, b) => getName(b).localeCompare(getName(a)));
+    case 'countDesc': return copy.sort((a, b) => getCount(b) - getCount(a));
+    case 'countAsc': return copy.sort((a, b) => getCount(a) - getCount(b));
+  }
 }
 
 // Small CSV helper reused by every per-view analysis export below.
@@ -1594,12 +1620,11 @@ function AnalysisExportButtons({
   showToast: (msg: string) => void;
 }) {
   async function doExport(kind: 'csv' | 'docx') {
-    const csvRows = rows.map((row) => row.map((value) => String(value)));
     const path = kind === 'csv'
       ? await window.qv.exportText({
           title: `Export ${title} (CSV)`,
           defaultName: `${filenameBase}.csv`,
-          content: toCsv(headers, csvRows),
+          content: toCsv(headers, rows.map(r => r.map(String))),
           extension: 'csv',
           filterName: 'CSV file'
         })
@@ -1607,7 +1632,7 @@ function AnalysisExportButtons({
           kind: 'table',
           title,
           headers,
-          rows: csvRows,
+          rows,
           filenameBase
         });
     if (path) showToast(`Exported ${title} to ${path}`);
@@ -1622,10 +1647,28 @@ function AnalysisExportButtons({
 
 function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, showToast }: { project: Project; onExportReport: () => void; onSaveCell: (docId: ID, codeId: ID, text: string) => void; onSaveRelationNote: (codeAId: ID, codeBId: ID, note: string) => void; showToast: (msg: string) => void }) {
   const [subTab, setSubTab] = useState<'frequency' | 'docMatrix' | 'coMatrix' | 'framework'>('frequency');
-  /*const [coocView, setCoocView] = useState<{ codeAName: string; codeBName: string; excerpts: Array<{ docName: string; text: string }> } | null>(null);*/
+  const codesByIdLocal = useMemo(() => new Map(project.codes.map(c => [c.id, c])), [project.codes]);
+
+  // --- Frequency ---
   const [freqSort, setFreqSort] = useState<FreqSortKey>('groupedNameAsc');
   const freqTree = useMemo(() => sortFrequencyTree(project, freqSort), [project, freqSort]);
+
+  // --- Doc matrix ---
   const docMatrix = useMemo(() => codeDocumentMatrix(project), [project]);
+  const [docMatrixCodeSort, setDocMatrixCodeSort] = useState<NameCountSort>('nameAsc');
+  const [docMatrixDocSort, setDocMatrixDocSort] = useState<NameCountSort>('nameAsc');
+  const docMatrixCodeTotal = (codeId: ID) => project.docs.reduce((sum, d) => sum + (docMatrix.get(codeId)?.get(d.id) || 0), 0);
+  const docMatrixDocTotal = (docId: ID) => project.codes.reduce((sum, c) => sum + (docMatrix.get(c.id)?.get(docId) || 0), 0);
+  const sortedDocMatrixCodes = useMemo(
+    () => sortByNameOrCount(project.codes, c => c.name, c => docMatrixCodeTotal(c.id), docMatrixCodeSort),
+    [project.codes, docMatrix, docMatrixCodeSort]
+  );
+  const sortedDocMatrixDocs = useMemo(
+    () => sortByNameOrCount(project.docs, d => d.name, d => docMatrixDocTotal(d.id), docMatrixDocSort),
+    [project.docs, docMatrix, docMatrixDocSort]
+  );
+
+  // --- Co-occurrence ---
   const coMatrix = useMemo(() => codeCooccurrenceMatrix(project), [project]);
   const activeCoocCodes = useMemo(
     () => project.codes.filter(code =>
@@ -1633,26 +1676,53 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
     ),
     [project.codes, coMatrix]
   );
+  const [coocSort, setCoocSort] = useState<NameCountSort>('nameAsc');
+  const coocTotal = (codeId: ID) => activeCoocCodes.reduce((sum, c) => sum + (c.id === codeId ? 0 : (coMatrix.get(codeId)?.get(c.id) || 0)), 0);
+  const sortedCoocCodes = useMemo(
+    () => sortByNameOrCount(activeCoocCodes, c => c.name, c => coocTotal(c.id), coocSort),
+    [activeCoocCodes, coMatrix, coocSort]
+  );
   const relationNotesMap = useMemo(() => {
     const m = new Map<string, string>();
     (project.relationNotes || []).forEach(n => m.set(`${n.codeAId}::${n.codeBId}`, n.note));
     return m;
   }, [project.relationNotes]);
   const [coocView, setCoocView] = useState<{ codeAId: ID; codeBId: ID; codeAName: string; codeBName: string; excerpts: Array<{ docName: string; text: string }> } | null>(null);
-  const maxRolledUp = Math.max(1, ...freqTree.map(f => f.rolledUpCount));
+
+  // --- Framework matrix ---
   const frameworkRows = useMemo(() => childCodes(project.codes, null), [project.codes]);
   const frameworkCellMap = useMemo(() => {
     const m = new Map<string, FrameworkCell>();
     (project.frameworkCells || []).forEach(c => m.set(`${c.docId}::${c.codeId}`, c));
     return m;
   }, [project.frameworkCells]);
+  const [fwRowSort, setFwRowSort] = useState<NameCountSort>('nameAsc');
+  const [fwColSort, setFwColSort] = useState<NameCountSort>('nameAsc');
+  const fwRowFilled = (codeId: ID) => project.docs.filter(d => frameworkCellMap.get(`${d.id}::${codeId}`)?.text).length;
+  const fwColFilled = (docId: ID) => frameworkRows.filter(c => frameworkCellMap.get(`${docId}::${c.id}`)?.text).length;
+  const sortedFrameworkRows = useMemo(
+    () => sortByNameOrCount(frameworkRows, c => c.name, c => fwRowFilled(c.id), fwRowSort),
+    [frameworkRows, frameworkCellMap, fwRowSort]
+  );
+  const sortedFrameworkDocs = useMemo(
+    () => sortByNameOrCount(project.docs, d => d.name, d => fwColFilled(d.id), fwColSort),
+    [project.docs, frameworkCellMap, fwColSort]
+  );
 
+  const SORT_OPTIONS = (
+    <>
+      <option value="nameAsc">A → Z</option>
+      <option value="nameDesc">Z → A</option>
+      <option value="countDesc">Most coded → least</option>
+      <option value="countAsc">Least coded → most</option>
+    </>
+  );
 
   return (
     <div className="analysis-panel panel">
       <div className="analysis-header">
-        <h3>Analysis Dashboard</h3>
-        <button onClick={onExportReport}>📄 Export HTML Report</button>
+        <h2>Analysis Dashboard</h2>
+        <button onClick={onExportReport}>⬇️ HTML Report</button>
       </div>
 
       <nav className="subtabs">
@@ -1704,10 +1774,7 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
                   )}
                 </span>
                 <div className="freq-bar-track">
-                  <div
-                    className="freq-bar"
-                    style={{ width: `${(f.rolledUpCount / maxRolledUp) * 100}%`, background: f.code.color }}
-                  />
+                  <div className="freq-bar" style={{ width: `${(f.rolledUpCount / Math.max(1, ...freqTree.map(x => x.rolledUpCount))) * 100}%`, background: f.code.color }} />
                 </div>
                 <span className="freq-count">{f.rolledUpCount}</span>
               </div>
@@ -1720,12 +1787,19 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
       {subTab === 'docMatrix' && (
         <section>
           <div className="sort-row">
-            <span className="section-hint">Code × Document coding counts</span>
+            <label>Sort codes</label>
+            <select value={docMatrixCodeSort} onChange={e => setDocMatrixCodeSort(e.target.value as NameCountSort)}>
+              {SORT_OPTIONS}
+            </select>
+            <label>Sort documents</label>
+            <select value={docMatrixDocSort} onChange={e => setDocMatrixDocSort(e.target.value as NameCountSort)}>
+              {SORT_OPTIONS}
+            </select>
             <AnalysisExportButtons
               title={`${project.name} — Code × Document Matrix`}
               filenameBase={`${project.name.replace(/[^\w\- ]/g, '_')}_code_document_matrix`}
-              headers={['Code', ...project.docs.map(d => d.name)]}
-              rows={project.codes.map(code => [code.name, ...project.docs.map(d => docMatrix.get(code.id)?.get(d.id) || 0)])}
+              headers={['Code', ...sortedDocMatrixDocs.map(d => d.name)]}
+              rows={sortedDocMatrixCodes.map(code => [code.name, ...sortedDocMatrixDocs.map(d => docMatrix.get(code.id)?.get(d.id) || 0)])}
               showToast={showToast}
             />
           </div>
@@ -1733,15 +1807,15 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
             <table className="matrix-table">
               <thead>
                 <tr>
-                  <th>Code</th>
-                  {project.docs.map(d => <th key={d.id}>{d.name}</th>)}
+                  <th />
+                  {sortedDocMatrixDocs.map(d => <th key={d.id}>{d.name}</th>)}
                 </tr>
               </thead>
               <tbody>
-                {project.codes.map(code => (
+                {sortedDocMatrixCodes.map(code => (
                   <tr key={code.id}>
                     <td className="matrix-code-cell"><span className="code-swatch" style={{ background: code.color }} />{code.name}</td>
-                    {project.docs.map(d => (
+                    {sortedDocMatrixDocs.map(d => (
                       <td key={d.id}>{docMatrix.get(code.id)?.get(d.id) || 0}</td>
                     ))}
                   </tr>
@@ -1756,82 +1830,91 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
       {subTab === 'coMatrix' && (
         <section>
           <div className="sort-row">
-            <span className="section-hint">How often codes co-occur on the same passage — click a cell to see the excerpts</span>
+            <span className="section-hint">Click a cell to see the shared excerpts</span>
+            <label>Sort</label>
+            <select value={coocSort} onChange={e => setCoocSort(e.target.value as NameCountSort)}>
+              {SORT_OPTIONS}
+            </select>
             <AnalysisExportButtons
               title={`${project.name} — Code Co-occurrence Matrix`}
               filenameBase={`${project.name.replace(/[^\w\- ]/g, '_')}_code_cooccurrence_matrix`}
-              headers={['', ...activeCoocCodes.map(c => c.name)]}
-              rows={activeCoocCodes.map(rowCode => [
+              headers={['', ...sortedCoocCodes.map(c => c.name)]}
+              rows={sortedCoocCodes.map(rowCode => [
                 rowCode.name,
-                ...activeCoocCodes.map(colCode => (rowCode.id === colCode.id ? '' : coMatrix.get(rowCode.id)?.get(colCode.id) || 0))
+                ...sortedCoocCodes.map(colCode => (rowCode.id === colCode.id ? '' : coMatrix.get(rowCode.id)?.get(colCode.id) || 0))
               ])}
+              showToast={showToast}
+            />
+            <AnalysisExportButtons
+              title={`${project.name} — Code Relationship Notes`}
+              filenameBase={`${project.name.replace(/[^\w\- ]/g, '_')}_relationship_notes`}
+              headers={['Code A', 'Code B', 'Co-occurrence Count', 'Relationship Memo']}
+              rows={(project.relationNotes || []).map(n => {
+                const a = codesByIdLocal.get(n.codeAId)?.name || 'Unknown';
+                const b = codesByIdLocal.get(n.codeBId)?.name || 'Unknown';
+                const count = coMatrix.get(n.codeAId)?.get(n.codeBId) || coMatrix.get(n.codeBId)?.get(n.codeAId) || 0;
+                return [a, b, count, n.note];
+              })}
               showToast={showToast}
             />
           </div>
 
-          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-            <div className="matrix-wrap" style={{ flex: coocView ? '1 1 55%' : '1 1 100%' }}>
-              {activeCoocCodes.length === 0 ? (
+          <div className="cooc-grid">
+            <div className="cooc-matrix-panel" style={{ width: coocView ? '50%' : '100%' }}>
+              {sortedCoocCodes.length === 0 ? (
                 <div className="empty-hint">
                   No overlapping codes yet — co-occurrence appears once two different codes are applied to the exact same excerpt.
                 </div>
               ) : (
-                <table className="matrix-table">
-                  <thead>
-                    <tr>
-                      <th />
-                      {activeCoocCodes.map(c => <th key={c.id}>{c.name}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {activeCoocCodes.map(rowCode => (
-                      <tr key={rowCode.id}>
-                        <td className="matrix-code-cell"><span className="code-swatch" style={{ background: rowCode.color }} />{rowCode.name}</td>
-                        {activeCoocCodes.map(colCode => (
-                          <td
-                            key={colCode.id}
-                            className={rowCode.id === colCode.id ? 'diag-cell' : 'matrix-cell-clickable'}
-                            onClick={() => {
-                              if (rowCode.id === colCode.id) return;
-                              const [a, b] = rowCode.id < colCode.id ? [rowCode.id, colCode.id] : [colCode.id, rowCode.id];
-                              setCoocView({
-                                codeAId: a,
-                                codeBId: b,
-                                codeAName: rowCode.name,
-                                codeBName: colCode.name,
-                                excerpts: findCooccurringExcerpts(project, rowCode.id, colCode.id)
-                              });
-                            }}
-                          >
-                            {rowCode.id === colCode.id ? '—' : coMatrix.get(rowCode.id)?.get(colCode.id) || 0}
-                          </td>
-                        ))}
+                <div className="matrix-wrap">
+                  <table className="matrix-table">
+                    <thead>
+                      <tr>
+                        <th />
+                        {sortedCoocCodes.map(c => <th key={c.id}>{c.name}</th>)}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {sortedCoocCodes.map(rowCode => (
+                        <tr key={rowCode.id}>
+                          <td className="matrix-code-cell"><span className="code-swatch" style={{ background: rowCode.color }} />{rowCode.name}</td>
+                          {sortedCoocCodes.map(colCode => (
+                            <td
+                              key={colCode.id}
+                              className={rowCode.id === colCode.id ? 'diag-cell' : 'matrix-cell-clickable'}
+                              onClick={() => {
+                                if (rowCode.id === colCode.id) return;
+                                const [a, b] = rowCode.id < colCode.id ? [rowCode.id, colCode.id] : [colCode.id, rowCode.id];
+                                setCoocView({
+                                  codeAId: a,
+                                  codeBId: b,
+                                  codeAName: rowCode.name,
+                                  codeBName: colCode.name,
+                                  excerpts: findCooccurringExcerpts(project, rowCode.id, colCode.id)
+                                });
+                              }}
+                            >
+                              {rowCode.id === colCode.id ? '—' : coMatrix.get(rowCode.id)?.get(colCode.id) || 0}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
 
             {coocView && (
-              <div className="cooc-panel">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                  <h3 style={{ margin: 0 }}>{coocView.codeAName} × {coocView.codeBName}</h3>
-                  <button className="mini-btn" onClick={() => setCoocView(null)}>Close</button>
-                </div>
-                <div className="section-hint" style={{ margin: '4px 0 10px' }}>
-                  {coocView.excerpts.length} shared excerpt{coocView.excerpts.length === 1 ? '' : 's'}
-                </div>
-
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-dim)', marginBottom: 4 }}>
-                  Relationship memo
-                </label>
-                <FrameworkCellInput
-                  initialValue={relationNotesMap.get(`${coocView.codeAId}::${coocView.codeBId}`) || ''}
-                  onSave={text => onSaveRelationNote(coocView.codeAId, coocView.codeBId, text)}
-                />
-
-                <div style={{ marginTop: 12 }}>
+              <>
+                <div className="cooc-excerpts-panel">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                    <h3 style={{ margin: 0 }}>{coocView.codeAName} × {coocView.codeBName}</h3>
+                    <button className="mini-btn" onClick={() => setCoocView(null)}>Close</button>
+                  </div>
+                  <div className="section-hint" style={{ margin: '4px 0 10px' }}>
+                    {coocView.excerpts.length} shared excerpt{coocView.excerpts.length === 1 ? '' : 's'}
+                  </div>
                   {coocView.excerpts.length === 0 ? (
                     <div className="empty-hint">No shared excerpts.</div>
                   ) : (
@@ -1843,7 +1926,17 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
                     ))
                   )}
                 </div>
-              </div>
+
+                <div className="cooc-memo-panel">
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-dim)', marginBottom: 4 }}>
+                    Relationship memo
+                  </label>
+                  <FrameworkCellInput
+                    initialValue={relationNotesMap.get(`${coocView.codeAId}::${coocView.codeBId}`) || ''}
+                    onSave={text => onSaveRelationNote(coocView.codeAId, coocView.codeBId, text)}
+                  />
+                </div>
+              </>
             )}
           </div>
         </section>
@@ -1853,13 +1946,27 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
         <section>
           <div className="sort-row">
             <span className="section-hint">One short summary per theme, per case. Click a cell to write or edit — saves when you click away.</span>
+            <label>Sort themes</label>
+            <select value={fwRowSort} onChange={e => setFwRowSort(e.target.value as NameCountSort)}>
+              <option value="nameAsc">A → Z</option>
+              <option value="nameDesc">Z → A</option>
+              <option value="countDesc">Most filled → least</option>
+              <option value="countAsc">Least filled → most</option>
+            </select>
+            <label>Sort documents</label>
+            <select value={fwColSort} onChange={e => setFwColSort(e.target.value as NameCountSort)}>
+              <option value="nameAsc">A → Z</option>
+              <option value="nameDesc">Z → A</option>
+              <option value="countDesc">Most filled → least</option>
+              <option value="countAsc">Least filled → most</option>
+            </select>
             <AnalysisExportButtons
               title={`${project.name} — Framework Matrix`}
               filenameBase={`${project.name.replace(/[^\w\- ]/g, '_')}_framework_matrix`}
-              headers={['Theme', ...project.docs.map(d => d.name)]}
-              rows={frameworkRows.map(code => [
+              headers={['Theme', ...sortedFrameworkDocs.map(d => d.name)]}
+              rows={sortedFrameworkRows.map(code => [
                 code.name,
-                ...project.docs.map(d => frameworkCellMap.get(`${d.id}::${code.id}`)?.text || '')
+                ...sortedFrameworkDocs.map(d => frameworkCellMap.get(`${d.id}::${code.id}`)?.text || '')
               ])}
               showToast={showToast}
             />
@@ -1869,14 +1976,14 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
               <thead>
                 <tr>
                   <th>Theme</th>
-                  {project.docs.map(d => <th key={d.id}>{d.name}</th>)}
+                  {sortedFrameworkDocs.map(d => <th key={d.id}>{d.name}</th>)}
                 </tr>
               </thead>
               <tbody>
-                {frameworkRows.map(code => (
+                {sortedFrameworkRows.map(code => (
                   <tr key={code.id}>
                     <td className="matrix-code-cell"><span className="code-swatch" style={{ background: code.color }} />{code.name}</td>
-                    {project.docs.map(d => {
+                    {sortedFrameworkDocs.map(d => {
                       const existing = frameworkCellMap.get(`${d.id}::${code.id}`);
                       return (
                         <td key={d.id} className="framework-cell">
@@ -1891,7 +1998,7 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
                 ))}
               </tbody>
             </table>
-            {frameworkRows.length === 0 && <div className="empty-hint">No top-level (theme) codes yet — add a root code to use the framework matrix.</div>}
+            {sortedFrameworkRows.length === 0 && <div className="empty-hint">No top-level (theme) codes yet — add a root code to use the framework matrix.</div>}
             {project.docs.length === 0 && <div className="empty-hint">No documents yet.</div>}
           </div>
         </section>

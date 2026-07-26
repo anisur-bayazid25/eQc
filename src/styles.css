@@ -204,6 +204,41 @@ input, select, textarea {
   padding: 12px;
 }
 
+.cooc-grid {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+  min-height: 400px;
+}
+.cooc-matrix-panel {
+  resize: horizontal;
+  overflow: auto;
+  min-width: 300px;
+  max-width: 75vw;
+  flex-shrink: 0;
+  padding-right: 12px;
+}
+.cooc-excerpts-panel {
+  flex: 1;
+  min-width: 250px;
+  overflow-y: auto;
+  max-height: 620px;
+  padding: 0 12px;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+.cooc-memo-panel {
+  resize: horizontal;
+  direction: rtl;
+  overflow: auto;
+  width: 280px;
+  min-width: 200px;
+  max-width: 45vw;
+  flex-shrink: 0;
+  padding-left: 12px;
+}
+.cooc-memo-panel > * { direction: ltr; }
+
 .about-panel {
   overflow-y: auto;
   overflow-x: hidden;
@@ -350,7 +385,11 @@ input, select, textarea {
 }
 .coded-segment { border-radius: 3px; padding: 1px 0; cursor: pointer; }
 .coded-segment:hover { filter: brightness(1.3); }
-.coded-segment.multi-coded { text-decoration: underline wavy; }
+.coded-segment.multi-coded {
+  text-decoration: underline solid;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
 
 .segment-popup {
   position: fixed;
@@ -409,7 +448,7 @@ input, select, textarea {
 .section-hint { color: var(--text-dim); }
 
 /* Analysis */
-.analysis-panel { max-width: 960px; margin: 0 auto; }
+.analysis-panel { width: 100%; }
 .analysis-header { display: flex; align-items: center; justify-content: space-between; }
 .analysis-panel section { margin-top: 28px; }
 .freq-chart { display: flex; flex-direction: column; gap: 8px; }

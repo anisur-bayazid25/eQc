@@ -76,7 +76,6 @@
       "createStartMenuShortcut": true
     },
     "mac": {
-      "icon": "assets/eqc-logo.png",
       "target": [
         {
           "target": "dmg",

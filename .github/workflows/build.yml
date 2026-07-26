@@ -1,0 +1,36 @@
+name: Build and Release eQc
+
+on:
+  push:
+    tags:
+      - 'v*' # Triggers the build ONLY when you push a version tag (e.g., v1.1.0)
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        # Run parallel builds on GitHub's cloud Windows and Mac machines
+        os: [windows-latest, macos-latest]
+    
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      # Build the app and upload the artifacts to GitHub Releases automatically
+      - name: Build and Publish Electron app
+        run: npx electron-builder --publish always
+        env:
+          # GitHub automatically provides this token to upload files to your repository
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          

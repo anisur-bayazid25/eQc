@@ -26,9 +26,10 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+
       - name: Force install Mac DMG License builder
         if: runner.os == 'macOS'
-        run: npm install dmg-license
+        run: npm install dmg-license --no-save
 
       # Build the app and upload the artifacts to GitHub Releases automatically
       - name: Build and Publish Electron app
@@ -36,4 +37,3 @@ jobs:
         env:
           # GitHub automatically provides this token to upload files to your repository
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          

@@ -5,7 +5,6 @@ on:
     tags:
       - 'v*'
 
-# THIS IS THE MAGIC KEY TO UPLOAD FILES:
 permissions:
   contents: write
 
@@ -14,9 +13,7 @@ jobs:
     strategy:
       matrix:
         os: [windows-latest, macos-latest]
-    
     runs-on: ${{ matrix.os }}
-
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v4
@@ -34,8 +31,36 @@ jobs:
         if: runner.os == 'macOS'
         run: npm install dmg-license --no-save
 
-      - name: Build and Publish Electron app
-        run: npx electron-builder --publish always
+      - name: Build Electron app (no publish yet)
+        run: npx electron-builder
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.os }}
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.blockmap
+          if-no-files-found: warn
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: eQc ${{ github.ref_name }}
+          draft: false
+          files: artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

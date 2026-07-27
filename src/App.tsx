@@ -11,6 +11,7 @@ import { getSelectionOffsets, SelectionOffsets } from './lib/textOffsets';
 import { relocateSegmentsAfterEdit } from './lib/relocateSegments';
 import { importCsvDataset } from './lib/csvImport';
 import { importQdpx } from './lib/qdpxImport';
+import { importDocxComments } from './lib/docxCommentImport';
 import { mergeProjectInto } from './lib/merge';
 import { codingFrequency, codeDocumentMatrix, codeCooccurrenceMatrix } from './lib/analysis';
 import { buildReportHtml } from './lib/report';
@@ -211,6 +212,11 @@ useEffect(() => {
   const [workspaceCodeSearch, setWorkspaceCodeSearch] = useState('');
   const [codebookCodeSearch, setCodebookCodeSearch] = useState('');
   const [exportScope, setExportScope] = useState<ExportScope>('codesExcerptsSummaries');
+  const [docxCommentModalOpen, setDocxCommentModalOpen] = useState(false);
+  const [docxSeparatorChoice, setDocxSeparatorChoice] = useState<',' | ';' | '|' | 'custom'>(',');
+  const [docxCustomSeparator, setDocxCustomSeparator] = useState('');
+  const [docxFirstIsSpeaker, setDocxFirstIsSpeaker] = useState(false);
+  const [docxLastIsExcerpt, setDocxLastIsExcerpt] = useState(true);
 
   // Auto-code state
   const [acKeyword, setAcKeyword] = useState('');
@@ -819,11 +825,12 @@ function toggleStarSegment(segId: ID) {
       showToast('No starred quotes yet — star an excerpt first.');
       return;
     }
-    const headers = ['Quote', 'Code', 'Document'];
+    const headers = ['Quote', 'Code', 'Document', 'Note'];
     const rows = starred.map(s => [
       s.text,
       codesById.get(s.codeId)?.name || 'Unknown code',
-      project.docs.find(d => d.id === s.docId)?.name || 'Unknown source'
+      project.docs.find(d => d.id === s.docId)?.name || 'Unknown source',
+      s.note || ''
     ]);
     const filenameBase = `${project.name.replace(/[^\w\- ]/g, '_')}_starred_quotes`;
 
@@ -862,7 +869,8 @@ async function handleExportManuscriptSkeleton() {
             .filter(s => s.codeId === code.id && s.starred)
             .map(s => {
               const doc = project!.docs.find(d => d.id === s.docId);
-              return `"${s.text}" (${doc?.name || 'Unknown source'})`;
+              const attribution = [doc?.name || 'Unknown source', s.note].filter(Boolean).join(' — ');
+              return `"${s.text}" (${attribution})`;
             });
           quotesMatched += starredQuotes.length;
 
@@ -997,6 +1005,46 @@ function updateRelationNote(codeAId: ID, codeBId: ID, note: string) {
         (summary.segmentsSkipped ? ` (${summary.segmentsSkipped} selections skipped)` : '') +
         (summary.sourcesSkipped.length ? ` — ${summary.sourcesSkipped.length} non-text source(s) skipped (see console)` : '')
       );
+    } catch (e: any) {
+      showToast(e.message || String(e));
+    }
+  }
+
+function openDocxCommentImport() {
+    setDocxCommentModalOpen(true);
+  }
+
+  async function handleDocxCommentImport() {
+    if (!project) return;
+    const separator = docxSeparatorChoice === 'custom' ? docxCustomSeparator : docxSeparatorChoice;
+    if (!separator) {
+      showToast('Enter a custom separator first.');
+      return;
+    }
+    setDocxCommentModalOpen(false);
+
+    const payload = await window.qv.pickAndParseDocxComments();
+    if (!payload) return;
+
+    try {
+      const draft: Project = {
+        ...project,
+        folders: [...project.folders],
+        docs: [...project.docs],
+        codes: [...project.codes],
+        codedSegments: [...project.codedSegments]
+      };
+      const summary = importDocxComments(draft, payload, {
+      separator,
+      firstFieldIsSpeaker: docxFirstIsSpeaker,
+      lastFieldIsExcerptEcho: docxLastIsExcerpt
+    });
+    persist(draft);
+    showToast(
+      `Imported ${payload.fileName}: +${summary.codesCreated} codes, +${summary.segmentsCreated} coded passages` +
+      (summary.commentsSkipped ? `, ${summary.commentsSkipped} comments skipped` : '') +
+      (summary.excerptMismatches ? `, ${summary.excerptMismatches} excerpt mismatches (worth a spot-check)` : '')
+    );
     } catch (e: any) {
       showToast(e.message || String(e));
     }
@@ -1290,7 +1338,16 @@ function updateRelationNote(codeAId: ID, codeBId: ID, note: string) {
           </aside>
 
           {segmentPopup && (
-            <div className="segment-popup" style={{ left: segmentPopup.x, top: segmentPopup.y }}>
+            <>
+              <div
+                style={{ position: 'fixed', inset: 0, zIndex: 49 }}
+                onClick={() => setSegmentPopup(null)}
+              />
+              <div
+                className="segment-popup"
+                style={{ left: segmentPopup.x, top: segmentPopup.y, zIndex: 50 }}
+                onClick={e => e.stopPropagation()}
+              >
               <div className="segment-popup-title">Codes applied here</div>
               {segmentPopup.segments.map(snapshotSeg => {
                 const s = project.codedSegments.find(cs => cs.id === snapshotSeg.id) || snapshotSeg;
@@ -1337,7 +1394,8 @@ function updateRelationNote(codeAId: ID, codeBId: ID, note: string) {
                 );
               })}
               <button className="close-popup" onClick={() => setSegmentPopup(null)}>Close</button>
-            </div>
+              </div>
+            </>
           )}
         </div>
       )}
@@ -1349,6 +1407,7 @@ function updateRelationNote(codeAId: ID, codeBId: ID, note: string) {
               <button onClick={addRootCode}>+ Root Code</button>
               <button onClick={handleCsvImport}>➕ Import Dataset (CSV)</button>
               <button onClick={handleQdpxImport}>➕ Import REFI-QDA (.qdpx)</button>
+              <button onClick={openDocxCommentImport}>➕ Import Coded DOCX (Comments)</button>
               <button onClick={() => handleExportStarredQuotes('csv')}>⭐ Starred (CSV)</button>
               <button onClick={() => handleExportStarredQuotes('docx')}>⭐ Starred (DOCX)</button>
               <button onClick={handleExportManuscriptSkeleton}>📄 Manuscript Skeleton</button>
@@ -1402,6 +1461,28 @@ function updateRelationNote(codeAId: ID, codeBId: ID, note: string) {
             >
               <div className="excerpt-doc">{doc?.name || 'Unknown source'}</div>
                         <div className="excerpt-text">"{seg.text}"</div>
+                        {editingNoteFor === seg.id ? (
+                          <div style={{ marginBottom: 6 }}>
+                            <textarea
+                              className="modal-input"
+                              style={{ minHeight: 50, width: '100%' }}
+                              value={noteDraft}
+                              onChange={e => setNoteDraft(e.target.value)}
+                              autoFocus
+                            />
+                            <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                              <button className="mini-btn" onClick={() => { updateSegmentNote(seg.id, noteDraft); setEditingNoteFor(null); }}>Save</button>
+                              <button className="mini-btn" onClick={() => setEditingNoteFor(null)}>Cancel</button>
+                            </div>
+                          </div>
+                        ) : seg.note ? (
+                          <div style={{ fontSize: 12, fontStyle: 'italic', opacity: 0.85, marginBottom: 6, display: 'flex', justifyContent: 'space-between', gap: 6 }}>
+                            <span>📝 {seg.note}</span>
+                            <button className="mini-btn" onClick={() => { setEditingNoteFor(seg.id); setNoteDraft(seg.note || ''); }}>Edit</button>
+                          </div>
+                        ) : (
+                          <button className="mini-btn" style={{ marginBottom: 6 }} onClick={() => { setEditingNoteFor(seg.id); setNoteDraft(''); }}>+ Add note</button>
+                        )}
                         <div style={{ display: 'flex', gap: 6 }}>
                           <button className="mini-btn" onClick={() => toggleStarSegment(seg.id)}>
                             {seg.starred ? '⭐ Starred' : '☆ Star'}
@@ -1539,6 +1620,51 @@ function updateRelationNote(codeAId: ID, codeBId: ID, note: string) {
 
       {toast && <div className="toast">{toast}</div>}
       {promptModal}
+      {docxCommentModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-box">
+            <div className="modal-title">Import Coded Word Document</div>
+            <p style={{ color: 'var(--text-dim)', fontSize: 13, marginBottom: 10 }}>
+              Each Word comment's text will be split into a code path — e.g.
+              "Adaptation, Air Conditioning" becomes a subcode "Air
+              Conditioning" under a parent code "Adaptation."
+            </p>
+            <label style={{ display: 'block', fontSize: 12, color: 'var(--text-dim)', marginBottom: 4 }}>
+              Separator used in your comments
+            </label>
+            <select
+              className="modal-input"
+              value={docxSeparatorChoice}
+              onChange={e => setDocxSeparatorChoice(e.target.value as any)}
+            >
+              <option value=",">Comma ( , )</option>
+              <option value=";">Semicolon ( ; )</option>
+              <option value="|">Pipe ( | )</option>
+              <option value="custom">Custom…</option>
+            </select>
+            {docxSeparatorChoice === 'custom' && (
+              <input
+                className="modal-input"
+                placeholder="Enter your separator, e.g. / or -"
+                value={docxCustomSeparator}
+                onChange={e => setDocxCustomSeparator(e.target.value)}
+              />
+            )}
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, fontSize: 13 }}>
+              <input type="checkbox" checked={docxFirstIsSpeaker} onChange={e => setDocxFirstIsSpeaker(e.target.checked)} />
+              First field is a speaker/participant tag (e.g. "P9;...")
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 13 }}>
+              <input type="checkbox" checked={docxLastIsExcerpt} onChange={e => setDocxLastIsExcerpt(e.target.checked)} />
+              Last field is a copy of the excerpt (not a code)
+            </label>
+            <div className="modal-actions" style={{ marginTop: 12 }}>
+              <button onClick={() => setDocxCommentModalOpen(false)}>Cancel</button>
+              <button className="primary-btn" onClick={handleDocxCommentImport}>Choose file & Import</button>
+            </div>
+          </div>
+        </div>
+      )}
       {projectModalOpen && project && (
         <div className="modal-overlay">
           <div className="modal-box">

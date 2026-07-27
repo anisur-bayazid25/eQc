@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('qv', {
 
   // Documents
   pickAndExtractDocs: () => ipcRenderer.invoke('docs:pickAndExtract'),
+  pickAndParseDocxComments: () => ipcRenderer.invoke('docxComments:pickAndParse'),
   exportDocAsDocx: (payload) => ipcRenderer.invoke('docs:exportDocx', payload),
   exportText: (payload) => ipcRenderer.invoke('export:saveText', payload),
   exportDocxTable: (payload) => ipcRenderer.invoke('export:docx', payload),

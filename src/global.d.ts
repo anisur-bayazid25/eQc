@@ -51,6 +51,7 @@ export interface QvBridge {
   pickAndExtractDocs(): Promise<ExtractedDoc[]>;
   pickAndParseCsv(): Promise<CsvParseResult | null>;
   pickAndParseQdpx: () => Promise<QdpxParsePayload | null>;
+  pickAndParseDocxComments: () => Promise<{ fileName: string; documentXml: string; commentsXml: string } | null>;
 
   exportBackup(project: Project): Promise<string | null>;
   importBackup(): Promise<Project | null>;

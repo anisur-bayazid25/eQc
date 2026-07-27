@@ -378,6 +378,40 @@ ipcMain.handle('export:docx', async (_e, payload) => {
 });
 
 // ---------------------------------------------------------------------
+// IPC: coded-DOCX import (Word comments encode codes)
+// A .docx is a zip archive; comment ranges live in word/document.xml
+// (commentRangeStart/End markers) and comment text lives in
+// word/comments.xml. We hand both raw XML strings to the renderer, same
+// division of labor as .qdpx import — main process just unzips.
+// ---------------------------------------------------------------------
+ipcMain.handle('docxComments:pickAndParse', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    title: 'Import Coded Word Document (comments as codes)',
+    properties: ['openFile'],
+    filters: [{ name: 'Word document', extensions: ['docx'] }]
+  });
+  if (canceled || filePaths.length === 0) return null;
+
+  const buffer = fs.readFileSync(filePaths[0]);
+  const zip = await JSZip.loadAsync(buffer);
+
+  const documentEntry = zip.file('word/document.xml');
+  const commentsEntry = zip.file('word/comments.xml');
+  if (!documentEntry) {
+    throw new Error('This file does not look like a valid .docx (missing word/document.xml).');
+  }
+
+  const documentXml = await documentEntry.async('string');
+  const commentsXml = commentsEntry ? await commentsEntry.async('string') : '';
+
+  return {
+    fileName: path.basename(filePaths[0]),
+    documentXml,
+    commentsXml
+  };
+});
+
+// ---------------------------------------------------------------------
 // IPC: CSV codebook/dataset import
 // Parses a CSV using the flexible header-matching scheme from the
 // eQc user guide (Participant/Document/Source, Quote/Excerpt/Text,

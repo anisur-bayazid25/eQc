@@ -84,32 +84,18 @@ export function importCsvDataset(project: Project, csv: CsvParseResult): CsvImpo
     segmentsNotFound: 0
   };
 
-  if (!csv.columns.source || !csv.columns.quote) {
+  const hasSourceAndQuote = !!(csv.columns.source && csv.columns.quote);
+  const hasAnyCodeColumn = !!(csv.columns.parent || csv.columns.child1 || csv.columns.child2);
+
+  if (!hasSourceAndQuote && !hasAnyCodeColumn) {
     throw new Error(
-      'CSV is missing a required column. Include a Document/Participant/Source column and a Quote/Excerpt/Text column.'
+      'CSV needs either a Document/Source + Quote/Excerpt pair (to import coded excerpts), or at least a Parent/Child code column (to import a codebook only).'
     );
   }
 
   const codesBefore = project.codes.length;
 
   for (const row of csv.rows) {
-    const sourceName = row[csv.columns.source] || '';
-    const quote = row[csv.columns.quote] || '';
-    if (!sourceName.trim() || !quote.trim()) continue;
-
-    const { doc, created } = findOrCreateDoc(project, sourceName);
-    if (created) {
-      summary.docsCreated++;
-      // Seed the new doc's content with its quotes so the excerpt can be
-      // located and highlighted; further quotes are appended if new.
-      doc.content = quote;
-      doc.sizeBytes = doc.content.length;
-    } else if (!doc.content.includes(quote)) {
-      doc.content = doc.content ? `${doc.content}\n\n${quote}` : quote;
-      doc.sizeBytes = doc.content.length;
-      summary.docsAppended++;
-    }
-
     const parentName = csv.columns.parent ? row[csv.columns.parent] : '';
     const child1Name = csv.columns.child1 ? row[csv.columns.child1] : '';
     const child2Name = csv.columns.child2 ? row[csv.columns.child2] : '';
@@ -128,7 +114,9 @@ export function importCsvDataset(project: Project, csv: CsvParseResult): CsvImpo
       child2Code = findOrCreateCode(project, child2Name, child1Code ? child1Code.id : parentCode ? parentCode.id : null);
     }
 
-    // Apply summaries to the correct level of the hierarchy.
+    // Summaries now apply regardless of whether this row has a
+    // source/excerpt — a codebook-only CSV (codes + summary columns, no
+    // data columns at all) will still populate code memos correctly.
     for (const field of csv.summaryFields) {
       const text = row[field];
       if (!text || !text.trim() || !parentCode) continue;
@@ -136,7 +124,26 @@ export function importCsvDataset(project: Project, csv: CsvParseResult): CsvImpo
       if (target) appendSummary(target, text);
     }
 
-    // The most specific code (child2 > child1 > parent) receives the coding.
+    // Everything below only runs if the file actually has source/quote
+    // columns at all — a codebook-only import stops here, every row,
+    // which is exactly the intended behavior.
+    if (!hasSourceAndQuote) continue;
+
+    const sourceName = row[csv.columns.source!] || '';
+    const quote = row[csv.columns.quote!] || '';
+    if (!sourceName.trim() || !quote.trim()) continue;
+
+    const { doc, created } = findOrCreateDoc(project, sourceName);
+    if (created) {
+      summary.docsCreated++;
+      doc.content = quote;
+      doc.sizeBytes = doc.content.length;
+    } else if (!doc.content.includes(quote)) {
+      doc.content = doc.content ? `${doc.content}\n\n${quote}` : quote;
+      doc.sizeBytes = doc.content.length;
+      summary.docsAppended++;
+    }
+
     const targetCode = child2Code || child1Code || parentCode;
     if (!targetCode) continue;
 

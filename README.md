@@ -467,7 +467,7 @@ summary table.
 | Item        | Value                                                                     |
 | ----------- | ------------------------------------------------------------------------- |
 | Application | eQc – Easy Qual Coding                                                    |
-| Version     | 1.1.2 (2026)                                                              |
+| Version     | 3 (2026)                                                              |
 | Author      | Anisur Rahman Bayazid *(with help from borrowed intellect)*               |
 | Contact     | [anisur.rahman.bayazid@gmail.com](mailto:anisur.rahman.bayazid@gmail.com) |
 | License     | MIT                                                                       |
@@ -495,4 +495,4 @@ This project is released under the **MIT License**.
 # Version
 
 **eQc — Easy Qual Coding**
-Version **1.1.2 (2026)**
+Version **1.1.3 (2026)**

@@ -37,7 +37,7 @@ export interface CodedSegment {
   end: number;
   text: string;
   createdAt: number;
-  source: 'manual' | 'csv-import' | 'auto-code' | 'qdpx-import';
+  source: 'manual' | 'csv-import' | 'auto-code' | 'qdpx-import'| 'docx-comment-import';
   note?: string;          // segment-level memo (e.g. from REFI-QDA import)
   starred?: boolean;      // marked as a "key quote" for manuscript writing
 }

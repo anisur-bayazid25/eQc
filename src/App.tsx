@@ -201,6 +201,11 @@ useEffect(() => {
   const [segmentPopup, setSegmentPopup] = useState<{ segments: CodedSegment[]; x: number; y: number } | null>(null);
   const [editingDocId, setEditingDocId] = useState<ID | null>(null);
   const [draftContent, setDraftContent] = useState('');
+  const [gotoTarget, setGotoTarget] = useState<{ segId: ID; nonce: number } | null>(null);
+  const [docNameQuery, setDocNameQuery] = useState('');
+  const [contentSearchOpen, setContentSearchOpen] = useState(false);
+  const [contentSearchQuery, setContentSearchQuery] = useState('');
+  const [highlightTarget, setHighlightTarget] = useState<{ docId: ID; start: number; end: number; nonce: number } | null>(null);
 
   // Undo / redo history (per project, in-memory only)
   const [past, setPast] = useState<Project[]>([]);
@@ -217,6 +222,8 @@ useEffect(() => {
   const [docxCustomSeparator, setDocxCustomSeparator] = useState('');
   const [docxFirstIsSpeaker, setDocxFirstIsSpeaker] = useState(false);
   const [docxLastIsExcerpt, setDocxLastIsExcerpt] = useState(true);
+  const [sortOrder, setSortOrder] = useState<string>('name');
+  const [excerptSort, setExcerptSort] = useState('notes_first');
 
   // Auto-code state
   const [acKeyword, setAcKeyword] = useState('');
@@ -224,6 +231,12 @@ useEffect(() => {
   const [acLanguage, setAcLanguage] = useState('en');
   const [acTargetCodeId, setAcTargetCodeId] = useState<ID | ''>('');
   const [acResult, setAcResult] = useState<string | null>(null);
+
+  const [autoCodeQuery, setAutoCodeQuery] = useState('');
+  const [autoCodeBoundary, setAutoCodeBoundary] = useState<CaptureBoundary>('exact');
+  const [autoCodeLanguage, setAutoCodeLanguage] = useState(AUTO_CODE_LANGUAGES[0].code);
+  const [autoCodeTargetCodeId, setAutoCodeTargetCodeId] = useState<ID | ''>('');
+  const [autoCodeResultText, setAutoCodeResultText] = useState<string | null>(null);
 
   const { prompt, modal: promptModal } = useTextPrompt();
 
@@ -314,6 +327,13 @@ useEffect(() => {
     saveToDisk(next).catch(() => {});
   }
 
+  function goToExcerpt(seg: CodedSegment) {
+    setTab('workspace');
+    setSelectedDocId(seg.docId);
+    setPendingSelection(null);
+    setGotoTarget({ segId: seg.id, nonce: Date.now() });
+  }
+
   // Ctrl+Z to undo, Ctrl+Shift+Z or Ctrl+Y to redo (Cmd on macOS).
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -349,6 +369,36 @@ useEffect(() => {
     [project?.docs, selectedDocId]
   );
 
+const contentSearchResults = useMemo(() => {
+    if (!project || !contentSearchQuery.trim()) return [];
+    const q = contentSearchQuery.toLowerCase();
+    const results: Array<{ docId: ID; docName: string; start: number; end: number; snippet: string }> = [];
+    for (const doc of project.docs) {
+      const lower = doc.content.toLowerCase();
+      let idx = lower.indexOf(q);
+      while (idx !== -1 && results.length < 200) {
+        const start = idx;
+        const end = idx + contentSearchQuery.length;
+        const snippetStart = Math.max(0, start - 40);
+        const snippetEnd = Math.min(doc.content.length, end + 40);
+        const snippet =
+          (snippetStart > 0 ? '…' : '') +
+          doc.content.slice(snippetStart, snippetEnd).replace(/\s+/g, ' ') +
+          (snippetEnd < doc.content.length ? '…' : '');
+        results.push({ docId: doc.id, docName: doc.name, start, end, snippet });
+        idx = lower.indexOf(q, idx + Math.max(1, contentSearchQuery.length));
+      }
+    }
+    return results;
+  }, [project?.docs, contentSearchQuery]);
+
+  function goToTextMatch(result: { docId: ID; start: number; end: number }) {
+    setSelectedDocId(result.docId);
+    setPendingSelection(null);
+    setEditingDocId(null);
+    setHighlightTarget({ docId: result.docId, start: result.start, end: result.end, nonce: Date.now() });
+  }
+
   const codedCountForDoc = useCallback(
     (docId: ID) => project?.codedSegments.filter(s => s.docId === docId).length || 0,
     [project?.codedSegments]
@@ -357,12 +407,21 @@ useEffect(() => {
 useEffect(() => {
     setDocNotesDraft(selectedDoc?.notes || '');
     setShowDocNotes(false);
+    // Clear navigation targets when switching documents
+    setHighlightTarget(null);
+    setGotoTarget(null);
   }, [selectedDoc?.id]);
 
   useEffect(() => {
     setEditingNoteFor(null);
     setNoteDraft('');
   }, [segmentPopup]);
+
+  // Clear navigation targets when switching tabs
+  useEffect(() => {
+    setHighlightTarget(null);
+    setGotoTarget(null);
+  }, [tab]);
 
   // =================================================================
   // Project management
@@ -644,7 +703,14 @@ async function handleExportDocDocx(doc: SourceDoc) {
     if (!project) return;
     const name = await prompt('New root code', '', 'Create');
     if (!name) return;
-    const code: Code = { id: uid('code'), name, color: randomColor(project.codes.length), parentId: null, summary: '' };
+    const code: Code = { 
+      id: uid('code'), 
+      name, 
+      color: randomColor(project.codes.length), 
+      parentId: null, 
+      summary: '',
+      createdAt: Date.now()
+    };
     persist({ ...project, codes: [...project.codes, code] });
   }
 
@@ -652,7 +718,14 @@ async function handleExportDocDocx(doc: SourceDoc) {
     if (!project) return;
     const name = await prompt('New subcode', '', 'Create');
     if (!name) return;
-    const code: Code = { id: uid('code'), name, color: randomColor(project.codes.length), parentId, summary: '' };
+    const code: Code = { 
+      id: uid('code'), 
+      name, 
+      color: randomColor(project.codes.length), 
+      parentId, 
+      summary: '',
+      createdAt: Date.now()
+    };
     persist({ ...project, codes: [...project.codes, code] });
   }
 
@@ -947,6 +1020,42 @@ function updateRelationNote(codeAId: ID, codeBId: ID, note: string) {
     persist({ ...project, relationNotes: next });
   }
 
+function handleRunAutoCode() {
+    if (!project || !autoCodeTargetCodeId || !autoCodeQuery.trim()) return;
+
+    const newSegments: CodedSegment[] = [];
+    for (const doc of project.docs) {
+      const matches = runAutoCode(doc.content, autoCodeQuery, autoCodeBoundary, autoCodeLanguage);
+      for (const m of matches) {
+        const dup =
+          project.codedSegments.some(s => s.docId === doc.id && s.codeId === autoCodeTargetCodeId && s.start === m.start && s.end === m.end) ||
+          newSegments.some(s => s.docId === doc.id && s.codeId === autoCodeTargetCodeId && s.start === m.start && s.end === m.end);
+        if (dup) continue;
+
+        newSegments.push({
+          id: uid('seg'),
+          docId: doc.id,
+          codeId: autoCodeTargetCodeId,
+          start: m.start,
+          end: m.end,
+          text: m.text,
+          createdAt: Date.now(),
+          source: 'auto-code'
+        });
+      }
+    }
+
+    if (newSegments.length === 0) {
+      setAutoCodeResultText('No new matches found (or every match was already coded).');
+      return;
+    }
+
+    persist({ ...project, codedSegments: [...project.codedSegments, ...newSegments] });
+    setAutoCodeResultText(
+      `Applied "${codesById.get(autoCodeTargetCodeId)?.name}" to ${newSegments.length} new passage(s) across ${project.docs.length} document(s).`
+    );
+  }
+
   const docSegments = useMemo(
     () => (selectedDoc ? project?.codedSegments.filter(s => s.docId === selectedDoc.id) || [] : []),
     [project?.codedSegments, selectedDoc]
@@ -1115,20 +1224,61 @@ function openDocxCommentImport() {
 
   return (
     <div className="app-shell">
-      <header className="app-header">
+      <header className="app-header" style={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        width: '100%', 
+        alignItems: 'stretch' /* Forces the rows to span the entire screen width */
+      }}>
         
-        {/* Brand Logo & Name */}
-        <div className="brand" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <img 
-            src="./eqc-logo.png" 
-            alt="EQC Logo" 
-            style={{ width: '30px', height: '30px', objectFit: 'contain' }} 
-          />
-          <span>eQc</span>
+        {/* FIRST LINE: Brand & Main Navigation Tabs */}
+        <div className="header-top-row" style={{ 
+          display: 'flex', 
+          width: '100%',                /* Ensure row is full width */
+          alignItems: 'center',       
+          justifyContent: 'flex-start', /* Push contents to the left edge */
+          gap: '24px', 
+          padding: '8px 16px', 
+          borderBottom: '1px solid #ddd',
+          boxSizing: 'border-box'       /* Prevents padding from breaking 100% width */
+        }}>
+          
+          {/* Brand Logo & Name */}
+          <div className="brand" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <img 
+              src="./eqc-logo.png" 
+              alt="EQC Logo" 
+              style={{ width: '30px', height: '30px', objectFit: 'contain' }} 
+            />
+            <span style={{ fontWeight: 'bold' }}>eQc</span>
+          </div>
+
+          {/* Navigation Tabs */}
+          <nav className="tabs" style={{ display: 'flex', gap: '5px' }}>
+            {(['workspace', 'codebook', 'autocode', 'analysis', 'about'] as Tab[]).map(t => (
+              <button key={t} className={`tab-btn ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
+                {t === 'workspace' && 'Workspace'}
+                {t === 'codebook' && 'Codebook'}
+                {t === 'autocode' && 'Auto-Code'}
+                {t === 'analysis' && 'Analysis'}
+                {t === 'about' && 'About'}
+              </button>
+            ))}
+          </nav>
         </div>
-        
-        {/* Project Controls & Action Buttons */}
-        <div className="project-controls">
+
+        {/* SECOND LINE: Project Controls & Action Buttons */}
+        <div className="header-bottom-row" style={{ 
+          display: 'flex', 
+          width: '100%',                /* Ensure row is full width */
+          alignItems: 'center',       
+          justifyContent: 'flex-start', /* Push contents to the left edge */
+          flexWrap: 'wrap',           
+          padding: '8px 16px', 
+          gap: '8px',
+          boxSizing: 'border-box'       /* Prevents padding from breaking 100% width */
+        }}>
+          
           <select value={project.id} onChange={e => handleSwitchProject(e.target.value)}>
             {projects.map(p => (
               <option key={p.id} value={p.id}>{p.name}</option>
@@ -1141,7 +1291,7 @@ function openDocxCommentImport() {
           <button className="icon-btn" title="Import backup (.json)" onClick={handleImportBackup}>⬆️ Import</button>
           <button className="icon-btn" title="Merge project(s) into current" onClick={handleMerge}>🔀 Merge</button>
           
-          <span className="header-divider" />
+          <span className="header-divider" style={{ margin: '0 8px', borderLeft: '1px solid #ccc', height: '20px' }} />
           
           <button className="icon-btn" title="Undo (Ctrl+Z)" disabled={past.length === 0} onClick={undo}>↶ Undo</button>
           <button className="icon-btn" title="Redo (Ctrl+Shift+Z)" disabled={future.length === 0} onClick={redo}>↷ Redo</button>
@@ -1149,29 +1299,16 @@ function openDocxCommentImport() {
             {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
           </button>
           
-          <span className="header-divider" />
+          <span className="header-divider" style={{ margin: '0 8px', borderLeft: '1px solid #ccc', height: '20px' }} />
           
           <button className="icon-btn" title="Save now" onClick={manualSave}>💾 Save</button>
-          <span className={`save-status save-status-${saveStatus}`}>
+          <span className={`save-status save-status-${saveStatus}`} style={{ marginLeft: '8px', fontSize: '0.9em', color: '#666' }}>
             {saveStatus === 'saving' && 'Saving…'}
             {saveStatus === 'saved' && '✓ Saved'}
             {saveStatus === 'error' && '⚠ Save failed'}
             {saveStatus === 'idle' && ''}
           </span>
         </div>
-
-        {/* Main Navigation Tabs */}
-        <nav className="tabs">
-          {(['workspace', 'codebook', 'autocode', 'analysis', 'about'] as Tab[]).map(t => (
-            <button key={t} className={`tab-btn ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
-              {t === 'workspace' && 'Workspace'}
-              {t === 'codebook' && 'Codebook'}
-              {t === 'autocode' && 'Auto-Code'}
-              {t === 'analysis' && 'Analysis'}
-              {t === 'about' && 'About'}
-            </button>
-          ))}
-        </nav>
         
       </header>
 
@@ -1179,10 +1316,42 @@ function openDocxCommentImport() {
         <div className="workspace-grid">
           <aside className="panel left-panel">
             <div className="panel-toolbar">
-              <button onClick={addRootFolder}>+ Root Folder</button>
+              <button onClick={addRootFolder}>+ Add Root Folder</button>
               <button onClick={() => addDocs(null)}>+ Doc</button>
               <button onClick={() => addScannedPdf(null)}>+ Scanned PDF (OCR)</button>
+              <button onClick={() => setContentSearchOpen(v => !v)}>🔍 Search Text</button>
             </div>
+
+            {contentSearchOpen && (
+              <div className="code-search" style={{ marginBottom: 10 }}>
+                <input
+                  className="code-search-input"
+                  type="text"
+                  placeholder="Search inside all documents…"
+                  value={contentSearchQuery}
+                  onChange={e => setContentSearchQuery(e.target.value)}
+                  autoFocus
+                />
+                {contentSearchQuery.trim() && (
+                  <div className="code-search-results">
+                    {contentSearchResults.map((r, i) => (
+                      <div key={i} className="code-search-row" onClick={() => goToTextMatch(r)}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <span className="code-search-path">{r.docName}</span>
+                          <span className="code-search-name" style={{ whiteSpace: 'normal' }}>{r.snippet}</span>
+                        </div>
+                      </div>
+                    ))}
+                    {contentSearchResults.length === 0 && (
+                      <div className="empty-hint" style={{ padding: 8 }}>No matches.</div>
+                    )}
+                    {contentSearchResults.length === 200 && (
+                      <div className="section-hint" style={{ padding: 8 }}>Showing first 200 matches — refine your search for more.</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="sort-row">
               <label>Sort by</label>
               <select value={sortBy} onChange={e => setSortBy(e.target.value as SortKey)}>
@@ -1192,7 +1361,35 @@ function openDocxCommentImport() {
                 <option value="coded">Amount coded</option>
               </select>
             </div>
-            <DocTree
+             <div className="code-search">
+              <input
+                className="code-search-input"
+                type="text"
+                placeholder="Search document names…"
+                value={docNameQuery}
+                onChange={e => setDocNameQuery(e.target.value)}
+              />
+              {docNameQuery.trim() && (
+                <div className="code-search-results">
+                  {project.docs
+                    .filter(d => d.name.toLowerCase().includes(docNameQuery.trim().toLowerCase()))
+                    .map(d => (
+                      <div
+                        key={d.id}
+                        className={`code-search-row ${selectedDocId === d.id ? 'selected' : ''}`}
+                        onClick={() => { setSelectedDocId(d.id); setPendingSelection(null); setEditingDocId(null); }}
+                      >
+                        <span className="code-search-name">{d.name}</span>
+                      </div>
+                    ))}
+                  {project.docs.filter(d => d.name.toLowerCase().includes(docNameQuery.trim().toLowerCase())).length === 0 && (
+                    <div className="empty-hint" style={{ padding: 8 }}>No matching documents.</div>
+                  )}
+                </div>
+              )}
+            </div>
+            {!docNameQuery.trim() && (
+              <DocTree
               folders={project.folders}
               docs={project.docs}
               selectedDocId={selectedDocId}
@@ -1208,113 +1405,119 @@ function openDocxCommentImport() {
               onDeleteDoc={deleteDoc}
               onMoveDoc={moveDoc}
             />
-          </aside>
+            )}</aside>
 
           <main className="panel center-panel" style={THEME_STYLES[readerTheme]}>
             {selectedDoc ? (
               <>
-              {/* Reading Theme Switcher Buttons */}
-  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
-    <span style={{ fontSize: '12px', opacity: 0.7 }}>Theme:</span>
-    <button
-
-            className="mini-btn"
-      onClick={() => setReaderTheme('paperwhite')}
-      style={{
-        fontWeight: readerTheme === 'paperwhite' ? 'bold' : 'normal',
-        border: readerTheme === 'paperwhite' ? '2px solid #3b82f6' : '1px solid #d6c7b2'
-      }}
-    >
-      📜 Paperwhite
-    </button>
-    <button
-      className="mini-btn"
-      onClick={() => setReaderTheme('white')}
-      style={{
-        fontWeight: readerTheme === 'white' ? 'bold' : 'normal',
-        border: readerTheme === 'white' ? '2px solid #3b82f6' : '1px solid #cbd5e1'
-      }}
-    >
-      ☀️ White
-    </button>
-    <button
-      className="mini-btn"
-      onClick={() => setReaderTheme('dark')}
-      style={{
-        fontWeight: readerTheme === 'dark' ? 'bold' : 'normal',
-        border: readerTheme === 'dark' ? '2px solid #3b82f6' : '1px solid #475569'
-      }}
-    >
-      🌙 Dark
-    </button>
-  </div>
+                {/* Reading Theme Switcher Buttons */}
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
+                  <span style={{ fontSize: '12px', opacity: 0.7 }}>Theme:</span>
+                  <button
+                    className="mini-btn"
+                    onClick={() => setReaderTheme('paperwhite')}
+                    style={{
+                      fontWeight: readerTheme === 'paperwhite' ? 'bold' : 'normal',
+                      border: readerTheme === 'paperwhite' ? '2px solid #3b82f6' : '1px solid #475569'
+                    }}
+                  >
+                    📄 Paperwhite
+                  </button>
+                  <button
+                    className="mini-btn"
+                    onClick={() => setReaderTheme('white')}
+                    style={{
+                      fontWeight: readerTheme === 'white' ? 'bold' : 'normal',
+                      border: readerTheme === 'white' ? '2px solid #3b82f6' : '1px solid #475569'
+                    }}
+                  >
+                    ⚪ White
+                  </button>
+                  <button
+                    className="mini-btn"
+                    onClick={() => setReaderTheme('dark')}
+                    style={{
+                      fontWeight: readerTheme === 'dark' ? 'bold' : 'normal',
+                      border: readerTheme === 'dark' ? '2px solid #3b82f6' : '1px solid #475569'
+                    }}
+                  >
+                    🌙 Dark
+                  </button>
+                </div>
                 <div className="doc-title-row">
                   <h3>{selectedDoc.name}</h3>
                   {showDocNotes && (
-                  <div className="doc-notes-panel">
-                    <label>Document memo — whole-case notes, interpretation, context</label>
-                    <textarea
-                      value={docNotesDraft}
-                      onChange={e => setDocNotesDraft(e.target.value)}
-                      onBlur={() => updateDocNotes(selectedDoc.id, docNotesDraft)}
-                      placeholder="e.g. this interview took place after the flood; participant was guarded until minute 20…"
+                    <div className="doc-notes-panel">
+                      <label>Document memo — whole-case notes, interpretation, context</label>
+                      <textarea
+                        value={docNotesDraft}
+                        onChange={e => setDocNotesDraft(e.target.value)}
+                        onBlur={() => updateDocNotes(selectedDoc.id, docNotesDraft)}
+                        placeholder="e.g. this interview took place after the flood; participant was guarded until minute 20…"
+                      />
+                    </div>
+                  )}
+                </div>
+                {!editingDocId && (
+                  <div 
+                    style={{ flex: 1, overflowY: 'auto', padding: '16px', boxSizing: 'border-box' }}
+                    onClick={() => { setHighlightTarget(null); setGotoTarget(null); }}
+                  >
+                    <DocEditor
+                      doc={selectedDoc}
+                      segments={project.codedSegments.filter(s => s.docId === selectedDoc.id)}
+                      codesById={codesById}
+                      onSelectionChange={sel => {
+                        setPendingSelection(sel);
+                        // Clear navigation targets when user makes a new selection
+                        if (sel) {
+                          setHighlightTarget(null);
+                          setGotoTarget(null);
+                        }
+                      }}
+                      onClickSegment={(segments, x, y) => setSegmentPopup({ segments, x, y })}
+                      scrollToSegmentId={gotoTarget?.segId}
+                      scrollNonce={gotoTarget?.nonce}
+                      highlightRange={highlightTarget?.docId === selectedDoc.id ? { start: highlightTarget.start, end: highlightTarget.end } : null}
+                      highlightNonce={highlightTarget?.nonce}
                     />
                   </div>
                 )}
-                  {editingDocId === selectedDoc.id ? (
-                    <span className="doc-title-actions">
-                      <button className="primary-btn" onClick={saveEditDoc}>💾 Save</button>
-                      <button onClick={cancelEditDoc}>Cancel</button>
-                    </span>
-                  ) : (
-                    <span className="doc-title-actions">
-                      {pendingSelection && (
-                        <span className="selection-hint">
-                          Selected {pendingSelection.text.length} chars — click a code in the legend to apply it
-                        </span>
-                      )}
-                      <button onClick={() => startEditDoc(selectedDoc)}>✏️ Edit text</button>
-                      <button onClick={() => setShowDocNotes(v => !v)}>
-                        📝 Notes{selectedDoc.notes ? ' ●' : ''}
-                      </button>
-                      <button onClick={() => handleExportDocDocx(selectedDoc)}>📤 Export as Word (.docx)</button>
-                    </span>
-                  )}
-                </div>
-                {editingDocId === selectedDoc.id ? (
-                  <>
-                    {docSegments.length > 0 && (
-                      <div className="edit-warning">
-                        This document has {docSegments.length} coded passage(s). Passages whose exact
-                        text is preserved will stay coded; anything you change or delete will lose its code.
-                      </div>
-                    )}
+                {editingDocId === selectedDoc.id && (
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '16px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <textarea
-                      className="doc-edit-textarea"
-                      style={THEME_STYLES[readerTheme]}
                       value={draftContent}
                       onChange={e => setDraftContent(e.target.value)}
-                      spellCheck={false}
+                      style={{ flex: 1, padding: '8px', fontSize: '14px', fontFamily: 'monospace', resize: 'none', boxSizing: 'border-box' }}
+                      placeholder="Edit document text here…"
                     />
-                  </>
-                ) : (
-                  <DocEditor
-                    doc={selectedDoc}
-                    segments={docSegments}
-                    codesById={codesById}
-                    onSelectionChange={setPendingSelection}
-                    onClickSegment={(segs, x, y) => setSegmentPopup({ segments: segs, x, y })}
-                  />
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                      <button className="mini-btn" onClick={saveEditDoc}>Save</button>
+                      <button className="mini-btn" onClick={cancelEditDoc}>Cancel</button>
+                    </div>
+                  </div>
                 )}
+                <div className="doc-title-actions">
+                  {pendingSelection && (
+                    <span className="selection-hint">
+                      Selected {pendingSelection.text.length} chars — click a code in the legend to apply it
+                    </span>
+                  )}
+                  <button onClick={() => startEditDoc(selectedDoc)}>✏️ Edit text</button>
+                  <button onClick={() => setShowDocNotes(v => !v)}>
+                    📝 Notes{selectedDoc.notes ? ' ●' : ''}
+                  </button>
+                  <button onClick={() => handleExportDocDocx(selectedDoc)}>📤 Export as Word (.docx)</button>
+                </div>
               </>
             ) : (
-              <div className="empty-hint center">Select a document to start coding.</div>
+              <div>No document selected</div>
             )}
           </main>
 
           <aside className="panel right-panel">
             <div className="panel-toolbar">
-              <button onClick={addRootCode}>+ Root Code</button>
+              <button onClick={addRootCode}>+ Add Root Code</button>
             </div>
             <CodeSearch
               codes={project.codes}
@@ -1332,7 +1535,6 @@ function openDocxCommentImport() {
                 onAddSubcode={addSubcode}
                 onDeleteCode={deleteCode}
                 onMoveCode={moveCode}
-                applyHint={!!pendingSelection}
               />
             )}
           </aside>
@@ -1377,14 +1579,14 @@ function openDocxCommentImport() {
                       </div>
                     </>
                   ) : s.note ? (
-                    <div style={{ fontSize: 12, color: 'var(--text-dim)', fontStyle: 'italic', marginTop: 2, display: 'flex', justifyContent: 'space-between', gap: 6 }}>
+                    <div style={{ fontSize: 12, fontStyle: 'italic', opacity: 0.85, marginBottom: 6, display: 'flex', justifyContent: 'space-between', gap: 6, backgroundColor: 'rgba(0,0,0,0.05)', padding: '6px', borderRadius: '4px' }}>
                       <span>📝 {s.note}</span>
                       <button className="mini-btn" onClick={() => { setEditingNoteFor(s.id); setNoteDraft(s.note || ''); }}>Edit</button>
                     </div>
                   ) : (
                     <button
                       className="mini-btn"
-                      style={{ alignSelf: 'flex-start', marginTop: 2 }}
+                      style={{ marginBottom: 6 }}
                       onClick={() => { setEditingNoteFor(s.id); setNoteDraft(''); }}
                     >
                       + Add note
@@ -1400,141 +1602,370 @@ function openDocxCommentImport() {
         </div>
       )}
 
-      {tab === 'codebook' && (
-        <div className="codebook-grid">
-          <aside className="panel left-panel">
-            <div className="panel-toolbar">
-              <button onClick={addRootCode}>+ Root Code</button>
-              <button onClick={handleCsvImport}>➕ Import Dataset (CSV)</button>
-              <button onClick={handleQdpxImport}>➕ Import REFI-QDA (.qdpx)</button>
-              <button onClick={openDocxCommentImport}>➕ Import Coded DOCX (Comments)</button>
-              <button onClick={() => handleExportStarredQuotes('csv')}>⭐ Starred (CSV)</button>
-              <button onClick={() => handleExportStarredQuotes('docx')}>⭐ Starred (DOCX)</button>
-              <button onClick={handleExportManuscriptSkeleton}>📄 Manuscript Skeleton</button>
+      {tab === 'codebook' && (() => {
+  // Compute sorted codes based on active sort criterion
+  const sortedCodes = [...project.codes].sort((a, b) => {
+    if (sortBy === 'name') {
+      return a.name.localeCompare(b.name);
+    }
+    if (sortBy === 'coded') {
+      const counts: Record<string, number> = {};
+      (project.codedSegments || []).forEach(s => {
+        counts[s.codeId] = (counts[s.codeId] || 0) + 1;
+      });
+      return (counts[b.id] || 0) - (counts[a.id] || 0);
+    }
+    if (sortBy === 'date') {
+      return (b.createdAt || 0) - (a.createdAt || 0);
+    }
+    return 0;
+  });
 
-              <div className="panel-toolbar">
-  <select value={exportScope} onChange={e => setExportScope(e.target.value as ExportScope)}>
-    {Object.entries(SCOPE_LABELS).map(([key, label]) => (
-      <option key={key} value={key}>{label}</option>
-    ))}
-  </select>
-  <button onClick={handleExportCsv}>⬇️ CSV</button>
-  <button onClick={handleExportDocx}>⬇️ DOCX</button>
-</div>
+  return (
+    <div className="codebook-grid">
+      
+      {/* 1. LEFT PANEL: Import, Code Details, & Export Options */}
+      <aside className="panel left-panel" style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
+        
+        {/* IMPORT OPTIONS */}
+        <div className="sidebar-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', color: '#64748b', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px', marginBottom: '4px' }}>
+            Import Options
+          </div>
+          <div style={{ display: 'flex', gap: '4px' }}>
+            <button className="mini-btn" style={{ flex: 1, padding: '4px 2px', fontSize: '10px' }} onClick={handleCsvImport}>➕ CSV</button>
+            <button className="mini-btn" style={{ flex: 1, padding: '4px 2px', fontSize: '10px' }} onClick={handleQdpxImport}>➕ REFI-QDA</button>
+            <button className="mini-btn" style={{ flex: 1, padding: '4px 2px', fontSize: '10px' }} onClick={openDocxCommentImport}>➕ DOCX</button>
+          </div>
+        </div>
+
+        {/* MOVED CODE DETAILS (Only visible when a code is selected) */}
+        {codebookCode && (
+          <div className="sidebar-group" style={{ borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', padding: '12px 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', color: '#64748b', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
+              Code Details
             </div>
-            <CodeSearch
-              codes={project.codes}
-              query={codebookCodeSearch}
-              onQueryChange={setCodebookCodeSearch}
-              onSelectCode={code => setCodebookSelectedCodeId(code.id)}
-              placeholder="Search codes…"
-            />
-            {!codebookCodeSearch.trim() && (
-              <CodeTree
-                codes={project.codes}
-                selectedCodeId={codebookSelectedCodeId}
-                onSelectCode={code => setCodebookSelectedCodeId(code.id)}
-                onAddSubcode={addSubcode}
-                onDeleteCode={deleteCode}
-                onMoveCode={moveCode}
+            
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Code Name</label>
+              <input
+                style={{ width: '100%', padding: '6px', fontSize: '12px', boxSizing: 'border-box' }}
+                value={codebookCode.name}
+                onChange={e => updateCode(codebookCode.id, { name: e.target.value })}
               />
-            )}
-          </aside>
+            </div>
 
-          <main className="panel center-panel" style={THEME_STYLES[readerTheme]}>
-  <h3>Excerpts</h3>
-  {codebookCode ? (
-    codebookExcerpts.length > 0 ? (
-      <div className="excerpt-list">
-        {codebookExcerpts.map(seg => {
-          const doc = project.docs.find(d => d.id === seg.docId);
-          return (
-            <div 
-              key={seg.id} 
-              className="excerpt-card"
-              style={{
-                // 'dark' gets slate, 'white' gets pure white, 'paperwhite' gets warm yellow
-                backgroundColor: readerTheme === 'dark' ? '#1e293b' : (readerTheme === 'white' ? '#ffffff' : '#fef3c7'),
-                color: readerTheme === 'dark' ? '#f8fafc' : '#0f172a',
-                border: readerTheme === 'dark' ? '1px solid #334155' : (readerTheme === 'white' ? '1px solid #e2e8f0' : '1px solid #fde68a')
-              }}
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Color</label>
+              <div className="color-picker" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                {['#f87171', '#fb923c', '#fbbf24', '#a3e635', '#4ade80', '#34d399', '#2dd4bf', '#22d3ee', '#38bdf8', '#60a5fa', '#818cf8', '#a78bfa', '#c084fc', '#e879f9', '#f472b6'].map(c => (
+                  <button
+                    key={c}
+                    className={`swatch-btn ${codebookCode.color === c ? 'active' : ''}`}
+                    style={{ 
+                      background: c, 
+                      width: '16px', height: '16px', 
+                      border: codebookCode.color === c ? '2px solid #000' : '1px solid transparent',
+                      borderRadius: '3px', cursor: 'pointer', padding: 0
+                    }}
+                    onClick={() => updateCode(codebookCode.id, { color: c })}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>Summary / memo</label>
+                <button className="mini-btn" style={{ fontSize: '10px', padding: '2px 4px', color: '#eab308' }} onClick={() => pullChildSummaries(codebookCode.id)}>⚡ Pull Child Summaries</button>
+              </div>
+              <textarea
+                style={{ width: '100%', padding: '6px', minHeight: '80px', boxSizing: 'border-box', fontSize: '12px', resize: 'vertical' }}
+                value={codebookCode.summary}
+                onChange={e => updateCode(codebookCode.id, { summary: e.target.value })}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* EXPORT OPTIONS */}
+        <div className="sidebar-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', color: '#64748b', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
+            Export Options
+          </div>
+          
+          <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleExportManuscriptSkeleton}>
+            📄 Manuscript Skeleton
+          </button>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
+            <select 
+              value={exportScope} 
+              onChange={e => setExportScope(e.target.value as any)}
+              style={{ width: '100%', padding: '6px', fontSize: '11px' }}
             >
-              <div className="excerpt-doc">{doc?.name || 'Unknown source'}</div>
-                        <div className="excerpt-text">"{seg.text}"</div>
-                        {editingNoteFor === seg.id ? (
-                          <div style={{ marginBottom: 6 }}>
-                            <textarea
-                              className="modal-input"
-                              style={{ minHeight: 50, width: '100%' }}
-                              value={noteDraft}
-                              onChange={e => setNoteDraft(e.target.value)}
-                              autoFocus
-                            />
-                            <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                              <button className="mini-btn" onClick={() => { updateSegmentNote(seg.id, noteDraft); setEditingNoteFor(null); }}>Save</button>
-                              <button className="mini-btn" onClick={() => setEditingNoteFor(null)}>Cancel</button>
-                            </div>
+              {Object.entries(SCOPE_LABELS).map(([key, label]) => (
+                <option key={key} value={key}>{label as string}</option>
+              ))}
+              {/* Force Starred Excerpts into the dropdown toggle */}
+              <option value="starred">Starred Excerpts</option>
+            </select>
+            
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <button 
+                className="mini-btn" 
+                style={{ flex: 1, padding: '6px 4px' }} 
+                onClick={() => (exportScope as ExportScope | 'starred') === 'starred' ? handleExportStarredQuotes('csv') : handleExportCsv()}
+              >
+                ⬇️ CSV
+              </button>
+              <button 
+                className="mini-btn" 
+                style={{ flex: 1, padding: '6px 4px' }} 
+                onClick={() => (exportScope as ExportScope | 'starred') === 'starred' ? handleExportStarredQuotes('docx') : handleExportDocx()}
+              >
+                ⬇️ DOCX
+              </button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* 2. CENTER PANEL: Excerpts Only */}
+      <main className="panel center-panel" style={THEME_STYLES[readerTheme]}>
+        {codebookCode ? (
+          <div style={{ padding: '16px', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
+            
+            {/* Header with Sort Dropdown */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #cbd5e1', paddingBottom: '8px', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0 }}>Excerpts</h3>
+              <select 
+                value={excerptSort} 
+                onChange={(e) => setExcerptSort(e.target.value)}
+                style={{ padding: '4px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1', backgroundColor: 'var(--bg-panel)' }}
+              >
+                <option value="default">Default Order</option>
+                <option value="notes_first">Notes First</option>
+                <option value="starred_first">Starred First</option>
+              </select>
+            </div>
+
+            {codebookExcerpts.length > 0 ? (
+              <div className="excerpt-list">
+                {[...codebookExcerpts].sort((a, b) => {
+                  // Sort Logic based on dropdown
+                  if (excerptSort === 'notes_first') {
+                    const aHasNote = a.note && a.note.trim().length > 0;
+                    const bHasNote = b.note && b.note.trim().length > 0;
+                    if (aHasNote && !bHasNote) return -1;
+                    if (!aHasNote && bHasNote) return 1;
+                  } else if (excerptSort === 'starred_first') {
+                    if (a.starred && !b.starred) return -1;
+                    if (!a.starred && b.starred) return 1;
+                  }
+                  return 0; // Default fallback
+                }).map(seg => {
+                  const doc = project.docs.find(d => d.id === seg.docId);
+                  return (
+                    <div 
+                      key={seg.id} 
+                      className="excerpt-card"
+                      style={{
+                        backgroundColor: readerTheme === 'dark' ? '#1e293b' : (readerTheme === 'white' ? '#ffffff' : '#fef3c7'),
+                        color: readerTheme === 'dark' ? '#f8fafc' : '#0f172a',
+                        border: readerTheme === 'dark' ? '1px solid #334155' : (readerTheme === 'white' ? '1px solid #e2e8f0' : '1px solid #fde68a'),
+                        padding: '12px',
+                        marginBottom: '12px',
+                        borderRadius: '6px'
+                      }}
+                    >
+                      <div className="excerpt-doc" style={{ fontSize: '11px', color: '#64748b', marginBottom: '6px', fontWeight: 'bold' }}>
+                        {doc?.name || 'Unknown source'}
+                      </div>
+                      <div className="excerpt-text" style={{ marginBottom: '8px', lineHeight: '1.5' }}>"{seg.text}"</div>
+                      
+                      {editingNoteFor === seg.id ? (
+                        <div style={{ marginBottom: 6 }}>
+                          <textarea
+                            className="modal-input"
+                            style={{ minHeight: 50, width: '100%', padding: '6px', boxSizing: 'border-box' }}
+                            value={noteDraft}
+                            onChange={e => setNoteDraft(e.target.value)}
+                            autoFocus
+                          />
+                          <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', marginTop: '4px' }}>
+                            <button className="mini-btn" onClick={() => { updateSegmentNote(seg.id, noteDraft); setEditingNoteFor(null); }}>Save</button>
+                            <button className="mini-btn" onClick={() => setEditingNoteFor(null)}>Cancel</button>
                           </div>
-                        ) : seg.note ? (
-                          <div style={{ fontSize: 12, fontStyle: 'italic', opacity: 0.85, marginBottom: 6, display: 'flex', justifyContent: 'space-between', gap: 6 }}>
-                            <span>📝 {seg.note}</span>
-                            <button className="mini-btn" onClick={() => { setEditingNoteFor(seg.id); setNoteDraft(seg.note || ''); }}>Edit</button>
-                          </div>
-                        ) : (
-                          <button className="mini-btn" style={{ marginBottom: 6 }} onClick={() => { setEditingNoteFor(seg.id); setNoteDraft(''); }}>+ Add note</button>
-                        )}
-                        <div style={{ display: 'flex', gap: 6 }}>
+                        </div>
+                      ) : seg.note ? (
+                        <div style={{ fontSize: 12, fontStyle: 'italic', opacity: 0.85, marginBottom: 8, display: 'flex', justifyContent: 'space-between', gap: 6, backgroundColor: 'rgba(0,0,0,0.05)', padding: '6px', borderRadius: '4px' }}>
+                          <span>📝 {seg.note}</span>
+                          <button className="mini-btn" onClick={() => { setEditingNoteFor(seg.id); setNoteDraft(seg.note || ''); }}>Edit</button>
+                        </div>
+                      ) : (
+                        <button className="mini-btn" style={{ marginBottom: 8, fontSize: '10px' }} onClick={() => { setEditingNoteFor(seg.id); setNoteDraft(''); }}>
+                          + Add note
+                        </button>
+                      )}
+                      
+                      <div style={{ display: 'flex', gap: 6 }}>
+                          <button className="mini-btn" onClick={() => goToExcerpt(seg)}>📍 Go to Document</button>
                           <button className="mini-btn" onClick={() => toggleStarSegment(seg.id)}>
                             {seg.starred ? '⭐ Starred' : '☆ Star'}
                           </button>
                           <button className="mini-btn" onClick={() => removeCodedSegment(seg.id)}>Remove</button>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="empty-hint">No excerpts coded to this code yet.</div>
-              )
-            ) : (
-              <div className="empty-hint">Select a code on the left to review its excerpts.</div>
-            )}
-          </main>
-
-          <aside className="panel right-panel">
-            <h3>Code details</h3>
-            {codebookCode ? (
-              <div className="code-detail">
-                <label>Name</label>
-                <input
-                  value={codebookCode.name}
-                  onChange={e => updateCode(codebookCode.id, { name: e.target.value })}
-                />
-                <label>Color</label>
-                <div className="color-picker">
-                  {['#f87171', '#fb923c', '#fbbf24', '#a3e635', '#4ade80', '#34d399', '#2dd4bf', '#22d3ee', '#38bdf8', '#60a5fa', '#818cf8', '#a78bfa', '#c084fc', '#e879f9', '#f472b6'].map(c => (
-                    <button
-                      key={c}
-                      className={`swatch-btn ${codebookCode.color === c ? 'active' : ''}`}
-                      style={{ background: c }}
-                      onClick={() => updateCode(codebookCode.id, { color: c })}
-                    />
-                  ))}
-                </div>
-                <label>Summary / memo</label>
-                <textarea
-                  value={codebookCode.summary}
-                  rows={10}
-                  onChange={e => updateCode(codebookCode.id, { summary: e.target.value })}
-                />
-                <button onClick={() => pullChildSummaries(codebookCode.id)}>⚡ Pull Child Summaries</button>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
-              <div className="empty-hint">Select a code to edit its details.</div>
+              <div className="empty-hint">No excerpts coded to this code yet.</div>
             )}
-          </aside>
-        </div>
+          </div>
+        ) : (
+          <div className="empty-hint center" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
+            Select a code on the right panel to review and edit.
+          </div>
+        )}
+      </main>
+
+      {/* 3. RIGHT PANEL: Code Toolbar, Search, & Sorted Tree */}
+      <aside className="panel right-panel">
+        
+        <div style={{ 
+  display: 'flex', 
+  gap: '8px', 
+  alignItems: 'center', 
+  marginBottom: '10px',
+  flexWrap: 'nowrap' // Forces them to stay on the same line
+}}>
+  <button 
+    onClick={addRootCode} 
+    className="btn-primary" 
+    style={{ 
+      flex: '1', // Takes up remaining space
+      padding: '4px 8px', // Smaller padding
+      fontSize: '13px', 
+      whiteSpace: 'nowrap' 
+    }}
+  >
+    + Add Root Code
+  </button>
+  
+  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+    <span style={{ color: 'var(--text-dim)', fontSize: '12px' }}>↕</span>
+    <select 
+      value={sortOrder} 
+      onChange={(e) => setSortOrder(e.target.value as any)}
+      style={{ 
+        padding: '2px 6px', 
+        fontSize: '12px',
+        border: '1px solid var(--border)',
+        borderRadius: '4px',
+        backgroundColor: 'var(--bg-panel)'
+      }}
+    >
+      <option value="name">Name</option>
+      <option value="createdAt">Date Created</option>
+      <option value="most-coded">Most Coded</option>
+      <option value="least-coded">Least Coded</option>
+    </select>
+  </div>
+</div>
+
+        {/* Search & Code Tree */}
+        <CodeSearch
+          codes={sortedCodes}
+          query={codebookCodeSearch}
+          onQueryChange={setCodebookCodeSearch}
+          onSelectCode={code => setCodebookSelectedCodeId(code.id)}
+          placeholder="Search codes…"
+        />
+        {!codebookCodeSearch.trim() && (
+          <CodeTree
+            codes={sortedCodes}
+            selectedCodeId={codebookSelectedCodeId}
+            onSelectCode={code => setCodebookSelectedCodeId(code.id)}
+            onAddSubcode={addSubcode}
+            onDeleteCode={deleteCode}
+            onMoveCode={moveCode}
+          />
+        )}
+
+      </aside>
+
+    </div>
+  );
+})()}
+
+{tab === 'autocode' && (
+  <div className="panel autocode-panel">
+    <h2>Auto-Coder</h2>
+    <p className="section-hint">
+      Scans every document in this project for a keyword or phrase and automatically applies a code to each match.
+    </p>
+
+    <div className="form-grid">
+      <label>Search keyword / phrase</label>
+      <input
+        type="text"
+        value={autoCodeQuery}
+        onChange={e => setAutoCodeQuery(e.target.value)}
+        placeholder='e.g. "climate change", "resilience"'
+      />
+
+      <label>Capture boundary</label>
+      <div className="radio-row">
+        <label>
+          <input type="radio" checked={autoCodeBoundary === 'exact'} onChange={() => setAutoCodeBoundary('exact')} />
+          Exact match only
+        </label>
+        <label>
+          <input type="radio" checked={autoCodeBoundary === 'sentence'} onChange={() => setAutoCodeBoundary('sentence')} />
+          Enclosing sentence
+        </label>
+      </div>
+
+      {autoCodeBoundary === 'sentence' && (
+        <>
+          <label>Language</label>
+          <select value={autoCodeLanguage} onChange={e => setAutoCodeLanguage(e.target.value)}>
+            {AUTO_CODE_LANGUAGES.map(l => (
+              <option key={l.code} value={l.code}>{l.label}</option>
+            ))}
+          </select>
+        </>
       )}
+
+      <label>Target code</label>
+      <select value={autoCodeTargetCodeId} onChange={e => setAutoCodeTargetCodeId(e.target.value)}>
+        <option value="">Select a code…</option>
+        {flatCodes.map(({ code, depth }) => (
+          <option key={code.id} value={code.id}>
+            {'—'.repeat(depth)} {code.name}
+          </option>
+        ))}
+      </select>
+    </div>
+
+    <button
+      className="primary-btn"
+      style={{ marginTop: 16 }}
+      disabled={!autoCodeQuery.trim() || !autoCodeTargetCodeId}
+      onClick={handleRunAutoCode}
+    >
+      ⚡ Execute Auto-Code
+    </button>
+
+    {autoCodeResultText && <div className="autocode-result">{autoCodeResultText}</div>}
+  </div>
+)}
+
+{tab === 'analysis' && (
+  <AnalysisTab project={project} onExportReport={handleExportReport} onSaveCell={updateFrameworkCell} onSaveRelationNote={updateRelationNote} showToast={showToast} />
+)}
 
 {tab === 'about' && (
   <main 
@@ -1573,155 +2004,9 @@ function openDocxCommentImport() {
     </div>
   </main>
 )}
-
-      {tab === 'autocode' && (
-        <div className="autocode-panel panel">
-          <h3>Auto-Coder</h3>
-          <p className="section-hint">Apply a code to every occurrence of a keyword or phrase across the whole project.</p>
-          <div className="form-grid">
-            <label>Search keyword / phrase</label>
-            <input value={acKeyword} onChange={e => setAcKeyword(e.target.value)} placeholder="e.g. flood, sandbags" />
-
-            <label>Capture boundary</label>
-            <div className="radio-row">
-              <label><input type="radio" checked={acBoundary === 'exact'} onChange={() => setAcBoundary('exact')} /> Exact Match Only</label>
-              <label><input type="radio" checked={acBoundary === 'sentence'} onChange={() => setAcBoundary('sentence')} /> Enclosing Sentence</label>
-            </div>
-
-            {acBoundary === 'sentence' && (
-              <>
-                <label>Language</label>
-                <select value={acLanguage} onChange={e => setAcLanguage(e.target.value)}>
-                  {AUTO_CODE_LANGUAGES.map(l => (
-                    <option key={l.code} value={l.code}>{l.label}</option>
-                  ))}
-                </select>
-              </>
-            )}
-
-            <label>Target code</label>
-            <select value={acTargetCodeId} onChange={e => setAcTargetCodeId(e.target.value)}>
-              <option value="">Select a code…</option>
-              {flatCodes.map(({ code, depth }) => (
-                <option key={code.id} value={code.id}>{'—'.repeat(depth)} {code.name}</option>
-              ))}
-            </select>
-
-            <div />
-            <button className="primary-btn" onClick={runAutoCodeJob}>Execute Auto-Code Job</button>
-          </div>
-          {acResult && <div className="autocode-result">{acResult}</div>}
-        </div>
-      )}
-
-      {tab === 'analysis' && (
-        <AnalysisTab project={project} onExportReport={handleExportReport} onSaveCell={updateFrameworkCell} onSaveRelationNote={updateRelationNote} showToast={showToast} />
-      )}
-
-      {toast && <div className="toast">{toast}</div>}
-      {promptModal}
-      {docxCommentModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-box">
-            <div className="modal-title">Import Coded Word Document</div>
-            <p style={{ color: 'var(--text-dim)', fontSize: 13, marginBottom: 10 }}>
-              Each Word comment's text will be split into a code path — e.g.
-              "Adaptation, Air Conditioning" becomes a subcode "Air
-              Conditioning" under a parent code "Adaptation."
-            </p>
-            <label style={{ display: 'block', fontSize: 12, color: 'var(--text-dim)', marginBottom: 4 }}>
-              Separator used in your comments
-            </label>
-            <select
-              className="modal-input"
-              value={docxSeparatorChoice}
-              onChange={e => setDocxSeparatorChoice(e.target.value as any)}
-            >
-              <option value=",">Comma ( , )</option>
-              <option value=";">Semicolon ( ; )</option>
-              <option value="|">Pipe ( | )</option>
-              <option value="custom">Custom…</option>
-            </select>
-            {docxSeparatorChoice === 'custom' && (
-              <input
-                className="modal-input"
-                placeholder="Enter your separator, e.g. / or -"
-                value={docxCustomSeparator}
-                onChange={e => setDocxCustomSeparator(e.target.value)}
-              />
-            )}
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, fontSize: 13 }}>
-              <input type="checkbox" checked={docxFirstIsSpeaker} onChange={e => setDocxFirstIsSpeaker(e.target.checked)} />
-              First field is a speaker/participant tag (e.g. "P9;...")
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 13 }}>
-              <input type="checkbox" checked={docxLastIsExcerpt} onChange={e => setDocxLastIsExcerpt(e.target.checked)} />
-              Last field is a copy of the excerpt (not a code)
-            </label>
-            <div className="modal-actions" style={{ marginTop: 12 }}>
-              <button onClick={() => setDocxCommentModalOpen(false)}>Cancel</button>
-              <button className="primary-btn" onClick={handleDocxCommentImport}>Choose file & Import</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {projectModalOpen && project && (
-        <div className="modal-overlay">
-          <div className="modal-box">
-            {deleteStep === 0 && (
-              <>
-                <div className="modal-title">Rename project</div>
-                <input
-                  className="modal-input"
-                  value={projectNameDraft}
-                  onChange={e => setProjectNameDraft(e.target.value)}
-                  autoFocus
-                  onKeyDown={e => { if (e.key === 'Enter') saveProjectName(); }}
-                />
-                <div className="modal-actions" style={{ justifyContent: 'space-between' }}>
-                  <button className="mini-btn" style={{ color: '#f87171' }} onClick={() => setDeleteStep(1)}>
-                    🗑 Delete this project…
-                  </button>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => setProjectModalOpen(false)}>Cancel</button>
-                    <button className="primary-btn" onClick={saveProjectName}>Rename</button>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {deleteStep === 1 && (
-              <>
-                <div className="modal-title">Delete "{project.name}"?</div>
-                <p style={{ color: 'var(--text-dim)', marginBottom: 14 }}>
-                  Are you sure you want to delete this project and its contents?
-                </p>
-                <div className="modal-actions">
-                  <button className="safe-btn" onClick={() => setDeleteStep(0)}>No</button>
-                  <button className="primary-btn" onClick={() => setDeleteStep(2)}>Yes</button>
-                </div>
-              </>
-            )}
-
-            {deleteStep === 2 && (
-              <>
-                <div className="modal-title">Are you absolutely sure?</div>
-                <p style={{ color: 'var(--text-dim)', marginBottom: 14 }}>
-                  This action cannot be reverted. Proceed with caution.
-                </p>
-                <div className="modal-actions">
-                  <button className="safe-btn" onClick={() => setDeleteStep(0)}>Keep</button>
-                  <button className="primary-btn" onClick={confirmDeleteProject}>Delete</button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
+</div>
   );
 }
-
 function FrameworkCellInput({ initialValue, onSave }: { initialValue: string; onSave: (text: string) => void }) {
   const [value, setValue] = useState(initialValue);
   useEffect(() => setValue(initialValue), [initialValue]);
@@ -1775,11 +2060,9 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
   const [subTab, setSubTab] = useState<'frequency' | 'docMatrix' | 'coMatrix' | 'framework'>('frequency');
   const codesByIdLocal = useMemo(() => new Map(project.codes.map(c => [c.id, c])), [project.codes]);
 
-  // --- Frequency ---
   const [freqSort, setFreqSort] = useState<FreqSortKey>('groupedNameAsc');
   const freqTree = useMemo(() => sortFrequencyTree(project, freqSort), [project, freqSort]);
 
-  // --- Doc matrix ---
   const docMatrix = useMemo(() => codeDocumentMatrix(project), [project]);
   const [docMatrixCodeSort, setDocMatrixCodeSort] = useState<NameCountSort>('nameAsc');
   const [docMatrixDocSort, setDocMatrixDocSort] = useState<NameCountSort>('nameAsc');
@@ -1794,7 +2077,6 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
     [project.docs, docMatrix, docMatrixDocSort]
   );
 
-  // --- Co-occurrence ---
   const coMatrix = useMemo(() => codeCooccurrenceMatrix(project), [project]);
   const activeCoocCodes = useMemo(
     () => project.codes.filter(code =>
@@ -1815,7 +2097,6 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
   }, [project.relationNotes]);
   const [coocView, setCoocView] = useState<{ codeAId: ID; codeBId: ID; codeAName: string; codeBName: string; excerpts: Array<{ docName: string; text: string }> } | null>(null);
 
-  // --- Framework matrix ---
   const frameworkRows = useMemo(() => childCodes(project.codes, null), [project.codes]);
   const frameworkCellMap = useMemo(() => {
     const m = new Map<string, FrameworkCell>();

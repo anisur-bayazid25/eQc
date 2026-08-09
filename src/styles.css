@@ -431,6 +431,21 @@ input, select, textarea {
   line-height: 1.5;
 }
 
+@keyframes segment-flash-anim {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+  20%, 80% { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.6); }
+}
+.segment-flash {
+  animation: segment-flash-anim 2s ease-in-out;
+}
+
+.search-match-highlight {
+  background: #fde047 !important;
+  color: #1e293b !important;
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px #eab308;
+}
+
 /* Codebook */
 .excerpt-list { display: flex; flex-direction: column; gap: 10px; }
 .excerpt-card { background: var(--panel-alt); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }

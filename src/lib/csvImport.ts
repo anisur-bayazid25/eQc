@@ -24,7 +24,8 @@ function findOrCreateCode(project: Project, name: string, parentId: string | nul
     name: trimmed,
     color: randomColor(project.codes.length),
     parentId,
-    summary: ''
+    summary: '',
+    createdAt: Date.now()
   };
   project.codes.push(created);
   return created;

@@ -13,9 +13,12 @@ contextBridge.exposeInMainWorld('qv', {
   exportDocAsDocx: (payload) => ipcRenderer.invoke('docs:exportDocx', payload),
   exportText: (payload) => ipcRenderer.invoke('export:saveText', payload),
   exportDocxTable: (payload) => ipcRenderer.invoke('export:docx', payload),
+  exportImage: (payload) => ipcRenderer.invoke('export:saveImage', payload),
 
   // CSV dataset import
   pickAndParseCsv: () => ipcRenderer.invoke('csv:pickAndParse'),
+
+  pickAndEncodeImages: () => ipcRenderer.invoke('images:pickAndEncode'),
 
   // Backup / merge
   exportBackup: project => ipcRenderer.invoke('backup:export', project),

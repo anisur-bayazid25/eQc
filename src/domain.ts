@@ -22,6 +22,7 @@ export interface SourceDoc {
 }
 
 export interface Code {
+  createdAt: number;
   id: ID;
   name: string;
   color: string;
@@ -40,6 +41,29 @@ export interface CodedSegment {
   source: 'manual' | 'csv-import' | 'auto-code' | 'qdpx-import'| 'docx-comment-import';
   note?: string;          // segment-level memo (e.g. from REFI-QDA import)
   starred?: boolean;      // marked as a "key quote" for manuscript writing
+}
+
+export interface ImageSource {
+  id: ID;
+  folderId: ID | null;
+  name: string;
+  dataUrl: string;        // base64 data URI, e.g. "data:image/jpeg;base64,..."
+  addedAt: number;
+  sizeBytes: number;
+  notes?: string;          // whole-image memo, same idea as SourceDoc.notes
+}
+
+export interface CodedRegion {
+  id: ID;
+  imageId: ID;
+  codeId: ID;
+  x: number;               // normalized 0–1, left edge — resolution-independent
+  y: number;
+  width: number;
+  height: number;
+  createdAt: number;
+  note?: string;
+  starred?: boolean;
 }
 
 export interface CodeRelationNote {
@@ -68,6 +92,8 @@ export interface Project {
   codedSegments: CodedSegment[];
   frameworkCells?: FrameworkCell[];   // case × theme summary matrix (framework analysis)
   relationNotes?: CodeRelationNote[]; // analytic memos on code-pair relationships (co-occurrence)
+  images?: ImageSource[];
+  codedRegions?: CodedRegion[];
 }
 
 export interface ProjectSummary {

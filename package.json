@@ -21,6 +21,7 @@
     "better-sqlite3": "^11.3.0",
     "diff": "^5.2.0",
     "docx": "^9.1.1",
+    "html-to-text": "^9.0.5",
     "iconv-lite": "^0.6.3",
     "jszip": "^3.10.1",
     "mammoth": "^1.7.2",
@@ -31,6 +32,8 @@
     "react-dom": "^18.3.1",
     "tesseract.js": "^7.0.0"
   },
+
+
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
     "@types/diff": "^5.2.1",

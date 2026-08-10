@@ -149,6 +149,8 @@ app.on('window-all-closed', () => {
 // ---------------------------------------------------------------------
 // Helpers: document text extraction
 // ---------------------------------------------------------------------
+const { convert: htmlToText } = require('html-to-text');
+
 async function extractText(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   if (ext === '.txt' || ext === '.md') {
@@ -156,8 +158,18 @@ async function extractText(filePath) {
   }
   if (ext === '.docx') {
     const buffer = fs.readFileSync(filePath);
-    const result = await mammoth.extractRawText({ buffer });
-    return result.value;
+    // convertToHtml (not extractRawText) preserves tables/headings/lists
+    // as real structure; html-to-text then renders that back down to
+    // readable plain text, with tables specifically laid out as aligned
+    // columns instead of every cell's text getting jammed together.
+    const { value: html } = await mammoth.convertToHtml({ buffer });
+    return htmlToText(html, {
+      wordwrap: false,
+      selectors: [
+        { selector: 'table', format: 'dataTable' },
+        { selector: 'img', format: 'skip' }
+      ]
+    });
   }
   if (ext === '.pdf') {
     // Lazy-require: pdf-parse touches the filesystem for its own test
@@ -220,6 +232,39 @@ ipcMain.handle('docs:pickAndExtract', async () => {
   return out;
 });
 
+ipcMain.handle('images:pickAndEncode', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    title: 'Add images',
+    properties: ['openFile', 'multiSelections'],
+    filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }]
+  });
+  if (canceled) return [];
+
+  const mimeByExt = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
+
+  return filePaths.map(fp => {
+    const buffer = fs.readFileSync(fp);
+    const ext = path.extname(fp).toLowerCase();
+    const mime = mimeByExt[ext] || 'application/octet-stream';
+    return {
+      name: path.basename(fp),
+      dataUrl: `data:${mime};base64,${buffer.toString('base64')}`,
+      sizeBytes: buffer.length
+    };
+  });
+});
+
+ipcMain.handle('export:saveImage', async (_e, payload) => {
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+    title: payload.title || 'Export Image',
+    defaultPath: payload.defaultName,
+    filters: [{ name: 'PNG image', extensions: ['png'] }]
+  });
+  if (canceled || !filePath) return null;
+  fs.writeFileSync(filePath, Buffer.from(payload.base64, 'base64'));
+  return filePath;
+});
+
 // ---------------------------------------------------------------------
 // IPC: REFI-QDA (.qdpx) import
 // .qdpx is a zip archive containing project.qde (XML, REFI-QDA-2 schema)
@@ -276,7 +321,7 @@ ipcMain.handle('qdpx:pickAndParse', async () => {
 // IPC: export a document as a .docx file
 // ---------------------------------------------------------------------
 
-const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType } = require('docx');
+const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, ImageRun } = require('docx');
 
 function contentToParagraphs(content) {
   const blocks = content.split(/\n{2,}/);
@@ -353,8 +398,34 @@ function buildOutlineDocx(title, nodes) {
           indent: { left: 360 * (node.depth + 1) + 180 },
           spacing: { after: 80 }
         }));
+        if (Array.isArray(node.imageQuotes)) {
+      for (const iq of node.imageQuotes) {
+        const buffer = Buffer.from(iq.base64, 'base64');
+        const maxWidth = 300;
+        const scale = iq.width > maxWidth ? maxWidth / iq.width : 1;
+        children.push(new Paragraph({
+          indent: { left: 360 * (node.depth + 1) + 180 },
+          children: [new ImageRun({ data: buffer, transformation: { width: Math.round(iq.width * scale), height: Math.round(iq.height * scale) } })]
+        }));
+        children.push(new Paragraph({ text: iq.caption, indent: { left: 360 * (node.depth + 1) + 180 }, spacing: { after: 120 } }));
       }
     }
+      }
+    }
+  }
+  return new Document({ sections: [{ children }] });
+}
+
+function buildImageGalleryDocx(title, items) {
+  const children = [new Paragraph({ text: title, heading: HeadingLevel.TITLE })];
+  for (const item of items) {
+    const buffer = Buffer.from(item.base64, 'base64');
+    const maxWidth = 400;
+    const scale = item.width > maxWidth ? maxWidth / item.width : 1;
+    children.push(new Paragraph({
+      children: [new ImageRun({ data: buffer, transformation: { width: Math.round(item.width * scale), height: Math.round(item.height * scale) } })]
+    }));
+    children.push(new Paragraph({ text: item.caption, spacing: { after: 200 } }));
   }
   return new Document({ sections: [{ children }] });
 }
@@ -370,6 +441,8 @@ ipcMain.handle('export:docx', async (_e, payload) => {
 
   const doc = payload.kind === 'outline'
     ? buildOutlineDocx(payload.title, payload.outline)
+    : payload.kind === 'imageGallery'
+    ? buildImageGalleryDocx(payload.title, payload.items)
     : buildTableDocx(payload.title, payload.headers, payload.rows);
 
   const buffer = await Packer.toBuffer(doc);

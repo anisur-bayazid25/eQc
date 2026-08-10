@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   Project, ProjectSummary, Folder, SourceDoc, Code, CodedSegment, FrameworkCell, CodeRelationNote,
-  ID, uid, newProject, randomColor, childCodes, descendantCodeIds
+  ID, uid, newProject, randomColor, childCodes, descendantCodeIds,
+  CodedRegion,
+  ImageSource
 } from './domain';
 import CodeTree from './components/CodeTree';
 import CodeSearch from './components/CodeSearch';
@@ -20,6 +22,8 @@ import { useTextPrompt } from './components/PromptModal';
 import { extractBengaliTextFromPDF } from './lib/pdfExtractor';
 import { buildScopedExport, buildCodebookOutline, ExportScope, SCOPE_LABELS } from './lib/exportBuilders';
 import pkg from '../package.json';
+import ImageEditor from './components/ImageEditor';
+import { cropRegionToPng, renderCodedImagePng } from './lib/imageCrop';
 
 type Tab = 'workspace' | 'codebook' | 'autocode' | 'analysis' | 'about';
 
@@ -206,6 +210,10 @@ useEffect(() => {
   const [contentSearchOpen, setContentSearchOpen] = useState(false);
   const [contentSearchQuery, setContentSearchQuery] = useState('');
   const [highlightTarget, setHighlightTarget] = useState<{ docId: ID; start: number; end: number; nonce: number } | null>(null);
+  const [showImageNotes, setShowImageNotes] = useState(false);
+  const [imageNotesDraft, setImageNotesDraft] = useState('');
+  const [editingRegionNoteFor, setEditingRegionNoteFor] = useState<ID | null>(null);
+  const [regionNoteDraft, setRegionNoteDraft] = useState('');
 
   // Undo / redo history (per project, in-memory only)
   const [past, setPast] = useState<Project[]>([]);
@@ -245,6 +253,8 @@ useEffect(() => {
     setTimeout(() => setToast(t => (t === msg ? null : t)), 3500);
   }, []);
 
+
+  
   // ---------------------------------------------------------------
   // Load project list on mount; open the most recent project, or
   // create a fresh one if this is the first launch.
@@ -356,7 +366,126 @@ useEffect(() => {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [past, future, project]);
 
-  
+  const [selectedImageId, setSelectedImageId] = useState<ID | null>(null);
+  const [pendingRegion, setPendingRegion] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [regionPopup, setRegionPopup] = useState<{ regions: CodedRegion[]; x: number; y: number } | null>(null);
+  const [imageZoom, setImageZoom] = useState(1);
+
+  const selectedImage = useMemo(
+    () => (project && selectedImageId ? project.images?.find(i => i.id === selectedImageId) || null : null),
+    [project?.images, selectedImageId]
+  );
+  const imageRegions = useMemo(
+    () => (project && selectedImage ? (project.codedRegions || []).filter(r => r.imageId === selectedImage.id) : []),
+    [project?.codedRegions, selectedImage]
+  );
+
+  async function addImages(folderId: ID | null) {
+    if (!project) return;
+    const picked = await window.qv.pickAndEncodeImages();
+    if (!picked || picked.length === 0) return;
+    const newImages: ImageSource[] = picked.map((p: any) => ({
+      id: uid('img'),
+      folderId,
+      name: p.name,
+      dataUrl: p.dataUrl,
+      addedAt: Date.now(),
+      sizeBytes: p.sizeBytes
+    }));
+    persist({ ...project, images: [...(project.images || []), ...newImages] });
+    showToast(`Added ${newImages.length} image(s)`);
+  }
+
+async function handleExportStarredImages() {
+    if (!project) return;
+    const starredRegions = (project.codedRegions || []).filter(r => r.starred);
+    if (starredRegions.length === 0) {
+      showToast('No starred image regions yet.');
+      return;
+    }
+    const items: Array<{ base64: string; width: number; height: number; caption: string }> = [];
+    for (const r of starredRegions) {
+      const image = (project.images || []).find(i => i.id === r.imageId);
+      if (!image) continue;
+      const cropped = await cropRegionToPng(image.dataUrl, r);
+      const codeName = codesById.get(r.codeId)?.name || 'Unknown code';
+      items.push({ ...cropped, caption: `${codeName} — ${image.name}${r.note ? ` — ${r.note}` : ''}` });
+    }
+    const path = await window.qv.exportDocxTable({
+      kind: 'imageGallery',
+      title: `${project.name} — Starred Image Regions`,
+      items,
+      filenameBase: `${project.name.replace(/[^\w\- ]/g, '_')}_starred_images`
+    } as any);
+    if (path) showToast(`Exported ${items.length} starred image(s) to ${path}`);
+  }
+
+async function handleExportCodedImage() {
+    if (!selectedImage) return;
+    const regions = imageRegions.map(r => ({
+      x: r.x, y: r.y, width: r.width, height: r.height,
+      color: codesById.get(r.codeId)?.color || '#facc15',
+      label: codesById.get(r.codeId)?.name || 'Unknown'
+    }));
+    const dataUrl = await renderCodedImagePng(selectedImage.dataUrl, regions);
+    const path = await window.qv.exportImage({
+      title: 'Export Coded Image',
+      defaultName: `${selectedImage.name.replace(/\.[^.]+$/, '')}_coded.png`,
+      base64: dataUrl.split(',')[1]
+    });
+    if (path) showToast(`Coded image exported to ${path}`);
+  }
+
+  function applyCodeToRegion(code: Code) {
+    if (!project || !selectedImage || !pendingRegion) return;
+    const region: CodedRegion = {
+      id: uid('region'),
+      imageId: selectedImage.id,
+      codeId: code.id,
+      x: pendingRegion.x,
+      y: pendingRegion.y,
+      width: pendingRegion.width,
+      height: pendingRegion.height,
+      createdAt: Date.now()
+    };
+    persist({ ...project, codedRegions: [...(project.codedRegions || []), region] });
+    setPendingRegion(null);
+    showToast(`Applied "${code.name}" to region`);
+  }
+
+  function removeCodedRegion(regionId: ID) {
+    if (!project) return;
+    persist({ ...project, codedRegions: (project.codedRegions || []).filter(r => r.id !== regionId) });
+    setRegionPopup(null);
+  }
+
+  function toggleStarRegion(regionId: ID) {
+    if (!project) return;
+    persist({
+      ...project,
+      codedRegions: (project.codedRegions || []).map(r => (r.id === regionId ? { ...r, starred: !r.starred } : r))
+    });
+  }
+
+  function updateRegionNote(regionId: ID, note: string) {
+    if (!project) return;
+    persist({
+      ...project,
+      codedRegions: (project.codedRegions || []).map(r =>
+        r.id === regionId ? { ...r, note: note.trim() ? note.trim() : undefined } : r
+      )
+    });
+  }
+
+function updateImageNotes(imageId: ID, notes: string) {
+    if (!project) return;
+    persist({
+      ...project,
+      images: (project.images || []).map(i =>
+        i.id === imageId ? { ...i, notes: notes.trim() ? notes.trim() : undefined } : i
+      )
+    });
+  }
 
   const codesById = useMemo(() => {
     const m = new Map<string, Code>();
@@ -422,6 +551,12 @@ useEffect(() => {
     setHighlightTarget(null);
     setGotoTarget(null);
   }, [tab]);
+
+useEffect(() => {
+    setImageNotesDraft(selectedImage?.notes || '');
+    setShowImageNotes(false);
+    setImageZoom(1);
+  }, [selectedImage?.id]);
 
   // =================================================================
   // Project management
@@ -859,6 +994,8 @@ function moveDoc(docId: ID, targetFolderId: ID | null) {
   function handleWorkspaceCodeClick(code: Code) {
     if (pendingSelection) {
       applyCodeToSelection(code);
+    } else if (pendingRegion) {
+      applyCodeToRegion(code);
     } else {
       setCodebookSelectedCodeId(code.id);
       setTab('codebook');
@@ -928,36 +1065,43 @@ function toggleStarSegment(segId: ID) {
 async function handleExportManuscriptSkeleton() {
     if (!project) return;
 
-    const outline: Array<{ name: string; depth: number; summary?: string; quotes?: string[] }> = [];
+    const outline: Array<{ name: string; depth: number; summary?: string; quotes?: string[]; imageQuotes?: Array<{ base64: string; width: number; height: number; caption: string }> }> = [];
     const totalStarred = project!.codedSegments.filter(s => s.starred).length;
     let codesWithSummary = 0;
     let quotesMatched = 0;
 
-    function walk(parentId: ID | null, depth: number) {
+    async function walk(parentId: ID | null, depth: number) {
       for (const code of childCodes(project!.codes, parentId)) {
         const summary = code.summary?.trim();
         if (summary) {
-          codesWithSummary++;
           const starredQuotes = project!.codedSegments
             .filter(s => s.codeId === code.id && s.starred)
             .map(s => {
               const doc = project!.docs.find(d => d.id === s.docId);
-              const attribution = [doc?.name || 'Unknown source', s.note].filter(Boolean).join(' — ');
-              return `"${s.text}" (${attribution})`;
+              return `"${s.text}" (${doc?.name || 'Unknown source'})`;
             });
-          quotesMatched += starredQuotes.length;
+
+          const starredRegions = (project!.codedRegions || []).filter(r => r.codeId === code.id && r.starred);
+          const imageQuotes: Array<{ base64: string; width: number; height: number; caption: string }> = [];
+          for (const r of starredRegions) {
+            const image = (project!.images || []).find(i => i.id === r.imageId);
+            if (!image) continue;
+            const cropped = await cropRegionToPng(image.dataUrl, r);
+            imageQuotes.push({ ...cropped, caption: image.name + (r.note ? ` — ${r.note}` : '') });
+          }
 
           outline.push({
             name: code.name,
             depth,
             summary,
-            quotes: starredQuotes.length > 0 ? starredQuotes : undefined
+            quotes: starredQuotes.length > 0 ? starredQuotes : undefined,
+            imageQuotes: imageQuotes.length > 0 ? imageQuotes : undefined
           });
         }
-        walk(code.id, depth + 1);
+        await walk(code.id, depth + 1);
       }
     }
-    walk(null, 0);
+    await walk(null, 0);
 
     if (outline.length === 0) {
       showToast('No codes with a summary/memo yet — write at least one code memo first.');
@@ -1221,6 +1365,9 @@ function openDocxCommentImport() {
   const codebookExcerpts = codebookCode
     ? project.codedSegments.filter(s => s.codeId === codebookCode.id)
     : [];
+    const codebookRegions = codebookCode
+    ? (project.codedRegions || []).filter(r => r.codeId === codebookCode.id)
+    : [];
 
   return (
     <div className="app-shell">
@@ -1319,6 +1466,7 @@ function openDocxCommentImport() {
               <button onClick={addRootFolder}>+ Add Root Folder</button>
               <button onClick={() => addDocs(null)}>+ Doc</button>
               <button onClick={() => addScannedPdf(null)}>+ Scanned PDF (OCR)</button>
+              <button onClick={() => addImages(null)}>+ Add Image</button>
               <button onClick={() => setContentSearchOpen(v => !v)}>🔍 Search Text</button>
             </div>
 
@@ -1377,7 +1525,7 @@ function openDocxCommentImport() {
                       <div
                         key={d.id}
                         className={`code-search-row ${selectedDocId === d.id ? 'selected' : ''}`}
-                        onClick={() => { setSelectedDocId(d.id); setPendingSelection(null); setEditingDocId(null); }}
+                        onClick={() => { setSelectedDocId(d.id); setSelectedImageId(null); setPendingSelection(null); setEditingDocId(null); }}
                       >
                         <span className="code-search-name">{d.name}</span>
                       </div>
@@ -1395,7 +1543,7 @@ function openDocxCommentImport() {
               selectedDocId={selectedDocId}
               sortBy={sortBy}
               codedCount={codedCountForDoc}
-              onSelectDoc={d => { setSelectedDocId(d.id); setPendingSelection(null); setEditingDocId(null); }}
+              onSelectDoc={d => { setSelectedDocId(d.id); setSelectedImageId(null); setPendingSelection(null); setEditingDocId(null); }}
               onAddRootFolder={addRootFolder}
               onAddSubfolder={addSubfolder}
               onAddDoc={addDocs}
@@ -1405,7 +1553,30 @@ function openDocxCommentImport() {
               onDeleteDoc={deleteDoc}
               onMoveDoc={moveDoc}
             />
-            )}</aside>
+            )}
+
+            {(project.images || []).length > 0 && (
+              <>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim)', margin: '12px 0 4px' }}>
+                  Images
+                </div>
+                {(project.images || []).map(img => {
+                  const regionCount = (project.codedRegions || []).filter(r => r.imageId === img.id).length;
+                  return (
+                    <div
+                      key={img.id}
+                      className={`image-row ${selectedImageId === img.id ? 'selected' : ''}`}
+                      onClick={() => { setSelectedImageId(img.id); setSelectedDocId(null); setPendingSelection(null); setPendingRegion(null); setEditingDocId(null); }}
+                    >
+                      <img src={img.dataUrl} className="image-thumb" alt="" />
+                      <span className="image-name">{img.name}</span>
+                      {regionCount > 0 && <span className="doc-coded-badge">{regionCount}</span>}
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </aside>
 
           <main className="panel center-panel" style={THEME_STYLES[readerTheme]}>
             {selectedDoc ? (
@@ -1510,6 +1681,49 @@ function openDocxCommentImport() {
                   <button onClick={() => handleExportDocDocx(selectedDoc)}>📤 Export as Word (.docx)</button>
                 </div>
               </>
+            ) : selectedImage ? (
+              <>
+                <div className="doc-title-row">
+                  <h3>{selectedImage.name}</h3>
+                  <button onClick={() => setShowImageNotes(v => !v)}>
+                    📝 Notes{selectedImage.notes ? ' ●' : ''}
+                    <button className="mini-btn" onClick={() => setImageZoom(z => Math.max(0.25, +(z - 0.25).toFixed(2)))}>−</button>
+                  <span style={{ fontSize: 12, minWidth: 40, textAlign: 'center', display: 'inline-block' }}>{Math.round(imageZoom * 100)}%</span>
+                  <button className="mini-btn" onClick={() => setImageZoom(z => Math.min(4, +(z + 0.25).toFixed(2)))}>+</button>
+                  <button className="mini-btn" onClick={() => setImageZoom(1)}>Reset</button>
+                  </button>
+                </div>
+                {showImageNotes && (
+                  <div className="doc-notes-panel">
+                    <label>Image memo — context, participant reflection, etc.</label>
+                    <textarea
+                      value={imageNotesDraft}
+                      onChange={e => setImageNotesDraft(e.target.value)}
+                      onBlur={() => updateImageNotes(selectedImage.id, imageNotesDraft)}
+                      placeholder="e.g. taken by participant P4 during the July heatwave…"
+                    />
+                  </div>
+                )}
+                <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', padding: '16px', boxSizing: 'border-box' }}>
+                  <ImageEditor
+                    zoom={imageZoom}
+                    image={selectedImage}
+                    regions={imageRegions}
+                    codesById={codesById}
+                    pendingRegion={pendingRegion}
+                    onPendingRegionChange={setPendingRegion}
+                    onClickRegions={(regions, x, y) => setRegionPopup({ regions, x, y })}
+                  />
+                  <button onClick={handleExportCodedImage}>📤 Export Coded Image</button>
+                </div>
+                <div className="doc-title-actions">
+                  {pendingRegion && (
+                    <span className="selection-hint">
+                      Region drawn — click a code in the legend to apply it
+                    </span>
+                  )}
+                </div>
+              </>
             ) : (
               <div>No document selected</div>
             )}
@@ -1518,6 +1732,7 @@ function openDocxCommentImport() {
           <aside className="panel right-panel">
             <div className="panel-toolbar">
               <button onClick={addRootCode}>+ Add Root Code</button>
+               {promptModal}
             </div>
             <CodeSearch
               codes={project.codes}
@@ -1537,6 +1752,7 @@ function openDocxCommentImport() {
                 onMoveCode={moveCode}
               />
             )}
+             {promptModal}
           </aside>
 
           {segmentPopup && (
@@ -1596,6 +1812,62 @@ function openDocxCommentImport() {
                 );
               })}
               <button className="close-popup" onClick={() => setSegmentPopup(null)}>Close</button>
+              </div>
+            </>
+          )}
+
+          {regionPopup && (
+            <>
+              <div
+                style={{ position: 'fixed', inset: 0, zIndex: 49 }}
+                onClick={() => setRegionPopup(null)}
+              />
+              <div
+                className="segment-popup"
+                style={{ left: regionPopup.x, top: regionPopup.y, zIndex: 50 }}
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="segment-popup-title">Codes applied to this region</div>
+                {regionPopup.regions.map(snapshotRegion => {
+                  const r = (project.codedRegions || []).find(cr => cr.id === snapshotRegion.id) || snapshotRegion;
+                  return (
+                    <div key={r.id} className="segment-popup-row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span className="code-swatch" style={{ background: codesById.get(r.codeId)?.color }} />
+                        <span style={{ flex: 1 }}>{codesById.get(r.codeId)?.name || 'Unknown code'}</span>
+                        <button className="mini-btn" onClick={() => toggleStarRegion(r.id)} title={r.starred ? 'Unstar' : 'Star as key region'}>
+                          {r.starred ? '⭐' : '☆'}
+                        </button>
+                        <button className="mini-btn" onClick={() => removeCodedRegion(r.id)}>Remove</button>
+                      </div>
+                      {editingRegionNoteFor === r.id ? (
+                        <>
+                          <textarea
+                            className="modal-input"
+                            style={{ minHeight: 60, marginTop: 4 }}
+                            value={regionNoteDraft}
+                            onChange={e => setRegionNoteDraft(e.target.value)}
+                            autoFocus
+                          />
+                          <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                            <button className="mini-btn" onClick={() => { updateRegionNote(r.id, regionNoteDraft); setEditingRegionNoteFor(null); }}>Save</button>
+                            <button className="mini-btn" onClick={() => setEditingRegionNoteFor(null)}>Cancel</button>
+                          </div>
+                        </>
+                      ) : r.note ? (
+                        <div style={{ fontSize: 12, fontStyle: 'italic', opacity: 0.85, marginBottom: 6, display: 'flex', justifyContent: 'space-between', gap: 6, backgroundColor: 'rgba(0,0,0,0.05)', padding: '6px', borderRadius: '4px' }}>
+                          <span>📝 {r.note}</span>
+                          <button className="mini-btn" onClick={() => { setEditingRegionNoteFor(r.id); setRegionNoteDraft(r.note || ''); }}>Edit</button>
+                        </div>
+                      ) : (
+                        <button className="mini-btn" style={{ marginBottom: 6 }} onClick={() => { setEditingRegionNoteFor(r.id); setRegionNoteDraft(''); }}>
+                          + Add note
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+                <button className="close-popup" onClick={() => setRegionPopup(null)}>Close</button>
               </div>
             </>
           )}
@@ -1726,6 +1998,7 @@ function openDocxCommentImport() {
               >
                 ⬇️ DOCX
               </button>
+              <button onClick={handleExportStarredImages}>⭐ Starred Images (DOCX)</button>
             </div>
           </div>
         </div>
@@ -1823,6 +2096,35 @@ function openDocxCommentImport() {
             ) : (
               <div className="empty-hint">No excerpts coded to this code yet.</div>
             )}
+            {codebookRegions.map(r => {
+  const image = (project.images || []).find(i => i.id === r.imageId);
+  if (!image) return null;
+  return (
+    <div key={r.id} className="excerpt-card" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+      <div style={{ width: 100, height: 75, overflow: 'hidden', position: 'relative', borderRadius: 6, border: '1px solid var(--border)', flexShrink: 0 }}>
+        <img
+          src={image.dataUrl}
+          style={{
+            position: 'absolute',
+            width: `${100 / r.width}%`,
+            height: `${100 / r.height}%`,
+            left: `${-r.x * (100 / r.width)}%`,
+            top: `${-r.y * (100 / r.height)}%`,
+            maxWidth: 'none'
+          }}
+        />
+      </div>
+      <div style={{ flex: 1 }}>
+        <div className="excerpt-doc">{image.name}</div>
+        {r.note && <div style={{ fontSize: 12, fontStyle: 'italic', opacity: 0.85 }}>📝 {r.note}</div>}
+        <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+          <button className="mini-btn" onClick={() => toggleStarRegion(r.id)}>{r.starred ? '⭐ Starred' : '☆ Star'}</button>
+          <button className="mini-btn" onClick={() => removeCodedRegion(r.id)}>Remove</button>
+        </div>
+      </div>
+    </div>
+  );
+})}
           </div>
         ) : (
           <div className="empty-hint center" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
@@ -1852,6 +2154,7 @@ function openDocxCommentImport() {
     }}
   >
     + Add Root Code
+     {promptModal}
   </button>
   
   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -1895,7 +2198,7 @@ function openDocxCommentImport() {
         )}
 
       </aside>
-
+         {promptModal}
     </div>
   );
 })()}
@@ -1990,6 +2293,11 @@ function openDocxCommentImport() {
     />
     <h2 style={{ margin: '0 0 10px 0', fontSize: '24px', color: 'var(--text)' }}>EQC - Easy Qual Coding</h2>
     <p style={{ fontWeight: 'bold', color: '#fb923c', marginBottom: '20px' }}>Version {pkg.version}</p>
+    <p>
+      <a href="https://github.com/anisur-bayazid25/eQc" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>
+        github.com/anisur-bayazid25/eQc
+      </a> — Visit for latest updates, releases, and source
+    </p>
     
     <p style={{ lineHeight: '1.6', marginBottom: '30px', fontSize: '16px', color: 'var(--text)' }}>
       Designed to strip away the complexity of traditional QDA software. 

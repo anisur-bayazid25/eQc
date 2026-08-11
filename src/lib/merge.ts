@@ -3,6 +3,7 @@ import { Project, Folder, SourceDoc, Code, CodedSegment, uid, randomColor } from
 export interface MergeSummary {
   foldersAdded: number;
   docsAdded: number;
+  docsMerged: number;   // matched an existing same-name, byte-identical document instead of duplicating it
   codesAdded: number;
   codesReused: number;
   segmentsAdded: number;
@@ -13,13 +14,26 @@ function normalize(s: string): string {
 }
 
 // Merges `source` project data into `target` (mutated in place).
-// - Folders/docs are always added as new (kept distinct per source file,
-//   as intended for "different researchers coding different documents").
+// - Documents: reused if a target doc exists with the same name AND
+//   byte-identical content (offsets only mean anything against the exact
+//   text they were measured on — anything less than exact match is kept
+//   as a separate document, same as before, rather than risking
+//   mis-located highlights).
 // - Codes are unified by matching name + position in the hierarchy, so
 //   the same theme coded independently in two files collapses into one
 //   code with combined excerpts.
+// - Every merged-in segment is tagged with source.coderName (if set), and
+//   any of target's own pre-existing segments that don't yet have a coder
+//   tag are backfilled with target.coderName — so after a merge, every
+//   segment has attribution, not just the newly-arrived ones.
 export function mergeProjectInto(target: Project, source: Project): MergeSummary {
-  const summary: MergeSummary = { foldersAdded: 0, docsAdded: 0, codesAdded: 0, codesReused: 0, segmentsAdded: 0 };
+  const summary: MergeSummary = { foldersAdded: 0, docsAdded: 0, docsMerged: 0, codesAdded: 0, codesReused: 0, segmentsAdded: 0 };
+
+  if (target.coderName) {
+    for (const s of target.codedSegments) {
+      if (!s.coder) s.coder = target.coderName;
+    }
+  }
 
   const folderIdMap = new Map<string, string>();
   for (const f of source.folders) {
@@ -38,6 +52,14 @@ export function mergeProjectInto(target: Project, source: Project): MergeSummary
 
   const docIdMap = new Map<string, string>();
   for (const d of source.docs) {
+    const existingMatch = target.docs.find(
+      td => normalize(td.name) === normalize(d.name) && td.content === d.content
+    );
+    if (existingMatch) {
+      docIdMap.set(d.id, existingMatch.id);
+      summary.docsMerged++;
+      continue;
+    }
     const newId = uid('doc');
     docIdMap.set(d.id, newId);
     const mapped: SourceDoc = {
@@ -85,10 +107,21 @@ export function mergeProjectInto(target: Project, source: Project): MergeSummary
   }
   mergeLevel(null, null);
 
+  const coder = source.coderName || undefined;
   for (const seg of source.codedSegments) {
     const docId = docIdMap.get(seg.docId);
     const codeId = codeIdMap.get(seg.codeId);
     if (!docId || !codeId) continue;
+
+    // Dedupe on (doc, code, span, coder) — only matters when docId points
+    // at a reused document (a brand-new document can't already contain
+    // these ids), but harmless to apply uniformly. This is what makes
+    // re-running Merge on the same file safe rather than doubling everything.
+    const alreadyPresent = target.codedSegments.some(
+      s => s.docId === docId && s.codeId === codeId && s.start === seg.start && s.end === seg.end && s.coder === coder
+    );
+    if (alreadyPresent) continue;
+
     const mapped: CodedSegment = {
       id: uid('seg'),
       docId,
@@ -97,7 +130,8 @@ export function mergeProjectInto(target: Project, source: Project): MergeSummary
       end: seg.end,
       text: seg.text,
       createdAt: seg.createdAt || Date.now(),
-      source: seg.source || 'manual'
+      source: seg.source || 'manual',
+      ...(coder ? { coder } : {})
     };
     target.codedSegments.push(mapped);
     summary.segmentsAdded++;

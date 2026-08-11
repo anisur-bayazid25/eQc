@@ -25,6 +25,48 @@ import pkg from '../package.json';
 import ImageEditor from './components/ImageEditor';
 import { cropRegionToPng, renderCodedImagePng } from './lib/imageCrop';
 
+function IsolatedPromptModal({ isOpen, message, buttonText, onResolve }: any) {
+  const [val, setVal] = React.useState('');
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  // Auto-focus and clear text when opened
+  React.useEffect(() => {
+    if (isOpen) {
+      setVal('');
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  return (
+    <>
+      {/* Dark background overlay */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: 9998, backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => onResolve(null)} />
+      
+      {/* Modal Box */}
+      <div className="modal" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 9999, backgroundColor: '#ffffff', color: '#0f172a', padding: '24px', borderRadius: '8px', minWidth: '300px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
+        <h3 style={{ marginTop: 0 }}>{message}</h3>
+        <input 
+          ref={inputRef}
+          type="text" 
+          value={val} 
+          onChange={e => setVal(e.target.value)} 
+          onKeyDown={e => {
+            if (e.key === 'Enter') onResolve(val);
+            if (e.key === 'Escape') onResolve(null);
+          }}
+          style={{ width: '100%', padding: '8px', marginBottom: '16px', boxSizing: 'border-box' }}
+        />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+          <button onClick={() => onResolve(null)}>Cancel</button>
+          <button onClick={() => onResolve(val)} className="primary-btn">{buttonText || 'Create'}</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 type Tab = 'workspace' | 'codebook' | 'autocode' | 'analysis' | 'about';
 
 function flattenCodes(codes: Code[]): Array<{ code: Code; depth: number }> {
@@ -187,6 +229,7 @@ export default function App() {
   const [noteDraft, setNoteDraft] = useState('');
   const [projectModalOpen, setProjectModalOpen] = useState(false);
   const [projectNameDraft, setProjectNameDraft] = useState('');
+  const [projectCoderDraft, setProjectCoderDraft] = useState('');
   const [deleteStep, setDeleteStep] = useState<0 | 1 | 2>(0); // 0 = rename view, 1 = first confirm, 2 = final confirm
 
 useEffect(() => {
@@ -246,7 +289,23 @@ useEffect(() => {
   const [autoCodeTargetCodeId, setAutoCodeTargetCodeId] = useState<ID | ''>('');
   const [autoCodeResultText, setAutoCodeResultText] = useState<string | null>(null);
 
-  const { prompt, modal: promptModal } = useTextPrompt();
+  const [promptConfig, setPromptConfig] = React.useState<{
+    isOpen: boolean;
+    message: string;
+    buttonText: string;
+    resolve: ((value: string | null) => void) | null;
+  }>({ isOpen: false, message: '', buttonText: '', resolve: null });
+
+  const customPrompt = (message: string, defaultValue: string = '', buttonText: string = 'Create'): Promise<string | null> => {
+    return new Promise((resolve) => {
+      setPromptConfig({ isOpen: true, message, buttonText, resolve });
+    });
+  };
+
+  const handlePromptResolve = (value: string | null) => {
+    if (promptConfig.resolve) promptConfig.resolve(value);
+    setPromptConfig({ isOpen: false, message: '', buttonText: '', resolve: null });
+  };
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -552,7 +611,7 @@ useEffect(() => {
   // Project management
   // =================================================================
   async function handleNewProject() {
-    const name = await prompt('New project name', 'Untitled Project', 'Create');
+    const name = await customPrompt('New project name', 'Untitled Project', 'Create');
     if (!name) return;
     const p = newProject(name);
     await saveToDisk(p).catch(() => {});
@@ -571,7 +630,7 @@ useEffect(() => {
 
   async function handleRenameProject() {
     if (!project) return;
-    const name = await prompt('Rename project', project.name, 'Rename');
+    const name = await customPrompt('Rename project', project.name, 'Rename');
     if (!name) return;
     persist({ ...project, name });
   }
@@ -579,6 +638,7 @@ useEffect(() => {
 function openProjectSettings() {
     if (!project) return;
     setProjectNameDraft(project.name);
+    setProjectCoderDraft(project.coderName || '');
     setDeleteStep(0);
     setProjectModalOpen(true);
   }
@@ -586,7 +646,8 @@ function openProjectSettings() {
   function saveProjectName() {
     if (!project) return;
     const trimmed = projectNameDraft.trim();
-    if (trimmed) persist({ ...project, name: trimmed });
+    const coderTrimmed = projectCoderDraft.trim();
+    if (trimmed) persist({ ...project, name: trimmed, coderName: coderTrimmed || undefined });
     setProjectModalOpen(false);
   }
 
@@ -633,15 +694,19 @@ function openProjectSettings() {
     const sources = await window.qv.pickMultipleForMerge();
     if (sources.length === 0) return;
     let next = { ...project, folders: [...project.folders], docs: [...project.docs], codes: [...project.codes], codedSegments: [...project.codedSegments] };
-    let totalDocs = 0, totalCodes = 0, totalSegs = 0;
+    let totalDocs = 0, totalMerged = 0, totalCodes = 0, totalSegs = 0;
     for (const src of sources) {
       const summary = mergeProjectInto(next, src);
       totalDocs += summary.docsAdded;
+      totalMerged += summary.docsMerged;
       totalCodes += summary.codesAdded;
       totalSegs += summary.segmentsAdded;
     }
     persist(next);
-    showToast(`Merged ${sources.length} file(s): +${totalDocs} docs, +${totalCodes} codes, +${totalSegs} coded passages.`);
+    showToast(
+      `Merged ${sources.length} file(s): +${totalDocs} new docs, ${totalMerged} matched onto existing docs, ` +
+      `+${totalCodes} codes, +${totalSegs} coded passages.`
+    );
   }
 
   // =================================================================
@@ -649,7 +714,7 @@ function openProjectSettings() {
   // =================================================================
   async function addRootFolder() {
     if (!project) return;
-    const name = await prompt('New root folder', '', 'Create');
+    const name = await customPrompt('New root folder', '', 'Create');
     if (!name) return;
     const folder: Folder = { id: uid('folder'), name, parentId: null };
     persist({ ...project, folders: [...project.folders, folder] });
@@ -657,7 +722,7 @@ function openProjectSettings() {
 
   async function addSubfolder(parentId: ID) {
     if (!project) return;
-    const name = await prompt('New subfolder', '', 'Create');
+    const name = await customPrompt('New subfolder', '', 'Create');
     if (!name) return;
     const folder: Folder = { id: uid('folder'), name, parentId };
     persist({ ...project, folders: [...project.folders, folder] });
@@ -665,7 +730,7 @@ function openProjectSettings() {
 
   async function renameFolder(folder: Folder) {
     if (!project) return;
-    const name = await prompt('Rename folder', folder.name, 'Rename');
+    const name = await customPrompt('Rename folder', folder.name, 'Rename');
     if (!name) return;
     persist({ ...project, folders: project.folders.map(f => (f.id === folder.id ? { ...f, name } : f)) });
   }
@@ -815,7 +880,7 @@ async function addScannedPdf(folderId: ID | null) {
 
   async function renameDoc(doc: SourceDoc) {
     if (!project) return;
-    const name = await prompt('Rename document', doc.name, 'Rename');
+    const name = await customPrompt('Rename document', doc.name, 'Rename');
     if (!name) return;
     persist({ ...project, docs: project.docs.map(d => (d.id === doc.id ? { ...d, name } : d)) });
   }
@@ -828,6 +893,18 @@ async function addScannedPdf(folderId: ID | null) {
     persist({ ...project, docs, codedSegments });
     if (selectedDocId === doc.id) setSelectedDocId(null);
   }
+
+function deleteImage(id: ID) {
+  if (!project) return;
+  if (!confirm('Are you sure you want to delete this image?')) return;
+  
+  const newImages = project.images?.filter(img => img.id !== id) ?? [];
+  persist({ ...project, images: newImages });
+
+  if (selectedImageId === id) {
+    setSelectedImageId(null);
+  }
+}
 
   function startEditDoc(doc: SourceDoc) {
     setPendingSelection(null);
@@ -881,7 +958,7 @@ async function handleExportDocDocx(doc: SourceDoc) {
   // =================================================================
   async function addRootCode() {
     if (!project) return;
-    const name = await prompt('New root code', '', 'Create');
+    const name = await customPrompt('New root code', '', 'Create');
     if (!name) return;
     const code: Code = { 
       id: uid('code'), 
@@ -896,7 +973,7 @@ async function handleExportDocDocx(doc: SourceDoc) {
 
   async function addSubcode(parentId: ID) {
     if (!project) return;
-    const name = await prompt('New subcode', '', 'Create');
+    const name = await customPrompt('New subcode', '', 'Create');
     if (!name) return;
     const code: Code = { 
       id: uid('code'), 
@@ -1444,11 +1521,21 @@ function openDocxCommentImport() {
           <div>
             <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Rename Project</label>
             <input
-              type="text"
-              value={projectNameDraft}
-              onChange={e => setProjectNameDraft(e.target.value)}
-              style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
-            />
+                  className="modal-input"
+                  value={projectNameDraft}
+                  onChange={e => setProjectNameDraft(e.target.value)}
+                  autoFocus
+                  onKeyDown={e => { if (e.key === 'Enter') saveProjectName(); }}
+                />
+                <label style={{ display: 'block', fontSize: 12, color: 'var(--text-dim)', margin: '8px 0 4px' }}>
+                  Coder name (used when this project is merged into another)
+                </label>
+                <input
+                  className="modal-input"
+                  placeholder="e.g. Anisur, RA-2"
+                  value={projectCoderDraft}
+                  onChange={e => setProjectCoderDraft(e.target.value)}
+                />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <button onClick={saveProjectName} className="primary-btn">Save</button>
@@ -1463,15 +1550,7 @@ function openDocxCommentImport() {
             <button onClick={() => setDeleteStep(2)} style={{ backgroundColor: '#ef4444', color: 'white', border: 'none', padding: '4px 12px', borderRadius: '4px' }}>Yes, proceed</button>
           </div>
         </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <p style={{ margin: 0, color: '#ef4444', fontWeight: 'bold' }}>Final confirmation: This cannot be undone.</p>
-          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-            <button onClick={() => setDeleteStep(0)}>Cancel</button>
-            <button onClick={confirmDeleteProject} style={{ backgroundColor: '#b91c1c', color: 'white', border: 'none', padding: '4px 12px', borderRadius: '4px', fontWeight: 'bold' }}>PERMANENTLY DELETE</button>
-          </div>
-        </div>
-      )}
+      ) : null}
     </div>
   </>
 )}
@@ -1599,9 +1678,12 @@ function openDocxCommentImport() {
         
       </header>
 
-      {tab === 'workspace' && (
-        <div className="workspace-grid">
-          <aside className="panel left-panel">
+      {/* Remove the {tab === 'workspace' && ( wrapper and add inline style to workspace-grid */}
+      <div 
+        className="workspace-grid" 
+        style={{ display: tab === 'workspace' ? undefined : 'none' }}
+      >
+        <aside className="panel left-panel">
             <div className="panel-toolbar">
               <button onClick={addRootFolder}>+ Add Root Folder</button>
               <button onClick={() => addDocs(null)}>+ Doc</button>
@@ -1680,10 +1762,23 @@ function openDocxCommentImport() {
               <DocTree
   folders={project.folders}
   docs={project.docs}
+  images={project.images}
   selectedDocId={selectedDocId}
+  selectedImageId={selectedImageId}
   sortBy={sortBy}
   codedCount={codedCountForDoc}
-  onSelectDoc={d => { setSelectedDocId(d.id); setSelectedImageId(null); setPendingSelection(null); setEditingDocId(null); }}
+  onSelectDoc={d => { 
+    setSelectedDocId(d.id); 
+    setSelectedImageId(null); 
+    setPendingSelection(null); 
+    setEditingDocId(null); 
+  }}
+  onSelectImage={img => { 
+    setSelectedImageId(img.id); 
+    setSelectedDocId(null); 
+    setPendingSelection(null); 
+    setEditingDocId(null); 
+  }}
   onAddRootFolder={addRootFolder}
   onAddSubfolder={addSubfolder}
   onAddDoc={addDocs}
@@ -1691,6 +1786,7 @@ function openDocxCommentImport() {
   onDeleteFolder={deleteFolder}
   onRenameDoc={renameDoc}
   onDeleteDoc={deleteDoc}
+  onDeleteImage={deleteImage}
   onMoveDoc={moveDoc}
   onDropFiles={(files, folderId) => {
     const fileArray = Array.from(files);
@@ -1815,19 +1911,43 @@ function openDocxCommentImport() {
                   </div>
                 )}
                 {editingDocId === selectedDoc.id && (
-                  <div style={{ flex: 1, overflowY: 'auto', padding: '16px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <textarea
-                      value={draftContent}
-                      onChange={e => setDraftContent(e.target.value)}
-                      style={{ flex: 1, padding: '8px', fontSize: '14px', fontFamily: 'monospace', resize: 'none', boxSizing: 'border-box' }}
-                      placeholder="Edit document text here…"
-                    />
-                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                      <button className="mini-btn" onClick={saveEditDoc}>Save</button>
-                      <button className="mini-btn" onClick={cancelEditDoc}>Cancel</button>
-                    </div>
-                  </div>
-                )}
+  <div 
+    style={{ 
+      flex: 1, 
+      display: 'flex', 
+      flexDirection: 'column', 
+      gap: '12px', 
+      padding: '16px', 
+      boxSizing: 'border-box', 
+      width: '100%', 
+      height: '100%', 
+      minHeight: 0 // Prevents flex child overflow collapsing
+    }}
+  >
+    <textarea
+      value={draftContent}
+      onChange={e => setDraftContent(e.target.value)}
+      style={{ 
+        flex: 1, 
+        width: '100%', 
+        height: '100%', 
+        padding: '12px', 
+        fontSize: '14px', 
+        lineHeight: '1.5',
+        fontFamily: 'monospace', 
+        resize: 'none', 
+        boxSizing: 'border-box',
+        borderRadius: '6px',
+        border: '1px solid var(--border-color, #ccc)'
+      }}
+      placeholder="Edit document text here…"
+    />
+    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+      <button className="mini-btn" onClick={saveEditDoc}>Save</button>
+      <button className="mini-btn" onClick={cancelEditDoc}>Cancel</button>
+    </div>
+  </div>
+)}
                 <div className="doc-title-actions">
                   {pendingSelection && (
                     <span className="selection-hint">
@@ -1911,7 +2031,12 @@ function openDocxCommentImport() {
                 onMoveCode={moveCode}
               />
             )}
-            {promptModal}
+            <IsolatedPromptModal 
+        isOpen={promptConfig.isOpen}
+        message={promptConfig.message}
+        buttonText={promptConfig.buttonText}
+        onResolve={handlePromptResolve}
+      />
           </aside>
 
           {segmentPopup && (
@@ -1932,7 +2057,10 @@ function openDocxCommentImport() {
                 <div key={s.id} className="segment-popup-row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span className="code-swatch" style={{ background: codesById.get(s.codeId)?.color }} />
-                    <span style={{ flex: 1 }}>{codesById.get(s.codeId)?.name || 'Unknown code'}</span>
+                    <span style={{ flex: 1 }}>
+                      {codesById.get(s.codeId)?.name || 'Unknown code'}
+                      {s.coder && <span className="section-hint" style={{ marginLeft: 6, fontSize: 11 }}>({s.coder})</span>}
+                    </span>
                     <button className="mini-btn" onClick={() => toggleStarSegment(s.id)} title={s.starred ? 'Unstar' : 'Star as key quote'}>
                       {s.starred ? '⭐' : '☆'}
                     </button>
@@ -2008,18 +2136,18 @@ function openDocxCommentImport() {
                             onChange={e => setRegionNoteDraft(e.target.value)}
                             autoFocus
                           />
-                          <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                          <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', marginTop: '4px' }}>
                             <button className="mini-btn" onClick={() => { updateRegionNote(r.id, regionNoteDraft); setEditingRegionNoteFor(null); }}>Save</button>
                             <button className="mini-btn" onClick={() => setEditingRegionNoteFor(null)}>Cancel</button>
                           </div>
                         </>
                       ) : r.note ? (
-                        <div style={{ fontSize: 12, fontStyle: 'italic', opacity: 0.85, marginBottom: 6, display: 'flex', justifyContent: 'space-between', gap: 6, backgroundColor: 'rgba(0,0,0,0.05)', padding: '6px', borderRadius: '4px' }}>
+                        <div style={{ fontSize: 12, fontStyle: 'italic', opacity: 0.85, marginBottom: 8, display: 'flex', justifyContent: 'space-between', gap: 6, backgroundColor: 'rgba(0,0,0,0.05)', padding: '6px', borderRadius: '4px' }}>
                           <span>📝 {r.note}</span>
                           <button className="mini-btn" onClick={() => { setEditingRegionNoteFor(r.id); setRegionNoteDraft(r.note || ''); }}>Edit</button>
                         </div>
                       ) : (
-                        <button className="mini-btn" style={{ marginBottom: 6 }} onClick={() => { setEditingRegionNoteFor(r.id); setRegionNoteDraft(''); }}>
+                        <button className="mini-btn" style={{ marginBottom: 8, fontSize: '10px', alignSelf: 'flex-start' }} onClick={() => { setEditingRegionNoteFor(r.id); setRegionNoteDraft(''); }}>
                           + Add note
                         </button>
                       )}
@@ -2031,7 +2159,7 @@ function openDocxCommentImport() {
             </>
           )}
         </div>
-      )}
+      
 
       {tab === 'codebook' && (() => {
   // Compute sorted codes based on active sort criterion
@@ -2169,7 +2297,12 @@ function openDocxCommentImport() {
         </div>
 
         {/* Prompt modal renderer for Manuscript title dialog */}
-        {promptModal}
+        <IsolatedPromptModal 
+        isOpen={promptConfig.isOpen}
+        message={promptConfig.message}
+        buttonText={promptConfig.buttonText}
+        onResolve={handlePromptResolve}
+      />
 
       </aside>
 
@@ -2225,7 +2358,11 @@ function openDocxCommentImport() {
                         {doc?.name || 'Unknown source'}
                       </div>
                       <div className="excerpt-text" style={{ marginBottom: '8px', lineHeight: '1.5' }}>"{seg.text}"</div>
-                      
+                      {seg.coder && (
+                          <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 4 }}>
+                            Coded by: {seg.coder}
+                          </div>
+                        )}
                       {editingNoteFor === seg.id ? (
                         <div style={{ marginBottom: 6 }}>
                           <textarea
@@ -2319,10 +2456,10 @@ function openDocxCommentImport() {
         ) : r.note ? (
           <div style={{ fontSize: 12, fontStyle: 'italic', opacity: 0.85, marginBottom: 8, display: 'flex', justifyContent: 'space-between', gap: 6, backgroundColor: 'rgba(0,0,0,0.05)', padding: '6px', borderRadius: '4px' }}>
             <span>📝 {r.note}</span>
-            <button className="mini-btn" onClick={() => { setEditingNoteFor(r.id); setNoteDraft(r.note || ''); }}>Edit</button>
+            <button className="mini-btn" onClick={() => { setEditingRegionNoteFor(r.id); setRegionNoteDraft(r.note || ''); }}>Edit</button>
           </div>
         ) : (
-          <button className="mini-btn" style={{ marginBottom: 8, fontSize: '10px', alignSelf: 'flex-start' }} onClick={() => { setEditingNoteFor(r.id); setNoteDraft(''); }}>
+          <button className="mini-btn" style={{ marginBottom: 8, fontSize: '10px', alignSelf: 'flex-start' }} onClick={() => { setEditingRegionNoteFor(r.id); setRegionNoteDraft(''); }}>
             + Add note
           </button>
         )}
@@ -2371,7 +2508,12 @@ function openDocxCommentImport() {
   >
     + Add Root Code
   </button>
-  {promptModal}
+  <IsolatedPromptModal 
+        isOpen={promptConfig.isOpen}
+        message={promptConfig.message}
+        buttonText={promptConfig.buttonText}
+        onResolve={handlePromptResolve}
+      />
   
   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
     <span style={{ color: 'var(--text-dim)', fontSize: '12px' }}>↕</span>
@@ -2556,8 +2698,8 @@ function AnalysisExportButtons({
   async function doExport(kind: 'csv' | 'docx') {
     const path = kind === 'csv'
       ? await window.qv.exportText({
-          title: `Export ${title} (CSV)`,
-          defaultName: `${filenameBase}.csv`,
+          title: `Export ${title} (CSV)`, 
+          defaultName: `${filenameBase}.csv`, 
           content: toCsv(headers, rows.map(r => r.map(String))),
           extension: 'csv',
           filterName: 'CSV file'

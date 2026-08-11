@@ -41,6 +41,7 @@ export interface CodedSegment {
   source: 'manual' | 'csv-import' | 'auto-code' | 'qdpx-import'| 'docx-comment-import';
   note?: string;          // segment-level memo (e.g. from REFI-QDA import)
   starred?: boolean;      // marked as a "key quote" for manuscript writing
+  coder?: string;   // which coder/project this segment came from — set during merge
 }
 
 export interface ImageSource {
@@ -94,6 +95,7 @@ export interface Project {
   relationNotes?: CodeRelationNote[]; // analytic memos on code-pair relationships (co-occurrence)
   images?: ImageSource[];
   codedRegions?: CodedRegion[];
+  coderName?: string;   // this project's coder identity, stamped onto segments when merged into another project
 }
 
 export interface ProjectSummary {

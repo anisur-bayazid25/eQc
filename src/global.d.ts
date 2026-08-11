@@ -43,10 +43,15 @@ interface QdpxParsePayload {
 }
 
 export interface QvBridge {
+  exportImage: any;
+  pickAndEncodeImages: any;
   listProjects(): Promise<ProjectSummary[]>;
   loadProject(id: string): Promise<Project | null>;
   saveProject(project: Project): Promise<Project>;
   deleteProject(id: string): Promise<boolean>;
+
+  pickAndEncodeImages: () => Promise<Array<{ name: string; dataUrl: string; sizeBytes: number }>>;
+  exportImage: (payload: { title: string; defaultName: string; base64: string }) => Promise<string | null>;
 
   pickAndExtractDocs(): Promise<ExtractedDoc[]>;
   pickAndParseCsv(): Promise<CsvParseResult | null>;

@@ -495,4 +495,4 @@ This project is released under the **MIT License**.
 # Version
 
 **eQc — Easy Qual Coding**
-Version **1.1.3 (2026)**
+Version **1.2.0 (2026)**

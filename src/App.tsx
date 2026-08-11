@@ -1732,7 +1732,6 @@ function openDocxCommentImport() {
           <aside className="panel right-panel">
             <div className="panel-toolbar">
               <button onClick={addRootCode}>+ Add Root Code</button>
-               {promptModal}
             </div>
             <CodeSearch
               codes={project.codes}
@@ -1752,7 +1751,7 @@ function openDocxCommentImport() {
                 onMoveCode={moveCode}
               />
             )}
-             {promptModal}
+            {promptModal}
           </aside>
 
           {segmentPopup && (
@@ -2154,8 +2153,8 @@ function openDocxCommentImport() {
     }}
   >
     + Add Root Code
-     {promptModal}
   </button>
+  {promptModal}
   
   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
     <span style={{ color: 'var(--text-dim)', fontSize: '12px' }}>↕</span>
@@ -2198,7 +2197,6 @@ function openDocxCommentImport() {
         )}
 
       </aside>
-         {promptModal}
     </div>
   );
 })()}

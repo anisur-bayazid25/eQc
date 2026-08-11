@@ -1,6 +1,6 @@
 {
   "name": "eqc-desktop",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "description": "eQc - Easy Qual Coding - local-first qualitative data coding and analysis app (Electron + React + SQLite)",
   "author": "Anisur Rahman Bayazid",
   "license": "MIT",

@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('qv', {
 
   // Documents
   pickAndExtractDocs: () => ipcRenderer.invoke('docs:pickAndExtract'),
+  extractDroppedDocs: (paths) => ipcRenderer.invoke('docs:extractDropped', paths),
   pickAndParseDocxComments: () => ipcRenderer.invoke('docxComments:pickAndParse'),
   exportDocAsDocx: (payload) => ipcRenderer.invoke('docs:exportDocx', payload),
   exportText: (payload) => ipcRenderer.invoke('export:saveText', payload),
@@ -19,6 +20,7 @@ contextBridge.exposeInMainWorld('qv', {
   pickAndParseCsv: () => ipcRenderer.invoke('csv:pickAndParse'),
 
   pickAndEncodeImages: () => ipcRenderer.invoke('images:pickAndEncode'),
+  extractDroppedImages: (paths) => ipcRenderer.invoke('images:extractDropped', paths),
 
   // Backup / merge
   exportBackup: project => ipcRenderer.invoke('backup:export', project),

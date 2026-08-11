@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
-import { Folder, SourceDoc, ID } from '../domain';
+import { Folder, SourceDoc, ImageSource, ID } from '../domain';
 
 export type SortKey = 'name' | 'date' | 'size' | 'coded';
 
 interface Props {
   folders: Folder[];
   docs: SourceDoc[];
+  images?: ImageSource[];
   selectedDocId: ID | null;
+  selectedImageId?: ID | null;
   sortBy: SortKey;
   codedCount: (docId: ID) => number;
   onSelectDoc: (doc: SourceDoc) => void;
+  onSelectImage?: (image: ImageSource) => void;
   onAddRootFolder: () => void;
   onAddSubfolder: (parentId: ID) => void;
   onAddDoc: (folderId: ID | null) => void;
@@ -17,6 +20,7 @@ interface Props {
   onDeleteFolder: (folder: Folder) => void;
   onRenameDoc: (doc: SourceDoc) => void;
   onDeleteDoc: (doc: SourceDoc) => void;
+  onDeleteImage: (id: ID) => void;
   onMoveDoc: (docId: ID, targetFolderId: ID | null) => void;
   onDropFiles: (files: FileList, folderId: ID | null) => void;
 }
@@ -43,6 +47,7 @@ function FolderNode(props: Props & { folder: Folder; depth: number }) {
   
   const childFolders = props.folders.filter(f => f.parentId === folder.id);
   const childDocs = sortDocs(props.docs.filter(d => d.folderId === folder.id), props.sortBy, props.codedCount);
+  const childImages = (props.images || []).filter(img => img.folderId === folder.id);
 
   return (
     <div>
@@ -106,6 +111,9 @@ function FolderNode(props: Props & { folder: Folder; depth: number }) {
           {childDocs.map(doc => (
             <DocRow key={doc.id} {...props} doc={doc} depth={depth + 1} />
           ))}
+          {childImages.map(img => (
+            <ImageRow key={img.id} {...props} image={img} depth={depth + 1} />
+          ))}
         </div>
       )}
     </div>
@@ -162,9 +170,44 @@ function DocRow(props: Props & { doc: SourceDoc; depth: number }) {
   );
 }
 
+function ImageRow(props: Props & { image: ImageSource; depth: number }) {
+  const { image, depth } = props;
+  const [hover, setHover] = useState(false);
+  const isSelected = props.selectedImageId === image.id;
+
+  return (
+    <div
+      className={`doc-row ${isSelected ? 'selected' : ''}`}
+      style={{ paddingLeft: depth * 14 + 4, cursor: 'pointer' }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onClick={() => props.onSelectImage && props.onSelectImage(image)}
+    >
+      <span className="tree-arrow spacer" />
+      <span className="doc-icon">🖼️</span>
+      <span className="doc-name">{image.name}</span>
+      {hover && (
+        <span className="row-actions">
+          <button
+            className="mini-btn"
+            title="Delete Image"
+            onClick={e => {
+              e.stopPropagation();
+              props.onDeleteImage(image.id);
+            }}
+          >
+            🗑
+          </button>
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function DocTree(props: Props) {
   const rootFolders = props.folders.filter(f => f.parentId === null);
   const rootDocs = sortDocs(props.docs.filter(d => d.folderId === null), props.sortBy, props.codedCount);
+  const rootImages = (props.images || []).filter(img => !img.folderId);
 
   return (
     <div 
@@ -188,7 +231,10 @@ export default function DocTree(props: Props) {
       {rootDocs.map(doc => (
         <DocRow key={doc.id} {...props} doc={doc} depth={0} />
       ))}
-      {rootFolders.length === 0 && rootDocs.length === 0 && (
+      {rootImages.map(img => (
+        <ImageRow key={img.id} {...props} image={img} depth={0} />
+      ))}
+      {rootFolders.length === 0 && rootDocs.length === 0 && rootImages.length === 0 && (
         <div className="empty-hint">No documents yet. Use “+ Root Folder” or “+ Doc” to add sources.</div>
       )}
     </div>

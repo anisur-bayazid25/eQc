@@ -1371,6 +1371,91 @@ function openDocxCommentImport() {
 
   return (
     <div className="app-shell">
+      {/* --- RESTORED TOAST NOTIFICATION --- */}
+{toast && (
+  <div style={{ position: 'fixed', bottom: '24px', right: '24px', backgroundColor: '#334155', color: '#f8fafc', padding: '12px 24px', borderRadius: '6px', zIndex: 9999, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+    {toast}
+  </div>
+)}
+
+{/* --- RESTORED PROJECT SETTINGS MODAL --- */}
+{projectModalOpen && (
+  <>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 99, backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setProjectModalOpen(false)} />
+    <div className="modal" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 100, backgroundColor: theme === 'dark' ? '#1e293b' : '#ffffff', color: theme === 'dark' ? '#f8fafc' : '#0f172a', padding: '24px', borderRadius: '8px', minWidth: '300px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
+      <h3 style={{ marginTop: 0 }}>Project Settings</h3>
+      {deleteStep === 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Rename Project</label>
+            <input
+              type="text"
+              value={projectNameDraft}
+              onChange={e => setProjectNameDraft(e.target.value)}
+              style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
+            />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <button onClick={saveProjectName} className="primary-btn">Save</button>
+            <button onClick={() => setDeleteStep(1)} style={{ color: '#ef4444', border: 'none', background: 'none', cursor: 'pointer' }}>Delete Project...</button>
+          </div>
+        </div>
+      ) : deleteStep === 1 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <p style={{ margin: 0 }}>Are you sure you want to delete this project?</p>
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <button onClick={() => setDeleteStep(0)}>Cancel</button>
+            <button onClick={() => setDeleteStep(2)} style={{ backgroundColor: '#ef4444', color: 'white', border: 'none', padding: '4px 12px', borderRadius: '4px' }}>Yes, proceed</button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <p style={{ margin: 0, color: '#ef4444', fontWeight: 'bold' }}>Final confirmation: This cannot be undone.</p>
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <button onClick={() => setDeleteStep(0)}>Cancel</button>
+            <button onClick={confirmDeleteProject} style={{ backgroundColor: '#b91c1c', color: 'white', border: 'none', padding: '4px 12px', borderRadius: '4px', fontWeight: 'bold' }}>PERMANENTLY DELETE</button>
+          </div>
+        </div>
+      )}
+    </div>
+  </>
+)}
+
+{/* --- RESTORED DOCX IMPORT MODAL --- */}
+{docxCommentModalOpen && (
+  <>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 99, backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setDocxCommentModalOpen(false)} />
+    <div className="modal" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 100, backgroundColor: theme === 'dark' ? '#1e293b' : '#ffffff', color: theme === 'dark' ? '#f8fafc' : '#0f172a', padding: '24px', borderRadius: '8px', minWidth: '300px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
+      <h3 style={{ marginTop: 0 }}>Import DOCX Comments</h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Separator</label>
+          <select value={docxSeparatorChoice} onChange={e => setDocxSeparatorChoice(e.target.value as any)} style={{ width: '100%', padding: '6px' }}>
+            <option value=",">Comma (,)</option>
+            <option value=";">Semicolon (;)</option>
+            <option value="|">Pipe (|)</option>
+            <option value="custom">Custom...</option>
+          </select>
+        </div>
+        {docxSeparatorChoice === 'custom' && (
+          <input type="text" value={docxCustomSeparator} onChange={e => setDocxCustomSeparator(e.target.value)} placeholder="Enter custom separator" style={{ padding: '6px' }} />
+        )}
+        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
+          <input type="checkbox" checked={docxFirstIsSpeaker} onChange={e => setDocxFirstIsSpeaker(e.target.checked)} />
+          First field is speaker name
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
+          <input type="checkbox" checked={docxLastIsExcerpt} onChange={e => setDocxLastIsExcerpt(e.target.checked)} />
+          Last field is excerpt echo
+        </label>
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '8px' }}>
+          <button onClick={() => setDocxCommentModalOpen(false)}>Cancel</button>
+          <button onClick={handleDocxCommentImport} className="primary-btn">Import</button>
+        </div>
+      </div>
+    </div>
+  </>
+)}
       <header className="app-header" style={{ 
         display: 'flex', 
         flexDirection: 'column', 
@@ -1910,7 +1995,7 @@ function openDocxCommentImport() {
           </div>
         </div>
 
-        {/* MOVED CODE DETAILS (Only visible when a code is selected) */}
+        {/* CODE DETAILS (Only visible when a code is selected) */}
         {codebookCode && (
           <div className="sidebar-group" style={{ borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', padding: '12px 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', color: '#64748b', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
@@ -1978,7 +2063,6 @@ function openDocxCommentImport() {
               {Object.entries(SCOPE_LABELS).map(([key, label]) => (
                 <option key={key} value={key}>{label as string}</option>
               ))}
-              {/* Force Starred Excerpts into the dropdown toggle */}
               <option value="starred">Starred Excerpts</option>
             </select>
             
@@ -1997,10 +2081,21 @@ function openDocxCommentImport() {
               >
                 ⬇️ DOCX
               </button>
-              <button onClick={handleExportStarredImages}>⭐ Starred Images (DOCX)</button>
             </div>
+
+            <button 
+              className="mini-btn" 
+              style={{ width: '100%', padding: '6px 4px', marginTop: '2px' }} 
+              onClick={handleExportStarredImages}
+            >
+              ⭐ Starred Images (DOCX)
+            </button>
           </div>
         </div>
+
+        {/* Prompt modal renderer for Manuscript title dialog */}
+        {promptModal}
+
       </aside>
 
       {/* 2. CENTER PANEL: Excerpts Only */}

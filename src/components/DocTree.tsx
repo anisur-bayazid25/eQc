@@ -18,6 +18,7 @@ interface Props {
   onRenameDoc: (doc: SourceDoc) => void;
   onDeleteDoc: (doc: SourceDoc) => void;
   onMoveDoc: (docId: ID, targetFolderId: ID | null) => void;
+  onDropFiles: (files: FileList, folderId: ID | null) => void;
 }
 
 function sortDocs(docs: SourceDoc[], sortBy: SortKey, codedCount: (id: ID) => number): SourceDoc[] {
@@ -63,6 +64,14 @@ function FolderNode(props: Props & { folder: Folder; depth: number }) {
           e.preventDefault();
           e.stopPropagation(); // Stop it from bubbling up to the root container
           setIsDragOver(false);
+          
+          // 1. Check if the user dropped external files from their OS
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            props.onDropFiles(e.dataTransfer.files, folder.id);
+            return; // Exit early so we don't try to move an internal doc
+          }
+
+          // 2. Otherwise, handle the internal document move like normal
           const docId = e.dataTransfer.getData('text/plain');
           if (docId) props.onMoveDoc(docId, folder.id);
         }}
@@ -164,6 +173,10 @@ export default function DocTree(props: Props) {
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault();
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          props.onDropFiles(e.dataTransfer.files, null);
+          return;
+        }
         const docId = e.dataTransfer.getData('text/plain');
         // Dropping into the main tree area moves it to the root (null)
         if (docId) props.onMoveDoc(docId, null);

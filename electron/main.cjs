@@ -232,6 +232,33 @@ ipcMain.handle('docs:pickAndExtract', async () => {
   return out;
 });
 
+ipcMain.handle('docs:extractDropped', async (event, paths) => {
+  if (!paths || paths.length === 0) return [];
+
+  const out = [];
+  for (const fp of paths) {
+    try {
+      const text = await extractText(fp);
+      const stat = fs.statSync(fp);
+      out.push({
+        name: path.basename(fp),
+        content: text,
+        sizeBytes: stat.size,
+        ok: true
+      });
+    } catch (e) {
+      out.push({ 
+        name: path.basename(fp), 
+        content: '', 
+        sizeBytes: 0, 
+        ok: false, 
+        error: String(e.message || e) 
+      });
+    }
+  }
+  return out;
+});
+
 ipcMain.handle('images:pickAndEncode', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
     title: 'Add images',
@@ -252,6 +279,34 @@ ipcMain.handle('images:pickAndEncode', async () => {
       sizeBytes: buffer.length
     };
   });
+});
+
+ipcMain.handle('images:extractDropped', async (event, paths) => {
+  if (!paths || paths.length === 0) return [];
+
+  const mimeByExt = { 
+    '.jpg': 'image/jpeg', 
+    '.jpeg': 'image/jpeg', 
+    '.png': 'image/png', 
+    '.gif': 'image/gif', 
+    '.webp': 'image/webp' 
+  };
+
+  return paths.map(fp => {
+    try {
+      const buffer = fs.readFileSync(fp);
+      const ext = path.extname(fp).toLowerCase();
+      const mime = mimeByExt[ext] || 'application/octet-stream';
+      return {
+        name: path.basename(fp),
+        dataUrl: `data:${mime};base64,${buffer.toString('base64')}`,
+        sizeBytes: buffer.length
+      };
+    } catch (e) {
+      console.error(`Failed to read dropped image ${fp}:`, e);
+      return null;
+    }
+  }).filter(Boolean); // removes any that failed to read
 });
 
 ipcMain.handle('export:saveImage', async (_e, payload) => {
@@ -449,6 +504,7 @@ ipcMain.handle('export:docx', async (_e, payload) => {
   fs.writeFileSync(filePath, buffer);
   return filePath;
 });
+
 
 // ---------------------------------------------------------------------
 // IPC: coded-DOCX import (Word comments encode codes)

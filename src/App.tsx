@@ -467,16 +467,6 @@ async function handleExportCodedImage() {
     });
   }
 
-  function updateRegionNote(regionId: ID, note: string) {
-    if (!project) return;
-    persist({
-      ...project,
-      codedRegions: (project.codedRegions || []).map(r =>
-        r.id === regionId ? { ...r, note: note.trim() ? note.trim() : undefined } : r
-      )
-    });
-  }
-
 function updateImageNotes(imageId: ID, notes: string) {
     if (!project) return;
     persist({
@@ -714,6 +704,61 @@ function openProjectSettings() {
     }
     if (failures.length > 0) showToast(`Some files could not be imported: ${failures.join('; ')}`);
   }
+
+async function importDroppedFiles(paths: string[], folderId: ID | null) {
+  if (!project || paths.length === 0) return;
+  
+  // Notice we call a hypothetical 'extractDroppedDocs' instead of 'pickAndExtractDocs'
+  const files = await window.qv.extractDroppedDocs(paths); 
+  
+  if (files.length === 0) return;
+  
+  const newDocs: SourceDoc[] = [];
+  const failures: string[] = [];
+  
+  for (const f of files) {
+    if (!f.ok) {
+      failures.push(`${f.name}: ${f.error}`);
+      continue;
+    }
+    newDocs.push({
+      id: uid('doc'),
+      folderId,
+      name: f.name,
+      content: f.content,
+      addedAt: Date.now(),
+      sizeBytes: f.sizeBytes
+    });
+  }
+  
+  if (newDocs.length > 0) {
+    persist({ ...project, docs: [...project.docs, ...newDocs] });
+    setSelectedDocId(newDocs[0].id);
+  }
+  if (failures.length > 0) showToast(`Some files could not be imported: ${failures.join('; ')}`);
+}
+
+async function importDroppedImages(paths: string[], folderId: ID | null) {
+  if (!project || paths.length === 0) return;
+  
+  const images = await window.qv.extractDroppedImages(paths); 
+  if (images.length === 0) return;
+  
+  // Create the image objects exactly like you do in your normal 'addImages' function
+  const newImages = images.map(img => ({
+    id: uid('img'), // Assuming you use uid() for IDs like in documents
+    folderId,
+    name: img.name,
+    dataUrl: img.dataUrl,
+    addedAt: Date.now(),
+    sizeBytes: img.sizeBytes
+  }));
+  
+  if (newImages.length > 0) {
+    persist({ ...project, images: [...(project.images || []), ...newImages] });
+    // setSelectedImageId(newImages[0].id); // Optional
+  }
+}
 
 async function addScannedPdf(folderId: ID | null) {
     if (!project) return;
@@ -1017,6 +1062,16 @@ function updateSegmentNote(segId: ID, note: string) {
       )
     });
   }
+
+function updateRegionNote(regionId: ID, note: string) {
+  if (!project) return;
+  persist({
+    ...project,
+    codedRegions: (project.codedRegions || []).map(r =>
+      r.id === regionId ? { ...r, note: note.trim() ? note.trim() : undefined } : r
+    )
+  });
+}
 
 function toggleStarSegment(segId: ID) {
     if (!project) return;
@@ -1623,21 +1678,41 @@ function openDocxCommentImport() {
             </div>
             {!docNameQuery.trim() && (
               <DocTree
-              folders={project.folders}
-              docs={project.docs}
-              selectedDocId={selectedDocId}
-              sortBy={sortBy}
-              codedCount={codedCountForDoc}
-              onSelectDoc={d => { setSelectedDocId(d.id); setSelectedImageId(null); setPendingSelection(null); setEditingDocId(null); }}
-              onAddRootFolder={addRootFolder}
-              onAddSubfolder={addSubfolder}
-              onAddDoc={addDocs}
-              onRenameFolder={renameFolder}
-              onDeleteFolder={deleteFolder}
-              onRenameDoc={renameDoc}
-              onDeleteDoc={deleteDoc}
-              onMoveDoc={moveDoc}
-            />
+  folders={project.folders}
+  docs={project.docs}
+  selectedDocId={selectedDocId}
+  sortBy={sortBy}
+  codedCount={codedCountForDoc}
+  onSelectDoc={d => { setSelectedDocId(d.id); setSelectedImageId(null); setPendingSelection(null); setEditingDocId(null); }}
+  onAddRootFolder={addRootFolder}
+  onAddSubfolder={addSubfolder}
+  onAddDoc={addDocs}
+  onRenameFolder={renameFolder}
+  onDeleteFolder={deleteFolder}
+  onRenameDoc={renameDoc}
+  onDeleteDoc={deleteDoc}
+  onMoveDoc={moveDoc}
+  onDropFiles={(files, folderId) => {
+    const fileArray = Array.from(files);
+    
+    // 1. Separate the images from the documents
+    const docPaths = fileArray
+      .map(f => (f as File & { path: string }).path)
+      .filter(path => !path.match(/\.(png|jpe?g|gif|webp)$/i));
+      
+    const imagePaths = fileArray
+      .map(f => (f as File & { path: string }).path)
+      .filter(path => path.match(/\.(png|jpe?g|gif|webp)$/i));
+      
+    // 2. Send them to their respective functions!
+    if (docPaths.length > 0) {
+      importDroppedFiles(docPaths, folderId);
+    }
+    if (imagePaths.length > 0) {
+      importDroppedImages(imagePaths, folderId);
+    }
+  }}
+/>
             )}
 
             {(project.images || []).length > 0 && (
@@ -2194,7 +2269,19 @@ function openDocxCommentImport() {
   const image = (project.images || []).find(i => i.id === r.imageId);
   if (!image) return null;
   return (
-    <div key={r.id} className="excerpt-card" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+    <div 
+      key={r.id} 
+      className="excerpt-card" 
+      style={{ 
+        display: 'flex', gap: 10, alignItems: 'flex-start',
+        backgroundColor: readerTheme === 'dark' ? '#1e293b' : (readerTheme === 'white' ? '#ffffff' : '#fef3c7'),
+        color: readerTheme === 'dark' ? '#f8fafc' : '#0f172a',
+        border: readerTheme === 'dark' ? '1px solid #334155' : (readerTheme === 'white' ? '1px solid #e2e8f0' : '1px solid #fde68a'),
+        padding: '12px',
+        marginBottom: '12px',
+        borderRadius: '6px'
+      }}
+    >
       <div style={{ width: 100, height: 75, overflow: 'hidden', position: 'relative', borderRadius: 6, border: '1px solid var(--border)', flexShrink: 0 }}>
         <img
           src={image.dataUrl}
@@ -2206,12 +2293,47 @@ function openDocxCommentImport() {
             top: `${-r.y * (100 / r.height)}%`,
             maxWidth: 'none'
           }}
+          alt="Coded region"
         />
       </div>
-      <div style={{ flex: 1 }}>
-        <div className="excerpt-doc">{image.name}</div>
-        {r.note && <div style={{ fontSize: 12, fontStyle: 'italic', opacity: 0.85 }}>📝 {r.note}</div>}
-        <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div className="excerpt-doc" style={{ fontSize: '11px', color: '#64748b', marginBottom: '6px', fontWeight: 'bold' }}>
+          {image.name}
+        </div>
+        
+        {/* Editing Note UI for Images */}
+        {editingNoteFor === r.id ? (
+          <div style={{ marginBottom: 6 }}>
+            <textarea
+              className="modal-input"
+              style={{ minHeight: 50, width: '100%', padding: '6px', boxSizing: 'border-box' }}
+              value={noteDraft}
+              onChange={e => setNoteDraft(e.target.value)}
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', marginTop: '4px' }}>
+              <button className="mini-btn" onClick={() => { updateRegionNote(r.id, noteDraft); setEditingNoteFor(null); }}>Save</button>
+              <button className="mini-btn" onClick={() => setEditingNoteFor(null)}>Cancel</button>
+            </div>
+          </div>
+        ) : r.note ? (
+          <div style={{ fontSize: 12, fontStyle: 'italic', opacity: 0.85, marginBottom: 8, display: 'flex', justifyContent: 'space-between', gap: 6, backgroundColor: 'rgba(0,0,0,0.05)', padding: '6px', borderRadius: '4px' }}>
+            <span>📝 {r.note}</span>
+            <button className="mini-btn" onClick={() => { setEditingNoteFor(r.id); setNoteDraft(r.note || ''); }}>Edit</button>
+          </div>
+        ) : (
+          <button className="mini-btn" style={{ marginBottom: 8, fontSize: '10px', alignSelf: 'flex-start' }} onClick={() => { setEditingNoteFor(r.id); setNoteDraft(''); }}>
+            + Add note
+          </button>
+        )}
+
+        <div style={{ display: 'flex', gap: 6, marginTop: 'auto' }}>
+          <button className="mini-btn" onClick={() => {
+            setTab('workspace');
+            setSelectedDocId(null); // Clear document selection
+            setSelectedImageId(r.imageId); // Set image selection
+            setPendingRegion(r); // Highlight this specific region in the workspace
+          }}>📍 Go to Image</button>
           <button className="mini-btn" onClick={() => toggleStarRegion(r.id)}>{r.starred ? '⭐ Starred' : '☆ Star'}</button>
           <button className="mini-btn" onClick={() => removeCodedRegion(r.id)}>Remove</button>
         </div>

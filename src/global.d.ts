@@ -52,8 +52,10 @@ export interface QvBridge {
 
   pickAndEncodeImages: () => Promise<Array<{ name: string; dataUrl: string; sizeBytes: number }>>;
   exportImage: (payload: { title: string; defaultName: string; base64: string }) => Promise<string | null>;
+  extractDroppedImages(paths: string[]): Promise<Array<{ name: string; dataUrl: string; sizeBytes: number }>>;
 
   pickAndExtractDocs(): Promise<ExtractedDoc[]>;
+  extractDroppedDocs(paths: string[]): Promise<ExtractedDoc[]>;
   pickAndParseCsv(): Promise<CsvParseResult | null>;
   pickAndParseQdpx: () => Promise<QdpxParsePayload | null>;
   pickAndParseDocxComments: () => Promise<{ fileName: string; documentXml: string; commentsXml: string } | null>;

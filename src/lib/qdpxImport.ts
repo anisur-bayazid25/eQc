@@ -85,7 +85,8 @@ function findOrCreateCode(
     name: trimmed,
     color: color || randomColor(project.codes.length),
     parentId,
-    summary: ''
+    summary: '',
+    createdAt: Date.now()
   };
   project.codes.push(created);
   guidMap.set(guid, created.id);

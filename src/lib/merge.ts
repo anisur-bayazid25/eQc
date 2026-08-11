@@ -73,7 +73,8 @@ export function mergeProjectInto(target: Project, source: Project): MergeSummary
           name: sc.name,
           color: randomColor(target.codes.length),
           parentId: targetParentId,
-          summary: sc.summary
+          summary: sc.summary,
+          createdAt: Date.now()
         };
         target.codes.push(match);
         summary.codesAdded++;

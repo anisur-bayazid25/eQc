@@ -51,7 +51,6 @@
   "build": {
     "appId": "com.eQc.desktop",
     "productName": "eQc - Easy Qual Coding",
-    "artifactName": "eQc-Setup-${version}.${ext}",
     "directories": {
       "output": "release"
     },
@@ -71,6 +70,7 @@
     ],
     "win": {
       "icon": "assets/eqc_icon.ico",
+      "artifactName": "eQc-Setup-${version}.${ext}",
       "target": [
         {
           "target": "nsis",
@@ -87,6 +87,7 @@
       "createStartMenuShortcut": true
     },
     "mac": {
+      "artifactName": "eQc-Setup-${version}-${arch}.${ext}",
       "target": [
         {
           "target": "dmg",

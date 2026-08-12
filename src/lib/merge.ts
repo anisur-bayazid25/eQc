@@ -1,4 +1,4 @@
-import { Project, Folder, SourceDoc, Code, CodedSegment, uid, randomColor } from '../domain';
+import { Project, Folder, SourceDoc, Code, CodedSegment, uid, colorForNewCode, CODE_COLORS } from '../domain';
 
 export interface MergeSummary {
   foldersAdded: number;
@@ -11,6 +11,31 @@ export interface MergeSummary {
 
 function normalize(s: string): string {
   return s.trim().toLowerCase();
+}
+
+// Assigns one stable color per coder, distinct from colors already present
+// in the merged project. All new codes arriving from the same source
+// project share that coder's color, so after a multi-coder merge each
+// coder's contribution is visually identifiable at a glance.
+function buildCoderColorPicker(target: Project) {
+  const taken = new Set(target.codes.map(c => c.color));
+  const byCoder = new Map<string, string>();
+  return (coder: string | undefined): string => {
+    if (!coder) return colorForNewCode(target.codes, null, target.codes.length);
+    let color = byCoder.get(coder);
+    if (color) return color;
+    const free = CODE_COLORS.find(c => !taken.has(c));
+    if (free) {
+      color = free;
+    } else {
+      let h = 0;
+      for (let i = 0; i < coder.length; i++) h = (h * 31 + coder.charCodeAt(i)) >>> 0;
+      color = CODE_COLORS[h % CODE_COLORS.length];
+    }
+    taken.add(color);
+    byCoder.set(coder, color);
+    return color;
+  };
 }
 
 // Merges `source` project data into `target` (mutated in place).
@@ -78,6 +103,8 @@ export function mergeProjectInto(target: Project, source: Project): MergeSummary
   // even though ids differ between the two project files.
   const codeIdMap = new Map<string, string>();
   const byParent = (codes: Code[], parentId: string | null) => codes.filter(c => c.parentId === parentId);
+  const coderColor = buildCoderColorPicker(target);
+  const sourceCoderName = source.coderName;
 
   function mergeLevel(sourceParentId: string | null, targetParentId: string | null) {
     for (const sc of byParent(source.codes, sourceParentId)) {
@@ -90,10 +117,15 @@ export function mergeProjectInto(target: Project, source: Project): MergeSummary
           match.summary = match.summary ? `${match.summary}\n\n${sc.summary}` : sc.summary;
         }
       } else {
+        // Root codes arriving from a coder-tagged project get that coder's
+        // color; subcodes inherit the parent's color (colorForNewCode),
+        // which after a merge is the same coder color.
         match = {
           id: uid('code'),
           name: sc.name,
-          color: randomColor(target.codes.length),
+          color: targetParentId === null
+            ? coderColor(sourceCoderName)
+            : colorForNewCode(target.codes, targetParentId, target.codes.length),
           parentId: targetParentId,
           summary: sc.summary,
           createdAt: Date.now()

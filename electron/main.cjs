@@ -9,6 +9,14 @@ const isDev = process.env.NODE_ENV === 'development';
 
 const JSZip = require('jszip');
 
+const { autoUpdater } = require('electron-updater');
+const https = require('https');
+
+// Prevents a second checkForUpdates() call (e.g. the "Check for Updates"
+// button on the About tab) from starting a duplicate download while one
+// is already in progress.
+let updateDownloadInFlight = false;
+
 // ---------------------------------------------------------------------
 // SQLite setup — one row per project, whole project stored as JSON.
 // This mirrors the JSON-store-to-SQLite migration already used by the
@@ -137,6 +145,10 @@ function createWindow() {
 app.whenReady().then(() => {
   initDb();
   createWindow();
+
+  // 🟢 Trigger the silent update check 3 seconds after initial launch
+  setTimeout(() => checkForUpdates(true), 3000);
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -145,6 +157,86 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+
+function isNewerVersion(latest, current) {
+  const a = latest.split('.').map(Number);
+  const b = current.split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((a[i] || 0) > (b[i] || 0)) return true;
+    if ((a[i] || 0) < (b[i] || 0)) return false;
+  }
+  return false;
+}
+
+function fetchLatestGithubRelease() {
+  return new Promise(resolve => {
+    https.get(
+      'https://api.github.com/repos/anisur-bayazid25/eQc/releases/latest',
+      { headers: { 'User-Agent': 'eQc-desktop' } },
+      res => {
+        let data = '';
+        res.on('data', chunk => (data += chunk));
+        res.on('end', () => {
+          try {
+            const json = JSON.parse(data);
+            resolve({ latestVersion: (json.tag_name || '').replace(/^v/, ''), url: json.html_url });
+          } catch {
+            resolve(null);
+          }
+        });
+      }
+    ).on('error', () => resolve(null));
+  });
+}
+
+async function checkForUpdates(silent) {
+  if (process.platform === 'win32') {
+    autoUpdater.autoDownload = false;
+    try {
+      const result = await autoUpdater.checkForUpdates();
+      if (result?.updateInfo && isNewerVersion(result.updateInfo.version, app.getVersion())) {
+        mainWindow.webContents.send('update:available', { version: result.updateInfo.version, platform: 'win32' });
+        // Auto-start the download in the background — no click required.
+        // Installing still waits for an explicit "Restart & Install" click.
+        if (!updateDownloadInFlight) {
+          updateDownloadInFlight = true;
+          autoUpdater.autoDownload = true;
+          autoUpdater.downloadUpdate().catch(err => {
+            updateDownloadInFlight = false;
+            mainWindow.webContents.send('update:error', String(err));
+          });
+        }
+      } else if (!silent) {
+        mainWindow.webContents.send('update:none');
+      }
+    } catch (err) {
+      if (!silent) mainWindow.webContents.send('update:error', String(err));
+    }
+    return;
+  }
+
+  // macOS: unsigned build — Squirrel.Mac's silent apply step requires a
+  // valid code signature to verify the downloaded update, which this
+  // build doesn't have. Check GitHub directly instead and point the user
+  // to a manual download rather than attempting (and failing) a silent
+  // install.
+  const info = await fetchLatestGithubRelease();
+  if (info && isNewerVersion(info.latestVersion, app.getVersion())) {
+    mainWindow.webContents.send('update:available', { version: info.latestVersion, url: info.url, platform: 'darwin' });
+  } else if (!silent) {
+    mainWindow.webContents.send('update:none');
+  }
+}
+
+autoUpdater.on('update-downloaded', () => {
+  updateDownloadInFlight = false;
+  mainWindow.webContents.send('update:ready');
+});
+
+autoUpdater.on('download-progress', progress => {
+  mainWindow.webContents.send('update:progress', Math.round(progress.percent));
+});
+
 
 // ---------------------------------------------------------------------
 // Helpers: document text extraction
@@ -194,6 +286,19 @@ ipcMain.handle('projects:save', (_e, project) => saveProject(project));
 ipcMain.handle('projects:delete', (_e, id) => {
   deleteProjectRow(id);
   return true;
+});
+
+ipcMain.handle('update:check', () => checkForUpdates(false));
+
+ipcMain.handle('update:downloadAndInstall', async () => {
+  if (process.platform !== 'win32') return false;
+  autoUpdater.autoDownload = true;
+  await autoUpdater.downloadUpdate();
+  return true;
+});
+
+ipcMain.handle('update:quitAndInstall', () => {
+  autoUpdater.quitAndInstall();
 });
 
 // ---------------------------------------------------------------------

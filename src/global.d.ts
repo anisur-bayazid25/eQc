@@ -50,6 +50,15 @@ export interface QvBridge {
   saveProject(project: Project): Promise<Project>;
   deleteProject(id: string): Promise<boolean>;
 
+  checkForUpdates: () => Promise<void>;
+  downloadAndInstallUpdate: () => Promise<boolean>;
+  quitAndInstallUpdate: () => Promise<void>;
+  onUpdateAvailable: (cb: (info: { version: string; url?: string; platform: string }) => void) => void;
+  onUpdateNone: (cb: () => void) => void;
+  onUpdateError: (cb: (msg: string) => void) => void;
+  onUpdateReady: (cb: () => void) => void;
+  onUpdateProgress: (cb: (percent: number) => void) => void;
+
   pickAndEncodeImages: () => Promise<Array<{ name: string; dataUrl: string; sizeBytes: number }>>;
   exportImage: (payload: { title: string; defaultName: string; base64: string }) => Promise<string | null>;
   extractDroppedImages(paths: string[]): Promise<Array<{ name: string; dataUrl: string; sizeBytes: number }>>;
@@ -80,3 +89,4 @@ declare global {
     qv: QvBridge;
   }
 }
+

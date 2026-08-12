@@ -250,6 +250,37 @@ input, select, textarea {
   display: none;
 }
 
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.modal-content {
+  background: var(--bg-color, #1e1e24); /* Matches your dark theme */
+  padding: 24px 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #444);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  max-width: 400px;
+  text-align: center;
+  color: white;
+}
+
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: var(--accent-dim);
+  border-bottom: 1px solid var(--accent);
+  font-size: 13px;
+}
+
 .left-panel {
   resize: horizontal;
   overflow: auto;
@@ -496,30 +527,6 @@ input, select, textarea {
 .color-picker { display: flex; flex-wrap: wrap; gap: 6px; }
 .swatch-btn { width: 22px; height: 22px; border-radius: 50%; padding: 0; border: 2px solid transparent; }
 .swatch-btn.active { border-color: white; }
-
-.image-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-.image-row:hover { background: rgba(255, 255, 255, 0.05); }
-.image-row.selected { background: rgba(59, 130, 246, 0.2); }
-.image-thumb {
-  width: 28px;
-  height: 28px;
-  object-fit: cover;
-  border-radius: 3px;
-  flex-shrink: 0;
-}
-.image-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-}
 
 /* Auto-code */
 .autocode-panel { max-width: 640px; margin: 0 auto; }

@@ -132,6 +132,14 @@ export function randomColor(seedIndex: number): string {
   return CODE_COLORS[seedIndex % CODE_COLORS.length];
 }
 
+export function colorForNewCode(codes: Code[], parentId: ID | null, seedIndex: number): string {
+  if (parentId) {
+    const parent = codes.find(c => c.id === parentId);
+    if (parent && parent.color) return parent.color;
+  }
+  return randomColor(seedIndex);
+}
+
 // Returns all descendant code ids (including the code itself)
 export function descendantCodeIds(codes: Code[], rootId: ID): Set<ID> {
   const result = new Set<ID>([rootId]);

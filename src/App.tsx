@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   Project, ProjectSummary, Folder, SourceDoc, Code, CodedSegment, FrameworkCell, CodeRelationNote,
-  ID, uid, newProject, randomColor, childCodes, descendantCodeIds,
+  ID, uid, newProject, colorForNewCode, childCodes, descendantCodeIds,
   CodedRegion,
   ImageSource
 } from './domain';
@@ -241,6 +241,20 @@ useEffect(() => {
     localStorage.setItem('qda-reader-theme', readerTheme);
   }, [readerTheme]);
 
+  // Auto-update
+  const [updateInfo, setUpdateInfo] = useState<{ version: string; url?: string; platform: string } | null>(null);
+  const [updateReady, setUpdateReady] = useState(false);
+
+  const [updateProgress, setUpdateProgress] = useState<number | null>(null);
+
+  useEffect(() => {
+    window.qv.onUpdateAvailable(info => setUpdateInfo(info));
+    window.qv.onUpdateProgress(pct => setUpdateProgress(pct));
+    window.qv.onUpdateReady(() => { setUpdateReady(true); setUpdateProgress(null); });
+    window.qv.onUpdateNone(() => showToast('You are running the latest version.'));
+    window.qv.onUpdateError(msg => showToast(`Update check failed: ${msg}`));
+  }, []);
+
   // Workspace state
   const [selectedDocId, setSelectedDocId] = useState<ID | null>(null);
   const [sortBy, setSortBy] = useState<SortKey>('name');
@@ -257,6 +271,8 @@ useEffect(() => {
   const [imageNotesDraft, setImageNotesDraft] = useState('');
   const [editingRegionNoteFor, setEditingRegionNoteFor] = useState<ID | null>(null);
   const [regionNoteDraft, setRegionNoteDraft] = useState('');
+  const [pendingDeleteImageId, setPendingDeleteImageId] = useState<ID | null>(null);
+  
 
   // Undo / redo history (per project, in-memory only)
   const [past, setPast] = useState<Project[]>([]);
@@ -311,7 +327,6 @@ useEffect(() => {
     setToast(msg);
     setTimeout(() => setToast(t => (t === msg ? null : t)), 3500);
   }, []);
-
 
   
   // ---------------------------------------------------------------
@@ -894,16 +909,48 @@ async function addScannedPdf(folderId: ID | null) {
     if (selectedDocId === doc.id) setSelectedDocId(null);
   }
 
-function deleteImage(id: ID) {
-  if (!project) return;
-  if (!confirm('Are you sure you want to delete this image?')) return;
+// 1. This just opens the modal
+function requestDeleteImage(id: ID) {
+  setPendingDeleteImageId(id);
+}
+
+// 2. This runs when they click "Yes, Delete" inside the modal
+function executeDeleteImage() {
+  if (!project || !pendingDeleteImageId) return;
   
+  const id = pendingDeleteImageId;
   const newImages = project.images?.filter(img => img.id !== id) ?? [];
-  persist({ ...project, images: newImages });
+  const newRegions = project.codedRegions?.filter(r => r.imageId !== id) ?? [];
+  
+  persist({ 
+    ...project, 
+    images: newImages, 
+    codedRegions: newRegions 
+  });
 
   if (selectedImageId === id) {
     setSelectedImageId(null);
   }
+  
+  // Close the modal
+  setPendingDeleteImageId(null);
+}
+
+function renameImage(id: ID, newName: string) {
+  if (!project) return;
+  
+  const updatedImages = project.images?.map(img => 
+    img.id === id ? { ...img, name: newName } : img
+  ) ?? [];
+
+  persist({ ...project, images: updatedImages });
+}
+
+async function renameImageWithPrompt(img: ImageSource) {
+  const name = await customPrompt('Rename image', img.name, 'Rename');
+  if (!name) return;
+  renameImage(img.id, name);
+  showToast(`Image renamed to "${name}"`);
 }
 
   function startEditDoc(doc: SourceDoc) {
@@ -963,7 +1010,7 @@ async function handleExportDocDocx(doc: SourceDoc) {
     const code: Code = { 
       id: uid('code'), 
       name, 
-      color: randomColor(project.codes.length), 
+      color: colorForNewCode(project.codes, null, project.codes.length), 
       parentId: null, 
       summary: '',
       createdAt: Date.now()
@@ -978,7 +1025,7 @@ async function handleExportDocDocx(doc: SourceDoc) {
     const code: Code = { 
       id: uid('code'), 
       name, 
-      color: randomColor(project.codes.length), 
+      color: colorForNewCode(project.codes, parentId, project.codes.length), 
       parentId, 
       summary: '',
       createdAt: Date.now()
@@ -1300,36 +1347,32 @@ function handleRunAutoCode() {
     if (!project || !autoCodeTargetCodeId || !autoCodeQuery.trim()) return;
 
     const newSegments: CodedSegment[] = [];
+    let docsMatched = 0;
     for (const doc of project.docs) {
       const matches = runAutoCode(doc.content, autoCodeQuery, autoCodeBoundary, autoCodeLanguage);
+      if (matches.length > 0) docsMatched++;
       for (const m of matches) {
-        const dup =
-          project.codedSegments.some(s => s.docId === doc.id && s.codeId === autoCodeTargetCodeId && s.start === m.start && s.end === m.end) ||
-          newSegments.some(s => s.docId === doc.id && s.codeId === autoCodeTargetCodeId && s.start === m.start && s.end === m.end);
-        if (dup) continue;
-
-        newSegments.push({
-          id: uid('seg'),
-          docId: doc.id,
-          codeId: autoCodeTargetCodeId,
-          start: m.start,
-          end: m.end,
-          text: m.text,
-          createdAt: Date.now(),
-          source: 'auto-code'
-        });
+        const exists = project.codedSegments.some(
+          s => s.docId === doc.id && s.codeId === autoCodeTargetCodeId && s.start === m.start && s.end === m.end
+        );
+        if (!exists) {
+          newSegments.push({
+            id: uid('seg'),
+            docId: doc.id,
+            codeId: autoCodeTargetCodeId,
+            start: m.start,
+            end: m.end,
+            text: m.text,
+            createdAt: Date.now(),
+            source: 'auto-code'
+          });
+        }
       }
     }
-
-    if (newSegments.length === 0) {
-      setAutoCodeResultText('No new matches found (or every match was already coded).');
-      return;
-    }
-
     persist({ ...project, codedSegments: [...project.codedSegments, ...newSegments] });
-    setAutoCodeResultText(
-      `Applied "${codesById.get(autoCodeTargetCodeId)?.name}" to ${newSegments.length} new passage(s) across ${project.docs.length} document(s).`
-    );
+    const msg = `Applied to ${newSegments.length} new segment(s) across ${docsMatched} document(s).`;
+    setAcResult(msg);
+    showToast(msg);
   }
 
   const docSegments = useMemo(
@@ -1597,6 +1640,29 @@ function openDocxCommentImport() {
         alignItems: 'stretch' /* Forces the rows to span the entire screen width */
       }}>
         
+      {updateReady && (
+        <div className="update-banner">
+          <span>✅ Update downloaded — restart to install.</span>
+          <button className="primary-btn" onClick={() => window.qv.quitAndInstallUpdate()}>Restart & Install</button>
+        </div>
+      )}
+      {updateInfo && !updateReady && (
+        <div className="update-banner">
+          {updateInfo.platform === 'win32' ? (
+            <span>
+              🔄 Version {updateInfo.version} is available
+              {updateProgress != null ? ` — downloading… ${updateProgress}%` : ' — starting download…'}
+            </span>
+          ) : (
+            <>
+              <span>🔄 Version {updateInfo.version} is available.</span>
+              <a href={updateInfo.url} target="_blank" rel="noopener noreferrer">Download from GitHub</a>
+            </>
+          )}
+          <button className="mini-btn" onClick={() => setUpdateInfo(null)}>Dismiss</button>
+        </div>
+      )}
+
         {/* FIRST LINE: Brand & Main Navigation Tabs */}
         <div className="header-top-row" style={{ 
           display: 'flex', 
@@ -1767,6 +1833,7 @@ function openDocxCommentImport() {
   selectedImageId={selectedImageId}
   sortBy={sortBy}
   codedCount={codedCountForDoc}
+  codedRegionCount={imageId => (project.codedRegions || []).filter(r => r.imageId === imageId).length}
   onSelectDoc={d => { 
     setSelectedDocId(d.id); 
     setSelectedImageId(null); 
@@ -1786,7 +1853,8 @@ function openDocxCommentImport() {
   onDeleteFolder={deleteFolder}
   onRenameDoc={renameDoc}
   onDeleteDoc={deleteDoc}
-  onDeleteImage={deleteImage}
+  onRenameImage={renameImageWithPrompt}
+  onDeleteImage={requestDeleteImage}
   onMoveDoc={moveDoc}
   onDropFiles={(files, folderId) => {
     const fileArray = Array.from(files);
@@ -1809,28 +1877,6 @@ function openDocxCommentImport() {
     }
   }}
 />
-            )}
-
-            {(project.images || []).length > 0 && (
-              <>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim)', margin: '12px 0 4px' }}>
-                  Images
-                </div>
-                {(project.images || []).map(img => {
-                  const regionCount = (project.codedRegions || []).filter(r => r.imageId === img.id).length;
-                  return (
-                    <div
-                      key={img.id}
-                      className={`image-row ${selectedImageId === img.id ? 'selected' : ''}`}
-                      onClick={() => { setSelectedImageId(img.id); setSelectedDocId(null); setPendingSelection(null); setPendingRegion(null); setEditingDocId(null); }}
-                    >
-                      <img src={img.dataUrl} className="image-thumb" alt="" />
-                      <span className="image-name">{img.name}</span>
-                      {regionCount > 0 && <span className="doc-coded-badge">{regionCount}</span>}
-                    </div>
-                  );
-                })}
-              </>
             )}
           </aside>
 
@@ -1992,8 +2038,7 @@ function openDocxCommentImport() {
                     codesById={codesById}
                     pendingRegion={pendingRegion}
                     onPendingRegionChange={setPendingRegion}
-                    onClickRegions={(regions, x, y) => setRegionPopup({ regions, x, y })}
-                  />
+                    onClickRegions={(regions, x, y) => setRegionPopup({ regions, x, y })} requestDeleteImage={requestDeleteImage}                  />
                   <button onClick={handleExportCodedImage}>📤 Export Coded Image</button>
                 </div>
                 <div className="doc-title-actions">
@@ -2654,6 +2699,7 @@ function openDocxCommentImport() {
       <a href="https://github.com/anisur-bayazid25/eQc" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>
         github.com/anisur-bayazid25/eQc
       </a> — Visit for latest updates, releases, and source
+      <button onClick={() => window.qv.checkForUpdates()}>🔄 Check for Updates</button>
     </p>
     
     <p style={{ lineHeight: '1.6', marginBottom: '30px', fontSize: '16px', color: 'var(--text)' }}>
@@ -2668,6 +2714,29 @@ function openDocxCommentImport() {
       <p><strong style={{ color: 'var(--text)' }}>Year:</strong> 2026</p>
     </div>
   </main>
+)}
+{pendingDeleteImageId && (
+  <div className="modal-overlay">
+    <div className="modal-content">
+      <h3>Delete Image</h3>
+      <p>Are you sure you want to delete this image? This action cannot be undone.</p>
+      <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '20px' }}>
+        <button 
+          className="primary-btn" 
+          style={{ background: '#d9534f', color: 'white', border: 'none' }} 
+          onClick={executeDeleteImage}
+        >
+          Yes, Delete
+        </button>
+        <button 
+          className="secondary-btn" 
+          onClick={() => setPendingDeleteImageId(null)}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
 )}
 </div>
   );

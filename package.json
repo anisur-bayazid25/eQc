@@ -21,6 +21,7 @@
     "better-sqlite3": "^11.3.0",
     "diff": "^5.2.0",
     "docx": "^9.1.1",
+    "electron-updater": "^6.8.9",
     "html-to-text": "^9.0.5",
     "iconv-lite": "^0.6.3",
     "jszip": "^3.10.1",
@@ -53,8 +54,13 @@
     "directories": {
       "output": "release"
     },
+    "publish": {
+      "provider": "github",
+      "owner": "anisur-bayazid25",
+      "repo": "eQc"
+    },
     "asarUnpack": [
-      "**/*.node"
+      "node_modules/better-sqlite3/**"
     ],
     "files": [
       "dist/**/*",

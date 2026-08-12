@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { CodedRegion, Code, ImageSource } from '../domain';
+import { CodedRegion, Code, ImageSource, ID } from '../domain';
 
 interface Props {
   image: ImageSource;
@@ -8,10 +8,12 @@ interface Props {
   pendingRegion: { x: number; y: number; width: number; height: number } | null;
   onPendingRegionChange: (r: { x: number; y: number; width: number; height: number } | null) => void;
   onClickRegions: (regions: CodedRegion[], clientX: number, clientY: number) => void;
+  onRenameImage?: (id: ID, newName: string) => void;
+  requestDeleteImage: (id: ID) => void;
   zoom?: number;
 }
 
-export default function ImageEditor({ image, regions, codesById, pendingRegion, onPendingRegionChange, onClickRegions, zoom = 1 }: Props) {
+export default function ImageEditor({ image, regions, codesById, pendingRegion, onPendingRegionChange, onClickRegions, requestDeleteImage, zoom = 1 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [drawing, setDrawing] = useState<{ startX: number; startY: number; curX: number; curY: number } | null>(null);
   const justDrewRef = useRef(false);

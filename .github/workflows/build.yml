@@ -13,7 +13,9 @@ jobs:
     strategy:
       matrix:
         os: [windows-latest, macos-latest]
+
     runs-on: ${{ matrix.os }}
+
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v4
@@ -26,6 +28,10 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+
+      - name: Install Rollup native dependency on macOS
+        if: runner.os == 'macOS'
+        run: npm install @rollup/rollup-darwin-arm64@4.62.2 --no-save
 
       - name: Build React App (Vite)
         run: npm run build
@@ -53,6 +59,7 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
+
     steps:
       - name: Download all build artifacts
         uses: actions/download-artifact@v4

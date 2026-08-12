@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Build React App (Vite)
+        run: npm run build
+
       - name: Force install Mac DMG License builder
         if: runner.os == 'macOS'
         run: npm install dmg-license --no-save

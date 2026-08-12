@@ -1,4 +1,4 @@
-import { Project, Code, SourceDoc, CodedSegment, uid, randomColor } from '../domain';
+import { Project, Code, SourceDoc, CodedSegment, uid, colorForNewCode } from '../domain';
 import type { CsvParseResult } from '../global';
 
 export interface CsvImportSummary {
@@ -22,7 +22,7 @@ function findOrCreateCode(project: Project, name: string, parentId: string | nul
   const created: Code = {
     id: uid('code'),
     name: trimmed,
-    color: randomColor(project.codes.length),
+    color: colorForNewCode(project.codes, parentId, project.codes.length),
     parentId,
     summary: '',
     createdAt: Date.now()

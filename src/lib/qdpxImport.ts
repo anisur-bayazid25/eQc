@@ -1,4 +1,4 @@
-import { Project, Code, SourceDoc, CodedSegment, ID, uid, randomColor } from '../domain';
+import { Project, Code, SourceDoc, CodedSegment, ID, uid, colorForNewCode } from '../domain';
 
 export interface QdpxParsePayload {
   fileName: string;
@@ -83,7 +83,7 @@ function findOrCreateCode(
   const created: Code = {
     id: uid('code'),
     name: trimmed,
-    color: color || randomColor(project.codes.length),
+    color: color || colorForNewCode(project.codes, parentId, project.codes.length),
     parentId,
     summary: '',
     createdAt: Date.now()

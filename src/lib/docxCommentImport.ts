@@ -1,4 +1,4 @@
-import { Project, Code, SourceDoc, CodedSegment, ID, uid, randomColor } from '../domain';
+import { Project, Code, SourceDoc, CodedSegment, ID, uid, colorForNewCode } from '../domain';
 
 export interface DocxCommentParsePayload {
   fileName: string;
@@ -38,7 +38,7 @@ function findOrCreateCode(project: Project, name: string, parentId: ID | null): 
   const trimmed = name.trim();
   const existing = project.codes.find(c => c.parentId === parentId && normalize(c.name) === normalize(trimmed));
   if (existing) return existing;
-  const created: Code = { id: uid('code'), name: trimmed, color: randomColor(project.codes.length), parentId, summary: '', createdAt: Date.now() };
+  const created: Code = { id: uid('code'), name: trimmed, color: colorForNewCode(project.codes, parentId, project.codes.length), parentId, summary: '', createdAt: Date.now() };
   project.codes.push(created);
   return created;
 }

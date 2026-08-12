@@ -11,6 +11,7 @@ interface Props {
   selectedImageId?: ID | null;
   sortBy: SortKey;
   codedCount: (docId: ID) => number;
+  codedRegionCount: (imageId: ID) => number;
   onSelectDoc: (doc: SourceDoc) => void;
   onSelectImage?: (image: ImageSource) => void;
   onAddRootFolder: () => void;
@@ -20,6 +21,7 @@ interface Props {
   onDeleteFolder: (folder: Folder) => void;
   onRenameDoc: (doc: SourceDoc) => void;
   onDeleteDoc: (doc: SourceDoc) => void;
+  onRenameImage: (image: ImageSource) => void;
   onDeleteImage: (id: ID) => void;
   onMoveDoc: (docId: ID, targetFolderId: ID | null) => void;
   onDropFiles: (files: FileList, folderId: ID | null) => void;
@@ -174,6 +176,7 @@ function ImageRow(props: Props & { image: ImageSource; depth: number }) {
   const { image, depth } = props;
   const [hover, setHover] = useState(false);
   const isSelected = props.selectedImageId === image.id;
+  const codedRegions = props.codedRegionCount(image.id);
 
   return (
     <div
@@ -186,8 +189,19 @@ function ImageRow(props: Props & { image: ImageSource; depth: number }) {
       <span className="tree-arrow spacer" />
       <span className="doc-icon">🖼️</span>
       <span className="doc-name">{image.name}</span>
+      {codedRegions > 0 && <span className="doc-coded-badge">{codedRegions}</span>}
       {hover && (
         <span className="row-actions">
+          <button
+            className="mini-btn"
+            title="Rename Image"
+            onClick={e => {
+              e.stopPropagation();
+              props.onRenameImage(image);
+            }}
+          >
+            ✏️
+          </button>
           <button
             className="mini-btn"
             title="Delete Image"

@@ -7,6 +7,16 @@ contextBridge.exposeInMainWorld('qv', {
   saveProject: project => ipcRenderer.invoke('projects:save', project),
   deleteProject: id => ipcRenderer.invoke('projects:delete', id),
 
+// Updates
+checkForUpdates: () => ipcRenderer.invoke('update:check'),
+downloadAndInstallUpdate: () => ipcRenderer.invoke('update:downloadAndInstall'),
+quitAndInstallUpdate: () => ipcRenderer.invoke('update:quitAndInstall'),
+onUpdateAvailable: (cb) => ipcRenderer.on('update:available', (_e, info) => cb(info)),
+onUpdateNone: (cb) => ipcRenderer.on('update:none', () => cb()),
+onUpdateError: (cb) => ipcRenderer.on('update:error', (_e, msg) => cb(msg)),
+onUpdateReady: (cb) => ipcRenderer.on('update:ready', () => cb()),
+onUpdateProgress: (cb) => ipcRenderer.on('update:progress', (_e, pct) => cb(pct)),
+
   // Documents
   pickAndExtractDocs: () => ipcRenderer.invoke('docs:pickAndExtract'),
   extractDroppedDocs: (paths) => ipcRenderer.invoke('docs:extractDropped', paths),

@@ -51,6 +51,7 @@
   "build": {
     "appId": "com.eQc.desktop",
     "productName": "eQc - Easy Qual Coding",
+    "artifactName": "eQc-Setup-${version}.${ext}",
     "directories": {
       "output": "release"
     },

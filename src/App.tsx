@@ -2011,13 +2011,24 @@ function openDocxCommentImport() {
               <>
                 <div className="doc-title-row">
                   <h3>{selectedImage.name}</h3>
-                  <button onClick={() => setShowImageNotes(v => !v)}>
-                    📝 Notes{selectedImage.notes ? ' ●' : ''}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button className="mini-btn" onClick={() => setShowImageNotes(v => !v)}>
+                      📝 Notes{selectedImage.notes ? ' ●' : ''}
+                    </button>
                     <button className="mini-btn" onClick={() => setImageZoom(z => Math.max(0.25, +(z - 0.25).toFixed(2)))}>−</button>
-                  <span style={{ fontSize: 12, minWidth: 40, textAlign: 'center', display: 'inline-block' }}>{Math.round(imageZoom * 100)}%</span>
-                  <button className="mini-btn" onClick={() => setImageZoom(z => Math.min(4, +(z + 0.25).toFixed(2)))}>+</button>
-                  <button className="mini-btn" onClick={() => setImageZoom(1)}>Reset</button>
-                  </button>
+                    <input
+                      type="range"
+                      min={25}
+                      max={400}
+                      step={25}
+                      value={Math.round(imageZoom * 100)}
+                      onChange={e => setImageZoom(Number(e.target.value) / 100)}
+                      style={{ width: '140px', verticalAlign: 'middle' }}
+                    />
+                    <span style={{ fontSize: 12, minWidth: 40, textAlign: 'center', display: 'inline-block' }}>{Math.round(imageZoom * 100)}%</span>
+                    <button className="mini-btn" onClick={() => setImageZoom(z => Math.min(4, +(z + 0.25).toFixed(2)))}>+</button>
+                    <button className="mini-btn" onClick={() => setImageZoom(1)}>Reset</button>
+                  </div>
                 </div>
                 {showImageNotes && (
                   <div className="doc-notes-panel">

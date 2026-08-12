@@ -25,7 +25,10 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Build React App (Vite)
+        run: npm run build
 
       - name: Force install Mac DMG License builder
         if: runner.os == 'macOS'
@@ -44,6 +47,7 @@ jobs:
             release/*.exe
             release/*.dmg
             release/*.blockmap
+            release/*.yml
           if-no-files-found: warn
 
   release:

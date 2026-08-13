@@ -1,8 +1,19 @@
 # eQc — Easy Qual Coding
 
-## Complete User Guide & Documentation (v1.5.0)
+## Complete User Guide & Documentation (v1.5.2)
 
 eQc is a lightweight, **local-first** qualitative data analysis (QDA) desktop application built with Electron, React, and SQLite. All project data — documents, codes, memos, matrices — is stored **locally on your device**. Nothing leaves your computer (except, optionally, the project backups you choose to export or share).
+
+---
+
+## What's New in v1.5.2
+
+- **🧠 Smarter auto-coding** — the Auto-Coder now has two matching modes: **Literal** (exact substring, e.g. `tree` also finds it inside `street`) and **Word roots & variants** (`green` → `greens`, `greenery`; `tree` → `trees`). Root mode is word-boundary aware, so `tree` no longer fires inside `street`/`treehouse`.
+- **⚡ Live match preview** — before you execute, the Auto-Coder shows exactly how many **new** passages it would code across how many documents (debounced while you type), so you can tune the query before committing.
+- **🌐 LAN client fixes** — joining a session now correctly shows you as the *client* (with the **Disconnect** button) instead of a phantom host, and the connection panel opens on the right tab and names the actual host.
+- **📝 Smoother codebook editing** — typing in the code **name** / **summary** fields no longer saves-and-re-renders the whole app on every keystroke; it debounces and commits on blur/Enter.
+- **⚡ Performance** — document/index tree badges, codebook excerpt lookups, and code-tree sorting are precomputed maps instead of per-row scans.
+- **🐛 Fixes** — LAN presence re-broadcast reliability, and various small stability refinements.
 
 ---
 
@@ -171,8 +182,11 @@ Scans the whole project for a keyword or phrase and applies a code automatically
 
 1. Enter a keyword or phrase (e.g. `climate change`).
 2. Choose the capture boundary: **Exact match** or **Enclosing sentence** (with language selection for correct sentence-boundary parsing).
-3. Choose the target code.
-4. Click **Execute Auto-Code Job**.
+3. Choose the **word matching** mode:
+   - **Literal** — exact substring matching (`tree` also matches inside `street`).
+   - **Word roots & variants** — word-boundary aware with light English inflection matching, so `green` also matches `greens` / `greenery`, but `tree` no longer fires inside `street`. Non-English words (e.g. Bangla) fall back to whole-word matching.
+4. Choose the target code. As you type, a **live preview** shows how many *new* passages would be coded across how many documents (it excludes passages already coded with the target code).
+5. Click **Execute Auto-Code Job**.
 
 ![Auto-Coder tab](screenshots/eQc_Autocode.png)
 

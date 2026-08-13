@@ -71,6 +71,7 @@ export interface LanSessionState {
   role: LanRole;
   projectId: string;
   myName: string;
+  hostName?: string;
   coders: LanCoder[];
 }
 

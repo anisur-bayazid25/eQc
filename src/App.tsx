@@ -18,8 +18,7 @@ import { importDocxComments } from './lib/docxCommentImport';
 import { mergeProjectInto } from './lib/merge';
 import { codingFrequency, codeDocumentMatrix, codeCooccurrenceMatrix } from './lib/analysis';
 import { buildReportHtml } from './lib/report';
-import { AUTO_CODE_LANGUAGES, CaptureBoundary, runAutoCode } from './lib/autoCode';
-import { useTextPrompt } from './components/PromptModal';
+import { AUTO_CODE_LANGUAGES, CaptureBoundary, AutoCodeMatchMode, runAutoCode } from './lib/autoCode';
 import { extractBengaliTextFromPDF } from './lib/pdfExtractor';
 import { buildScopedExport, buildCodebookOutline, ExportScope, SCOPE_LABELS } from './lib/exportBuilders';
 import pkg from '../package.json';
@@ -68,6 +67,46 @@ function IsolatedPromptModal({ isOpen, message, buttonText, onResolve }: any) {
       </div>
     </>
   );
+}
+
+// Local-state input that commits to the parent only on blur/Enter and after a
+// trailing pause, so typing in the codebook name/summary fields no longer
+// triggers a full app persist+re-render on every keystroke.
+function DebouncedCodeText({ value, onCommit, multiline }: { value: string; onCommit: (val: string) => void; multiline?: boolean }) {
+  const [val, setVal] = React.useState(value);
+
+  React.useEffect(() => {
+    setVal(value);
+  }, [value]);
+
+  React.useEffect(() => {
+    const t = setTimeout(() => {
+      if (val !== value) onCommit(val);
+    }, 500);
+    return () => clearTimeout(t);
+  }, [val, value, onCommit]);
+
+  const commit = () => {
+    if (val !== value) onCommit(val);
+  };
+
+  const el = multiline
+    ? 'textarea'
+    : 'input';
+
+  const commonProps: any = {
+    value: val,
+    onChange: (e: any) => setVal(e.target.value),
+    onBlur: commit,
+    onKeyDown: (e: any) => {
+      if (e.key === 'Enter' && !multiline) commit();
+    },
+    style: multiline
+      ? { width: '100%', padding: '6px', minHeight: '80px', boxSizing: 'border-box', fontSize: '12px', resize: 'vertical' }
+      : { width: '100%', padding: '6px', fontSize: '12px', boxSizing: 'border-box' },
+  };
+
+  return React.createElement(el, commonProps);
 }
 
 type Tab = 'workspace' | 'codebook' | 'autocode' | 'analysis' | 'about';
@@ -326,17 +365,13 @@ useEffect(() => {
   const [excerptSort, setExcerptSort] = useState('notes_first');
 
   // Auto-code state
-  const [acKeyword, setAcKeyword] = useState('');
-  const [acBoundary, setAcBoundary] = useState<CaptureBoundary>('exact');
-  const [acLanguage, setAcLanguage] = useState('en');
-  const [acTargetCodeId, setAcTargetCodeId] = useState<ID | ''>('');
-  const [acResult, setAcResult] = useState<string | null>(null);
-
   const [autoCodeQuery, setAutoCodeQuery] = useState('');
   const [autoCodeBoundary, setAutoCodeBoundary] = useState<CaptureBoundary>('exact');
   const [autoCodeLanguage, setAutoCodeLanguage] = useState(AUTO_CODE_LANGUAGES[0].code);
   const [autoCodeTargetCodeId, setAutoCodeTargetCodeId] = useState<ID | ''>('');
   const [autoCodeResultText, setAutoCodeResultText] = useState<string | null>(null);
+  const [autoCodeMatchMode, setAutoCodeMatchMode] = useState<AutoCodeMatchMode>('root');
+  const [autoCodePreview, setAutoCodePreview] = useState<{ count: number; docs: number } | null>(null);
 
   const [promptConfig, setPromptConfig] = React.useState<{
     isOpen: boolean;
@@ -376,6 +411,7 @@ useEffect(() => {
 
   const lastLanSeqRef = useRef(0);
   const lanApplyRemoteRef = useRef(false);
+  const lanJoinedRef = useRef(false);
   const lanRoleRef = useRef<LanRole | null>(null);
   useEffect(() => {
     lanRoleRef.current = lanSession?.role ?? null;
@@ -404,7 +440,11 @@ useEffect(() => {
 
   useEffect(() => {
     window.qv.lan.onHostsUpdated(h => setLanHosts(h));
-    window.qv.lan.onSessionState(s => setLanSession(s));
+    window.qv.lan.onSessionState(s => {
+      // Defensive: a client always sees its own role as 'client', even if
+      // the host is still running an older build that reports 'host'.
+      setLanSession(s && lanJoinedRef.current ? { ...s, role: 'client' } : s);
+    });
     window.qv.lan.onSyncProgress(p => {
       setLanSync(p.phase === 'done' || p.phase === 'error' ? null : p);
       if (p.phase === 'error' && p.message) showToast(`LAN: ${p.message}`);
@@ -433,12 +473,14 @@ useEffect(() => {
 
   async function handleLanStartHost(hostName: string, password: string) {
     if (!project) return;
+    lanJoinedRef.current = false;
     const res = await window.qv.lan.startHost({ hostName, password, project });
     if (res.ok) showToast(`Hosting "${project.name}" on port ${res.wsPort ?? 8080}`);
     else showToast(res.error || 'Failed to start hosting');
   }
 
   async function handleLanStopHost() {
+    lanJoinedRef.current = false;
     await window.qv.lan.stopHost();
     showToast('LAN session stopped');
   }
@@ -465,6 +507,7 @@ useEffect(() => {
     if (res.project) {
       // Joining always ends with the host's project on screen and in the
       // local project list.
+      lanJoinedRef.current = true;
       lanApplyRemoteRef.current = true;
       lastLanSeqRef.current = Math.max(lastLanSeqRef.current, res.seq ?? 0);
       setProject(res.project);
@@ -477,6 +520,7 @@ useEffect(() => {
   }
 
   async function handleLanDisconnect() {
+    lanJoinedRef.current = false;
     await window.qv.lan.disconnectSession();
     window.qv.lan.startDiscovery().catch(() => {});
     showToast('Disconnected from LAN session');
@@ -746,9 +790,28 @@ const contentSearchResults = useMemo(() => {
     setHighlightTarget({ docId: result.docId, start: result.start, end: result.end, nonce: Date.now() });
   }
 
+  // Precomputed counts so the doc tree's per-row badges are O(1) lookups
+  // instead of a full scan of every segment/region for each row.
+  const codedCountByDoc = useMemo(() => {
+    const m = new Map<ID, number>();
+    for (const s of project?.codedSegments ?? []) m.set(s.docId, (m.get(s.docId) || 0) + 1);
+    return m;
+  }, [project?.codedSegments]);
+
+  const regionCountByImage = useMemo(() => {
+    const m = new Map<ID, number>();
+    for (const r of project?.codedRegions ?? []) m.set(r.imageId, (m.get(r.imageId) || 0) + 1);
+    return m;
+  }, [project?.codedRegions]);
+
   const codedCountForDoc = useCallback(
-    (docId: ID) => project?.codedSegments.filter(s => s.docId === docId).length || 0,
-    [project?.codedSegments]
+    (docId: ID) => codedCountByDoc.get(docId) || 0,
+    [codedCountByDoc]
+  );
+
+  const codedRegionCount = useCallback(
+    (imageId: ID) => regionCountByImage.get(imageId) || 0,
+    [regionCountByImage]
   );
 
 useEffect(() => {
@@ -1503,7 +1566,7 @@ function handleRunAutoCode() {
     const newSegments: CodedSegment[] = [];
     let docsMatched = 0;
     for (const doc of project.docs) {
-      const matches = runAutoCode(doc.content, autoCodeQuery, autoCodeBoundary, autoCodeLanguage);
+      const matches = runAutoCode(doc.content, autoCodeQuery, autoCodeBoundary, autoCodeLanguage, autoCodeMatchMode);
       if (matches.length > 0) docsMatched++;
       for (const m of matches) {
         const exists = project.codedSegments.some(
@@ -1525,9 +1588,37 @@ function handleRunAutoCode() {
     }
     persist({ ...project, codedSegments: [...project.codedSegments, ...newSegments] });
     const msg = `Applied to ${newSegments.length} new segment(s) across ${docsMatched} document(s).`;
-    setAcResult(msg);
+    setAutoCodeResultText(msg);
     showToast(msg);
   }
+
+  // Live "how many will this hit?" preview, debounced so typing stays smooth.
+  // Mirrors the dedupe logic in handleRunAutoCode so it only counts passages
+  // that aren't already coded with the target code.
+  useEffect(() => {
+    if (!project || !autoCodeQuery.trim() || !autoCodeTargetCodeId) {
+      setAutoCodePreview(null);
+      return;
+    }
+    const t = setTimeout(() => {
+      const existing = new Set(
+        project.codedSegments
+          .filter(s => s.codeId === autoCodeTargetCodeId)
+          .map(s => `${s.docId}:${s.start}:${s.end}`)
+      );
+      let count = 0;
+      let docs = 0;
+      for (const doc of project.docs) {
+        const matches = runAutoCode(doc.content, autoCodeQuery, autoCodeBoundary, autoCodeLanguage, autoCodeMatchMode).filter(
+          m => !existing.has(`${doc.id}:${m.start}:${m.end}`)
+        );
+        if (matches.length > 0) docs++;
+        count += matches.length;
+      }
+      setAutoCodePreview({ count, docs });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [project, autoCodeQuery, autoCodeBoundary, autoCodeLanguage, autoCodeMatchMode, autoCodeTargetCodeId]);
 
   const docSegments = useMemo(
     () => (selectedDoc ? project?.codedSegments.filter(s => s.docId === selectedDoc.id) || [] : []),
@@ -1644,43 +1735,6 @@ function openDocxCommentImport() {
   }
 
   // =================================================================
-  // Auto-coder
-  // =================================================================
-  function runAutoCodeJob() {
-    if (!project || !acTargetCodeId || !acKeyword.trim()) {
-      showToast('Enter a keyword and choose a target code first.');
-      return;
-    }
-    const newSegments: CodedSegment[] = [];
-    let docsMatched = 0;
-    for (const doc of project.docs) {
-      const matches = runAutoCode(doc.content, acKeyword, acBoundary, acLanguage);
-      if (matches.length > 0) docsMatched++;
-      for (const m of matches) {
-        const exists = project.codedSegments.some(
-          s => s.docId === doc.id && s.codeId === acTargetCodeId && s.start === m.start && s.end === m.end
-        );
-        if (!exists) {
-          newSegments.push({
-            id: uid('seg'),
-            docId: doc.id,
-            codeId: acTargetCodeId,
-            start: m.start,
-            end: m.end,
-            text: m.text,
-            createdAt: Date.now(),
-            source: 'auto-code'
-          });
-        }
-      }
-    }
-    persist({ ...project, codedSegments: [...project.codedSegments, ...newSegments] });
-    const msg = `Applied to ${newSegments.length} new segment(s) across ${docsMatched} document(s).`;
-    setAcResult(msg);
-    showToast(msg);
-  }
-
-  // =================================================================
   // Analysis / report
   // =================================================================
   async function handleExportReport() {
@@ -1689,6 +1743,55 @@ function openDocxCommentImport() {
     const path = await window.qv.exportReport(project, html);
     if (path) showToast(`Report exported to ${path}`);
   }
+
+  // ------------------------------------------------------------------
+  // Memoized derived data (declared before the early return so hook
+  // order stays constant whether or not a project is loaded).
+  // ------------------------------------------------------------------
+  const flatCodes = useMemo(() => flattenCodes(project?.codes ?? []), [project?.codes]);
+
+  // Lookup for the codebook excerpt cards (avoids O(excerpts × docs) per render)
+  const docsById = useMemo(() => {
+    const m = new Map<string, SourceDoc>();
+    for (const d of project?.docs ?? []) m.set(d.id, d);
+    return m;
+  }, [project?.docs]);
+
+  const codebookCode = codebookSelectedCodeId ? codesById.get(codebookSelectedCodeId) || null : null;
+  const codebookExcerpts = useMemo(
+    () => (codebookCode ? (project?.codedSegments ?? []).filter(s => s.codeId === codebookCode.id) : []),
+    [codebookCode, project?.codedSegments]
+  );
+  const codebookRegions = useMemo(
+    () => (codebookCode ? (project?.codedRegions ?? []).filter(r => r.codeId === codebookCode.id) : []),
+    [codebookCode, project?.codedRegions]
+  );
+
+  // Segment-count per code, reused by the codebook tree sort. Built once per
+  // change instead of re-filtering inside the sort comparator.
+  const codeCodedCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of project?.codedSegments ?? []) m.set(s.codeId, (m.get(s.codeId) || 0) + 1);
+    return m;
+  }, [project?.codedSegments]);
+
+  // Sorted code list used by the Codebook tab (driven by its own sortOrder
+  // dropdown, independent of the workspace doc-tree sort). Memoized at
+  // component scope so it isn't recomputed on every render of the tab.
+  const sortedCodes = useMemo(() => {
+    const copy = [...(project?.codes ?? [])];
+    switch (sortOrder) {
+      case 'createdAt':
+        return copy.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      case 'most-coded':
+        return copy.sort((a, b) => (codeCodedCounts.get(b.id) || 0) - (codeCodedCounts.get(a.id) || 0));
+      case 'least-coded':
+        return copy.sort((a, b) => (codeCodedCounts.get(a.id) || 0) - (codeCodedCounts.get(b.id) || 0));
+      case 'name':
+      default:
+        return copy.sort((a, b) => a.name.localeCompare(b.name));
+    }
+  }, [project?.codes, sortOrder, codeCodedCounts]);
 
   if (!project) {
     return (
@@ -1700,15 +1803,6 @@ function openDocxCommentImport() {
       </div>
     );
   }
-  const flatCodes = flattenCodes(project.codes);
-  const codebookCode = codebookSelectedCodeId ? codesById.get(codebookSelectedCodeId) || null : null;
-  const codebookExcerpts = codebookCode
-    ? project.codedSegments.filter(s => s.codeId === codebookCode.id)
-    : [];
-    const codebookRegions = codebookCode
-    ? (project.codedRegions || []).filter(r => r.codeId === codebookCode.id)
-    : [];
-
   return (
     <div className="app-shell">
       {/* --- RESTORED TOAST NOTIFICATION --- */}
@@ -1717,6 +1811,14 @@ function openDocxCommentImport() {
     {toast}
   </div>
 )}
+
+{/* Single global prompt modal (all tabs) */}
+<IsolatedPromptModal 
+  isOpen={promptConfig.isOpen}
+  message={promptConfig.message}
+  buttonText={promptConfig.buttonText}
+  onResolve={handlePromptResolve}
+/>
 
 {/* --- RESTORED PROJECT SETTINGS MODAL --- */}
 {projectModalOpen && (
@@ -2034,7 +2136,7 @@ function openDocxCommentImport() {
   selectedImageId={selectedImageId}
   sortBy={sortBy}
   codedCount={codedCountForDoc}
-  codedRegionCount={imageId => (project.codedRegions || []).filter(r => r.imageId === imageId).length}
+  codedRegionCount={codedRegionCount}
   onSelectDoc={d => { 
     setSelectedDocId(d.id); 
     setSelectedImageId(null); 
@@ -2139,7 +2241,7 @@ function openDocxCommentImport() {
                   >
                     <DocEditor
                       doc={selectedDoc}
-                      segments={project.codedSegments.filter(s => s.docId === selectedDoc.id)}
+                      segments={docSegments}
                       codesById={codesById}
                       fontSize={readerFontSize}
                       fontFamily={readerFontFamily}
@@ -2290,13 +2392,7 @@ function openDocxCommentImport() {
                 onMoveCode={moveCode}
               />
             )}
-            <IsolatedPromptModal 
-        isOpen={promptConfig.isOpen}
-        message={promptConfig.message}
-        buttonText={promptConfig.buttonText}
-        onResolve={handlePromptResolve}
-      />
-          </aside>
+            </aside>
 
           {segmentPopup && (
             <>
@@ -2421,23 +2517,6 @@ function openDocxCommentImport() {
       
 
       {tab === 'codebook' && (() => {
-  // Compute sorted codes based on active sort criterion
-  const sortedCodes = [...project.codes].sort((a, b) => {
-    if (sortBy === 'name') {
-      return a.name.localeCompare(b.name);
-    }
-    if (sortBy === 'coded') {
-      const counts: Record<string, number> = {};
-      (project.codedSegments || []).forEach(s => {
-        counts[s.codeId] = (counts[s.codeId] || 0) + 1;
-      });
-      return (counts[b.id] || 0) - (counts[a.id] || 0);
-    }
-    if (sortBy === 'date') {
-      return (b.createdAt || 0) - (a.createdAt || 0);
-    }
-    return 0;
-  });
 
   return (
     <div className="codebook-grid">
@@ -2466,10 +2545,9 @@ function openDocxCommentImport() {
             
             <div>
               <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Code Name</label>
-              <input
-                style={{ width: '100%', padding: '6px', fontSize: '12px', boxSizing: 'border-box' }}
+              <DebouncedCodeText
                 value={codebookCode.name}
-                onChange={e => updateCode(codebookCode.id, { name: e.target.value })}
+                onCommit={val => updateCode(codebookCode.id, { name: val })}
               />
             </div>
 
@@ -2497,10 +2575,10 @@ function openDocxCommentImport() {
                 <label style={{ fontSize: '11px', fontWeight: 'bold' }}>Summary / memo</label>
                 <button className="mini-btn" style={{ fontSize: '10px', padding: '2px 4px', color: '#eab308' }} onClick={() => pullChildSummaries(codebookCode.id)}>⚡ Pull Child Summaries</button>
               </div>
-              <textarea
-                style={{ width: '100%', padding: '6px', minHeight: '80px', boxSizing: 'border-box', fontSize: '12px', resize: 'vertical' }}
+              <DebouncedCodeText
                 value={codebookCode.summary}
-                onChange={e => updateCode(codebookCode.id, { summary: e.target.value })}
+                onCommit={val => updateCode(codebookCode.id, { summary: val })}
+                multiline
               />
             </div>
           </div>
@@ -2559,15 +2637,7 @@ function openDocxCommentImport() {
           </div>
         </div>
 
-        {/* Prompt modal renderer for Manuscript title dialog */}
-        <IsolatedPromptModal 
-        isOpen={promptConfig.isOpen}
-        message={promptConfig.message}
-        buttonText={promptConfig.buttonText}
-        onResolve={handlePromptResolve}
-      />
-
-      </aside>
+        </aside>
 
       {/* 2. CENTER PANEL: Excerpts Only */}
       <main className="panel center-panel" style={THEME_STYLES[readerTheme]}>
@@ -2603,7 +2673,7 @@ function openDocxCommentImport() {
                   }
                   return 0; // Default fallback
                 }).map(seg => {
-                  const doc = project.docs.find(d => d.id === seg.docId);
+                  const doc = docsById.get(seg.docId);
                   return (
                     <div 
                       key={seg.id} 
@@ -2771,13 +2841,6 @@ function openDocxCommentImport() {
   >
     + Add Root Code
   </button>
-  <IsolatedPromptModal 
-        isOpen={promptConfig.isOpen}
-        message={promptConfig.message}
-        buttonText={promptConfig.buttonText}
-        onResolve={handlePromptResolve}
-      />
-  
   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
     <span style={{ color: 'var(--text-dim)', fontSize: '12px' }}>↕</span>
     <select 
@@ -2862,6 +2925,18 @@ function openDocxCommentImport() {
         </>
       )}
 
+      <label>Word matching</label>
+      <div className="radio-row">
+        <label>
+          <input type="radio" checked={autoCodeMatchMode === 'literal'} onChange={() => setAutoCodeMatchMode('literal')} />
+          Literal (exact substring, keeps e.g. "tree" inside "street" too)
+        </label>
+        <label>
+          <input type="radio" checked={autoCodeMatchMode === 'root'} onChange={() => setAutoCodeMatchMode('root')} />
+          Word roots &amp; variants ("green" → greens, greenery)
+        </label>
+      </div>
+
       <label>Target code</label>
       <select value={autoCodeTargetCodeId} onChange={e => setAutoCodeTargetCodeId(e.target.value)}>
         <option value="">Select a code…</option>
@@ -2881,6 +2956,13 @@ function openDocxCommentImport() {
     >
       ⚡ Execute Auto-Code
     </button>
+
+    {autoCodePreview && (
+      <p className="section-hint" style={{ marginTop: 8 }}>
+        Would apply to <strong>{autoCodePreview.count}</strong> new passage{autoCodePreview.count === 1 ? '' : 's'} across{' '}
+        <strong>{autoCodePreview.docs}</strong> document{autoCodePreview.docs === 1 ? '' : 's'} (not yet applied).
+      </p>
+    )}
 
     {autoCodeResultText && <div className="autocode-result">{autoCodeResultText}</div>}
   </div>
@@ -2963,6 +3045,7 @@ function openDocxCommentImport() {
     sync={lanSync}
     joining={lanJoining}
     myName={lanMyName}
+    initialTab={lanSession ? (lanSession.role === 'host' ? 'host' : 'join') : 'host'}
     onMyNameChange={setLanMyName}
     onStartHost={handleLanStartHost}
     onStopHost={handleLanStopHost}

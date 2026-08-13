@@ -7,6 +7,7 @@ interface Props {
   sync: LanSyncProgress | null;
   joining: boolean;
   myName: string;
+  initialTab?: 'host' | 'join';
   onMyNameChange: (name: string) => void;
   onStartHost: (hostName: string, password: string) => Promise<void>;
   onStopHost: () => Promise<void>;
@@ -16,10 +17,10 @@ interface Props {
 }
 
 export default function LanModal({
-  session, hosts, sync, joining, myName,
+  session, hosts, sync, joining, myName, initialTab,
   onMyNameChange, onStartHost, onStopHost, onJoin, onDisconnect, onClose
 }: Props) {
-  const [tab, setTab] = useState<'host' | 'join'>('host');
+  const [tab, setTab] = useState<'host' | 'join'>(initialTab === 'join' ? 'join' : 'host');
   const [requirePassword, setRequirePassword] = useState(true);
   const [password, setPassword] = useState('');
   const [selected, setSelected] = useState<LanHostInfo | null>(null);
@@ -162,7 +163,7 @@ export default function LanModal({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {clientActive && session ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, border: '1px solid #bfdbfe', backgroundColor: '#eff6ff', borderRadius: 8, padding: 12 }}>
-                <div style={{ fontSize: 13, fontWeight: 'bold', color: '#1e40af' }}>● Connected to {session.myName}'s session</div>
+                <div style={{ fontSize: 13, fontWeight: 'bold', color: '#1e40af' }}>● Connected to {session.hostName || session.myName}'s session</div>
                 <div style={{ fontSize: 12 }}>
                   {session.coders.map((c, i) => (
                     <span key={i} style={{ display: 'inline-block', backgroundColor: '#bfdbfe', color: '#1e40af', borderRadius: 10, padding: '2px 8px', margin: '2px 4px 0 0' }}>

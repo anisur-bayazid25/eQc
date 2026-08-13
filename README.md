@@ -1,498 +1,292 @@
 # eQc — Easy Qual Coding
 
-> **Complete User Guide & Documentation (v1.1.0)**
+## Complete User Guide & Documentation (v1.5.0)
 
-Welcome to **eQc — Easy Qual Coding**, a lightweight, local-first qualitative data analysis (QDA) desktop application built with **Electron**, **React**, and **SQLite**.
-
-eQc is designed to remove the complexity of traditional QDA software while providing researchers with an intuitive, flexible, and responsive workspace for coding, memoing, and analyzing qualitative data.
+eQc is a lightweight, **local-first** qualitative data analysis (QDA) desktop application built with Electron, React, and SQLite. All project data — documents, codes, memos, matrices — is stored **locally on your device**. Nothing leaves your computer (except, optionally, the project backups you choose to export or share).
 
 ---
 
-# Table of Contents
+## What's New in v1.5.0
 
-* [1. Overview & Architecture](#1-overview--architecture)
-* [2. Header Bar & Project Management](#2-header-bar--project-management)
-* [3. Workspace Tab](#3-workspace-tab)
+Since the previous guide, eQc has grown these major capabilities:
 
-  * [3.1 Document Management](#31-document-management)
-  * [3.2 Document Editor](#32-document-editor)
-  * [3.3 Code Legend](#33-the-code-legend)
-  * [3.4 Manual Coding Workflow](#34-manual-coding-workflow)
-* [4. Codebook Tab](#4-codebook-tab)
-
-  * [4.1 Importing Coded Datasets (CSV)](#41-importing-coded-datasets-csv)
-* [5. Auto-Coder Tab](#5-auto-coder-tab)
-* [6. Analysis Dashboard](#6-analysis-dashboard)
-* [7. About](#7-about)
-* [8. Supported File Types](#8-supported-file-types)
+- **🌐 LAN Collaboration** — host a live, password-protected coding session on your local network and sync edits, coding, and image-coding in real time between several computers (or two eQc windows on one PC).
+- **🖼️ Image sources & image coding** — add images to your project, draw *coded regions* on them, rename them, zoom, see how many regions each image has, and export starred regions.
+- **⬇️ REFI-QDA (.qdpx) export** — export the whole project (codebook, text sources, coded passages, images and their coded regions) so NVivo / MAXQDA / ATLAS.ti can open it. `.qdpx` **image import** now also brings images and their coded regions in.
+- **📄 DOCX comment import** — import codes and passages written as **Word comments**, including spreadsheet-style separator and speaker-echo options.
+- **🔤 Reader font controls** — change the reading font family and size (`A−` / `A+`, 8–48 px) in the header; settings are remembered on each machine.
+- **🎨 Code colors** — new root codes get a palette color, subcodes automatically inherit their parent's color (still overridable), and merge assigns each coder a stable, distinct color.
+- **🔍 Search text inside documents** directly from the Workspace panel.
+- Tighter analysis exports (each dashboard view exports what's on screen) and a cleaner Codebook export layout.
 
 ---
 
-# 1. Overview & Architecture
+## Table of Contents
 
-## Key Highlights
-
-### 🔒 Local-First & Secure
-
-* All project data is stored locally using SQLite.
-* Documents, codes, memos, highlights, and analysis never leave your computer.
-
-### 🎨 Dual Theme Support
-
-* Dark Mode
-* Paperwhite Light Mode
-
-Switch anytime without affecting your project.
-
-### 🖥 Flexible Workspace
-
-Resizable and draggable panels allow you to customize your workspace for any screen size.
-
-### 📄 Multi-format Support
-
-Supported document formats include:
-
-* `.txt`
-* `.docx`
-* `.pdf`
-* Scanned PDFs (OCR)
+1. [Overview & Architecture](#1-overview--architecture)
+2. [Header Bar & Project Management](#2-header-bar--project-management)
+3. [The Workspace Tab (Document Editor & Manual Coding)](#3-the-workspace-tab)
+4. [The Codebook Manager (Codebook Tab)](#4-the-codebook-manager)
+5. [The Auto-Coder Tab](#5-the-auto-coder-tab)
+6. [The Analysis Dashboard Tab](#6-the-analysis-dashboard-tab)
+7. [LAN Collaboration](#7-lan-collaboration)
+8. [The About Tab](#8-the-about-tab)
+9. [Summary Table of Supported File Types](#9-summary-table-of-supported-file-types)
 
 ---
 
-# 2. Header Bar & Project Management
+## 1. Overview & Architecture
 
-The header controls project management, backups, and application settings.
+### Key highlights
 
-## Project Operations
+- **Local-first & secure** — everything lives in a local SQLite database on your machine.
+- **Dual theme** — Light "paperwhite" mode (default for new installs) and Dark mode, toggled from the header.
+- **Flexible workspace** — resizable, draggable panels throughout.
+- **Multiformat support** — `.txt`, `.docx`, `.pdf`, scanned PDFs (via local OCR), **images** (`.png`, `.jpg/.jpeg`, `.gif`, `.webp`, `.bmp`), structured `.csv` datasets, Word comment files, and REFI-QDA `.qdpx` projects (NVivo, MAXQDA, ATLAS.ti, Taguette) — in **both** directions (import **and** export).
+- **Live collaboration** — host or join a LAN coding session (see [Section 7](#7-lan-collaboration)).
+- **Branded loading screen** shown while a project is opening.
 
-### Create a New Project
-
-Click the **➕** button beside the project selector.
-
-Creates a fresh local project database.
-
----
-
-### Switch Projects
-
-Use the project dropdown to change the active project.
+![Workspace tab](screenshots/eQc_Workspace.png)
 
 ---
 
-### Rename a Project
+## 2. Header Bar & Project Management
 
-Click the **✏️** icon beside the project name.
+The header has two rows: the top row holds the **brand and the main tabs** (Workspace · Codebook · Auto-Code · Analysis · About); the bottom row holds **project controls**, the **LAN button**, **Undo/Redo**, reading **font controls**, the **theme toggle**, and **Save**.
 
----
+![Workspace dark variant](screenshots/eQc_Workspace_dark_white.png)
 
-### Export Project
+### 2.1 Project operations
 
-Click **⬇ Export**
+- **➕ New project** — create a fresh local project.
+- **✏️ Rename project** — opens the project settings dialog (also where deletion lives).
+- **⬇️ Export / ⬆️ Import** (`.json`) — full project backup and restore (documents, codes, highlights, memos, relationships).
+- **🔀 Merge** — combine another project's `.json` into the active one (useful for multi-coder collaboration). When merging, each coder is assigned a stable, distinct color.
+- **Project dropdown** — switch between projects; the header save indicator shows auto-save status (`✓ Saved` / `Saving…` / `⚠ Save failed`).
 
-Exports the complete project as a standalone JSON file containing:
+### 2.2 LAN collaboration
 
-* Documents
-* Codes
-* Highlights
-* Memos
-* Relationships
+The **`🌐 LAN`** button opens the collaboration window. After the corresponding session state is active (`·Hosting` or `·Joined`), the button lights up green. See [Section 7](#7-lan-collaboration) for the full workflow.
 
----
+### 2.3 Undo / Redo
 
-### Import / Restore Project
+Reverts coding, code-tree, memo, image-coding, and note changes (`Ctrl+Z`, `Ctrl+Shift+Z`).
 
-Click **⬆ Import**
+### 2.4 Reader font controls
 
-Imports a previously exported JSON project.
+Next to Undo/Redo: a **font-family** picker (Georgia, Times New Roman, Arial, Verdana, Calibri, Courier New, or the default) and **`A−` / `A+`** size buttons (8–48 px, shown as `Npx`). These only change how you *read* documents; they persist per machine in `localStorage`.
 
----
+### 2.5 Deleting a project
 
-### Merge Projects
-
-Click **🔀 Merge**
-
-Merge another exported project into the currently open project.
-
-Useful for collaborative coding.
+There is **no separate delete icon** — it's tucked inside the rename dialog on purpose, so it isn't one accidental click away. Click **✏️** next to the project name, then **"🗑 Delete this project…"** at the bottom of that dialog. Deletion requires two confirmations in a row ("Are you sure?" → "This cannot be reverted") before anything happens, and the safe option (No / Keep) is always the green button.
 
 ---
 
-## Global Controls
+## 3. The Workspace Tab
 
-| Feature      | Description                                   |
-| ------------ | --------------------------------------------- |
-| Undo / Redo  | Reverse or reapply coding operations          |
-| Theme Toggle | Switch between Dark and Light modes           |
-| Save         | Force-save all changes to the SQLite database |
+### 3.1 Documents panel (left)
 
----
+- **Folders** — `+ Add Root Folder` / `+ Doc` / `+ Scanned PDF (OCR)` / `+ Add Image`. Nested folders are supported.
+- **Document types** — `.txt`, `.docx`, `.pdf`, and image PDFs turned into selectable text via local OCR.
+- **Images** — added with `+ Add Image` and shown inside the tree, with a **coded-region count badge** on each image row and a **✏️ rename** button.
+- **Sort documents** — by name, date added, size, or amount coded.
+- **🔍 Search Text** — search inside the content of all documents at once; click a result to jump to that passage.
+- A **document name filter** narrows the tree as you type.
 
-# 3. Workspace Tab
+### 3.2 Document editor (center)
 
-The Workspace is the primary environment for:
+- Select text and apply codes by **drag-and-drop** onto a code in the legend, or by **clicking a code** while the passage is selected.
+- **Overlapping and nested coding** is supported: select a sub-portion of already-coded text and apply a different code to just that inner piece. Both codes render, with a *solid* underline marking multi-coded text. Clicking a highlighted passage shows **every** code applied there.
+- Click a highlighted passage to open the **code inspector**, where you can:
+  - **Remove** a code from that passage.
+  - **Star / Unstar** it as a key quote for manuscript writing.
+  - Add or edit a short **note** on that specific coded excerpt.
+- **📝 Notes** (next to "Edit text") — a document-level memo field for whole-case interpretation or observations that apply to the transcript as a whole. A filled-in note shows a bullet marker on the button.
 
-* Managing documents
-* Creating folders
-* Coding text
-* Writing notes
+### 3.3 Image coding
 
-| Left Panel        | Center Panel    | Right Panel    |
-| ----------------- | --------------- | -------------- |
-| Documents         | Document Editor | Code Legend    |
-| Folder Management | Text Editing    | Code Hierarchy |
-| File Upload       | Highlighting    | Code Tree      |
+Images behave like a unit of "text": open an image and use the **image editor** to draw a rectangle over a region, then apply a code to it. The editor provides zoom controls (`−` / `+`, a 10%-step slider, and Reset). Coded regions appear in the codebook's collated excerpts and count toward the analysis dashboard; **starred regions** can be exported together with a screenshot (see [Section 4.4](#44-export-options-codebook)).
 
----
+![Codebook tab](screenshots/eQc_Codebook.png)
 
-# 3.1 Document Management
+### 3.4 Code legend (right)
 
-## Creating Folders
+The complete coding hierarchy: **`+ Root Code`**, **`+ Subcode`** (unlimited nesting), rename, recolor, move, expand/collapse.
 
-Use:
-
-* **+ Root Folder**
-* **+ Folder**
-
-Organize data into categories such as:
-
-* Interviews
-* Focus Groups
-* Field Notes
-
-Nested folders are supported.
+**Colors:** new root codes get a color from a 15-color palette; **subcodes automatically inherit their parent's color** so a code family reads as one color. Each code's color can be overridden at any time via the swatch picker (Codebook → Code Details).
 
 ---
 
-## Upload Documents
+## 4. The Codebook Manager
 
-Click **+ Doc**
+![Codebook overview](screenshots/eQc_Codebook.png)
 
-Supported formats:
+### 4.1 Code details (left panel, when a code is selected)
 
-* TXT
-* DOCX
-* PDF
+- **Code name** — rename inline.
+- **Color** — choose from a 15-swatch palette (overrides inherited color).
+- **Summary / memo** — write operational definitions, theories, or thematic summaries per code. **⚡ Pull Child Summaries** appends every subcode's memo into the parent's.
 
-Batch uploads are supported.
+### 4.2 Collated excerpts (center panel)
 
----
+Select a code to see **every** excerpt coded to it, across every document. Sort the list: *Default order*, *Notes First*, or *Starred First*. Each excerpt has **⭐ Star / remove** controls and its per-excerpt note.
 
-## Upload Scanned PDFs
+### 4.3 Import options (left panel)
 
-Click:
+- **➕ CSV** — import pre-coded tabular data (see [4.5](#45-importing-coded-datasets-csv)).
+- **➕ REFI-QDA** — import a project exported from NVivo, MAXQDA, ATLAS.ti, Taguette, or another REFI-QDA-2-compliant tool. Brings in the **code hierarchy**, **text sources and coded passages**, **images and their coded regions**, and memos (both code-level and source-level). Non-text/media sources that can't be represented are reported by name rather than silently dropped. Re-importing the same file is safe — it won't create duplicates.
+- **➕ DOCX** — import **Word comments** as coded passages (works with the "New Comment" feature in Word). Configure the **separator** used to split structured comment text into fields (e.g. `;`), whether the **first field is the speaker**, and whether the **last field echoes the highlighted excerpt** (so it can be verified, not stored as a code).
 
-**+ Scanned PDF (OCR)**
+### 4.4 Export options (left panel)
 
-OCR converts image-based PDFs into searchable, selectable text.
+- **⬇️ REFI-QDA** — export the complete project as a `.qdpx` archive: codebook (hierarchy, colors, memos), text documents and their coded passages, images and their coded regions. Open it in NVivo/MAXQDA/ATLAS.ti or keep it as an interoperable backup.
+- **📄 Manuscript Skeleton** — generate a `.docx` outline of your codebook: every code that has a written memo becomes a **heading**, its memo text sits underneath, and any **starred quotes** coded to that exact code appear as indented, italicized lines with source attribution below. Codes *without* a memo are skipped, so the skeleton only shows what you've actually written up.
+- **Scope selector** — choose what to export:
+  - *Codes only (codebook)*
+  - *Codes + excerpts*
+  - *Codes + excerpts + summaries*
+  - *Document + codes + excerpts + summaries* (full)
+  - *Starred Excerpts* — every starred quote across the project, with its code and source document, formatted for pasting straight into a manuscript.
+- **⬇️ CSV / ⬇️ DOCX** — export the selected scope in either format. The spreadsheets use the same header names your CSV importer recognizes, so exports can be re-imported into another project if you ever want to.
+- **⭐ Starred Images (DOCX)** — export every starred image region with its code and a screenshot of the region.
 
----
+### 4.5 Importing coded datasets (CSV)
 
-## Sort Documents
+| Category          | Accepted headers                      | Required |
+| ----------------- | ------------------------------------- | -------- |
+| Document name     | Participant, Document, Source         | Yes      |
+| Excerpt / quote   | Quote, Quotes, Excerpt, Text          | Yes      |
+| Parent code       | Parent Node, Parent                   | Optional |
+| Child code 1      | Child Node 1, Child 1                 | Optional |
+| Child code 2      | Child Node 2, Child 2                 | Optional |
+| Summaries / memos | Summary of Parent, Child 1 Summary    | Optional |
 
-Available sorting methods:
-
-* Name
-* Date Added
-* Size
-* Most Coded
-
----
-
-# 3.2 Document Editor
-
-Selecting a document loads it into the center editor.
-
-Features include:
-
-* Editable text
-* Highlight overlays
-* Color-coded coded segments
-* Inline code inspector
-* Remove applied codes
-
----
-
-# 3.3 The Code Legend
-
-The right panel contains the complete coding hierarchy.
-
-## Create Codes
-
-* **+ Root Code**
-* **+ Subcode**
-
-Supports unlimited nesting.
+CSVs are read as **UTF-8** by default, with an automatic **Windows-1252 fallback** when UTF-8 decoding fails — this specifically fixes smart quotes/apostrophes turning into the `�` replacement character when a file was exported from Excel's plain "CSV" option rather than "CSV UTF-8". For best results when exporting from Excel, use **"CSV UTF-8 (Comma delimited)"**.
 
 ---
 
-## Expand / Collapse
+## 5. The Auto-Coder Tab
 
-Use:
+Scans the whole project for a keyword or phrase and applies a code automatically:
 
-* ▶ Expand
-* ▼ Collapse
+1. Enter a keyword or phrase (e.g. `climate change`).
+2. Choose the capture boundary: **Exact match** or **Enclosing sentence** (with language selection for correct sentence-boundary parsing).
+3. Choose the target code.
+4. Click **Execute Auto-Code Job**.
 
-to navigate large code trees.
-
----
-
-# 3.4 Manual Coding Workflow
-
-## Method 1 — Drag & Drop
-
-1. Select text.
-2. Drag the highlighted text.
-3. Drop onto the desired code.
+![Auto-Coder tab](screenshots/eQc_Autocode.png)
 
 ---
 
-## Method 2 — Click to Code
+## 6. The Analysis Dashboard Tab
 
-1. Highlight text.
-2. Click the desired code.
+The dashboard uses the full window width. Every sub-tab has **its own sort controls and its own ⬇️ CSV / ⬇️ DOCX export** — exports always reflect whatever is currently on screen (current sort order, current filters).
 
-The selected passage is immediately coded.
+![Analysis Dashboard](screenshots/eQc_Analysis.png)
 
----
+### 6.1 Coding Frequency
 
-# 4. Codebook Tab
+Bar chart of coded-segment volume per code, with **parent/theme roll-up**: a parent code's total includes its own direct codings plus every descendant subcode's, shown as *(N direct + M nested)*. Eight sort modes: **Grouped** (hierarchy preserved, siblings ordered) A→Z / Z→A / highest→lowest / lowest→highest, and **Flat** (hierarchy ignored, every code ranked together) highest→lowest / lowest→highest / A→Z / Z→A.
 
-The Codebook manages:
+### 6.2 Code × Document Matrix
 
-* Code definitions
-* Memos
-* Summaries
-* Collated excerpts
+Codes vs. documents, cell = coded-segment count. Rows (codes) and columns (documents) sort independently — by name (A→Z / Z→A) or by total coded volume (highest→lowest / lowest→highest).
 
-| Panel       | Purpose                        |
-| ----------- | ------------------------------ |
-| Code Tree   | Select codes                   |
-| Excerpts    | Review all coded segments      |
-| Memo Editor | Definitions and thematic notes |
+### 6.3 Code Co-occurrence Matrix
 
----
+Shows how often two different codes are applied to **overlapping (or identical)** text spans — genuine partial overlap counts, not just exact duplicates. Only codes that co-occur with at least one other code are shown, so a large codebook doesn't become an unreadable grid of mostly-zero cells.
 
-## Features
+Click any cell to open a **three-panel view**:
+- the matrix on the left (it shrinks to make room),
+- the **shared excerpts** in the middle, and
+- a **relationship memo** on the right — a place to write analytic notes on *why* two categories relate, not just that they do (useful for grounded theory's axial coding).
 
-### Collated Excerpts
+All three panels are independently resizable with the same drag-handle behavior as the Workspace panels. Relationship memos get their **own CSV/DOCX export**, separate from the numeric matrix export, and both are included in the HTML report.
 
-Selecting a code displays every excerpt coded with that theme across all documents.
+![Co-occurrence detail](screenshots/eQc_Analysis_3.png)
 
----
+### 6.4 Framework Matrix
 
-### Code Definitions
+A **case (document) × theme (top-level code)** grid where each cell is a short, directly editable text summary — not a count. Rows and columns each sort independently, by name or by how many cells are filled in. This one is different from the others on purpose: it's for writing structured per-case analytic summaries (the classic "Framework Matrix" workflow from applied/policy qualitative research).
 
-Store:
+### 6.5 HTML Report
 
-* Operational definitions
-* Theoretical notes
-* Theme descriptions
-* Analytical memos
+**⬇️ HTML Report** generates a single, self-contained file covering all of the above — coding frequency, code × document matrix, code co-occurrence matrix, relationship notes, and code memos — for sharing or archiving outside the app.
 
 ---
 
-### Pull Child Summaries
+## 7. LAN Collaboration
 
-Click:
+LAN collaboration lets you and your colleagues work on the **same project at the same time over your local network**. It is built for small, trusted research teams: anyone with the session password can join, and every participant keeps a full local copy of the project.
 
-**⚡ Pull Child Summaries**
+> **How the model works (short version):** the host is the single source of truth. Every accepted state gets a sequence number and is broadcast live to all connected peers. Whoever edits last "wins" in a simultaneous-edit race. Rejoining peers automatically receive only the newest state when their copy is stale.
 
-Automatically appends all child summaries into the selected parent memo.
+### 7.1 Host a session
 
----
+1. Open the project you want to share (Workspace tab).
+2. Click **`🌐 LAN`** in the header, then the **🖥️ Host a Session** tab.
+3. Enter your **name** (shown to joiners) and optionally set a **session password** ("Require a session password").
+4. Click **▶ Start Hosting**. The host listens on port **8080** and advertises itself on the network (UDP port **8082**).
+5. The session panel shows the list of **connected coders**. When someone joins, their name appears as a chip.
 
-### Rename & Recolor Codes
+### 7.2 Join a session
 
-Modify:
+1. Click **`🌐 LAN`**, then the **📡 Join a Session** tab.
+2. eQc scans the network and lists every host it finds (name, project, address). If the host requires a password, you'll be asked for it.
+3. Select a host and click **🔗 Join Session**. The project downloads in chunks with a **progress bar**, then your document tree is populated with the shared project.
+4. When you leave, click **⏹ Disconnect**; your copy of the project stays saved on your machine.
 
-* Code names
-* Display colors
+### 7.3 Discovery fallbacks
 
-directly from the memo panel.
+UDP broadcast discovery works on most home/office Wi-Fi, but some routers drop broadcast packets. Two fallbacks are built in:
 
----
+- **Find by IP** — type the host's IP address (e.g. `192.168.1.24`) into the "Host IP" field on the Join tab and click **🔍 Find by IP**; if a host is listening there, it appears in the list.
+- **Same-PC testing** — running two eQc windows on one computer works too: the app probes `127.0.0.1` directly, so a second instance automatically finds the host running on the same machine.
 
-# 4.1 Importing Coded Datasets (CSV)
+### 7.4 What syncs
 
-Click:
+- All **edits, coding, un-coding, renaming, recolor, image region coding**, memos, folder/doc structure — anything that changes the project — is broadcast and applied on every connected peer.
+- A small **toast** shows what changed and who made it (e.g. `[Coder] +2 coded passages, +1 code`).
+- **Presence chips** in the LAN window show who is connected at any moment; hosts are pruned from the join list if they stop advertising (about 6 seconds).
 
-**➕ Import Dataset (CSV)**
+### 7.5 Practical tips
 
-to import structured qualitative datasets.
-
-## Automatic Header Mapping
-
-| Category      | Accepted Headers                   | Required |
-| ------------- | ---------------------------------- | -------- |
-| Document Name | Participant, Document, Source      | ✅        |
-| Quote         | Quote, Quotes, Excerpt, Text       | ✅        |
-| Parent Code   | Parent Node, Parent                | Optional |
-| Child Code 1  | Child Node 1, Child 1              | Optional |
-| Child Code 2  | Child Node 2, Child 2              | Optional |
-| Summaries     | Summary of Parent, Child 1 Summary | Optional |
-
----
-
-## Example CSV
-
-| Participant  | Parent Node    | Child Node | Quote                                      | Summary                                          |
-| ------------ | -------------- | ---------- | ------------------------------------------ | ------------------------------------------------ |
-| Interview_01 | Infrastructure | Drainage   | The main problem was the blocked drainage. | Mentions physical blockages in the sewer system. |
-| Interview_01 | Community      | Mutual Aid | Neighbors helped stack sandbags.           | Grassroots volunteering.                         |
-| Survey_Res   | Government     | Delay      | City officials took three days to arrive.  | Delayed official response.                       |
+- Both machines must be on the **same network** (same Wi-Fi or LAN). Ports **8080 (WebSocket)** and **8082 (UDP discovery)** must be open in any local firewall.
+- The host PC should stay on and awake while the session is running.
+- Rejoining an up-to-date peer is instant (no resync); a stale peer only downloads the newly changed state.
+- LAN sessions are **unencrypted on the wire** — fine for trusted internal networks; don't share sensitive data over untrusted Wi-Fi without a VPN.
 
 ---
 
-# 5. Auto-Coder Tab
+## 8. The About Tab
 
-Automatically code large datasets using keywords or phrases.
+- **Application:** eQc — Easy Qual Coding
+- **Version:** read live from the app's own build metadata (always accurate — never manually maintained)
+- **Author:** Anisur Rahman Bayazid
+- **License:** MIT
 
-## Workflow
-
-### Step 1
-
-Enter a keyword or phrase.
-
-Example:
-
-```
-climate change
-```
+![About tab](screenshots/eQc_About.png)
 
 ---
 
-### Step 2
+## 9. Summary Table of Supported File Types
 
-Choose capture boundary.
-
-Options:
-
-* Exact Match
-* Enclosing Sentence
-
----
-
-### Step 3
-
-Select language
-
-Required for sentence detection.
-
----
-
-### Step 4
-
-Choose the target code.
+| Task | Format | Details |
+| --- | --- | --- |
+| Project backup & transfer | `.json` | Full export / import / merge |
+| External QDA projects (in **and** out) | `.qdpx` | REFI-QDA-2 export & import — codes, text sources, coded passages, images + coded regions, memos |
+| Standard documents | `.txt`, `.docx`, `.pdf` | Direct import |
+| Scanned documents | `.pdf` | Local OCR |
+| Images | `.png`, `.jpg/.jpeg`, `.gif`, `.webp`, `.bmp` | Import, code regions, rename, star, export |
+| Structured datasets | `.csv` | Tabular import into docs + codebook |
+| Coded comments | `.docx` | Word-comment import as codes/passages |
+| Starred quotes | `.csv`, `.docx` | Manuscript-ready excerpt export |
+| Starred image regions | `.docx` | Screenshots of starred regions |
+| Manuscript skeleton | `.docx` | Auto-structured Results-section draft |
+| Any analysis view | `.csv`, `.docx` | Per-view export, matches on-screen sort/filter |
+| Analysis report | `.html` | Self-contained shareable report |
+| LAN collaboration | UDP + WebSocket | Live multi-coder sessions on a local network |
 
 ---
 
-### Step 5
-
-Click:
-
-**Execute Auto-Code Job**
-
----
-
-# 6. Analysis Dashboard
-
-Generate quantitative summaries of coded qualitative data.
-
-All outputs can be exported as:
-
-* CSV
-* DOCX
-
----
-
-## Available Analyses
-
-| Analysis         | Description             | Use                             |
-| ---------------- | ----------------------- | ------------------------------- |
-| Coding Frequency | Counts coded segments   | Identify dominant themes        |
-| Code × Document  | Code-by-document matrix | Compare participants            |
-| Co-occurrence    | Code overlap matrix     | Discover relationships          |
-| Framework Matrix | Case × Theme summaries  | Structured qualitative analysis |
-
----
-
-## Coding Frequency
-
-Displays a bar chart showing:
-
-* Most frequent codes
-* Rare codes
-* Coding balance
-
----
-
-## Code × Document Matrix
-
-Rows:
-
-* Codes
-
-Columns:
-
-* Documents
-
-Cells:
-
-* Number of coded excerpts
-
-Useful for comparing participants or groups.
-
----
-
-## Code Co-occurrence Matrix
-
-Shows how frequently two codes overlap on the same text.
-
-High values indicate strong conceptual relationships.
-
----
-
-## Framework Matrix
-
-Creates an editable:
-
-**Case (Document) × Theme (Code)**
-
-summary table.
-
----
-
-# 7. About
-
-| Item        | Value                                                                     |
-| ----------- | ------------------------------------------------------------------------- |
-| Application | eQc – Easy Qual Coding                                                    |
-| Version     | 3 (2026)                                                              |
-| Author      | Anisur Rahman Bayazid *(with help from borrowed intellect)*               |
-| Contact     | [anisur.rahman.bayazid@gmail.com](mailto:anisur.rahman.bayazid@gmail.com) |
-| License     | MIT                                                                       |
-
----
-
-# 8. Supported File Types
-
-| Task               | Format                  | Notes                               |
-| ------------------ | ----------------------- | ----------------------------------- |
-| Project Backup     | `.json`                 | Export, import, merge               |
-| QDA Exchange       | `.qdpx`                 | REFI-QDA compatible                 |
-| Documents          | `.txt`, `.docx`, `.pdf` | Standard imports                    |
-| Scanned Documents  | `.pdf`                  | OCR supported                       |
-| Structured Dataset | `.csv`                  | Imports documents and codebook data |
-
----
-
-# License
-
-This project is released under the **MIT License**.
-
----
-
-# Version
-
-**eQc — Easy Qual Coding**
-Version **1.2.0 (2026)**
+*eQc — Easy Qual Coding · MIT License · local-first qualitative data analysis.*

@@ -177,13 +177,29 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
       { coderName: state.host.hostName, source: 'host' },
       ...[...state.host.clients.values()].map(c => ({ coderName: c.coderName, source: 'client' }))
     ];
+    // The host renderer reports itself as the host…
     pushToRenderer('lan:sessionState', {
       role: 'host',
       projectId: state.host.projectId,
       myName: state.host.hostName,
       coders
     });
-    for (const ws of state.host.clients.keys()) sendMsg(ws, { type: 'PRESENCE', payload: { role: 'host', projectId: state.host.projectId, myName: state.host.hostName, coders } });
+    // …but every connected client must see ITS OWN role ('client'), own
+    // name, and who the host is. Previously clients were told role='host',
+    // which made the client UI show the host's "Stop Session" button and
+    // hide the Disconnect button.
+    for (const [ws, info] of state.host.clients) {
+      sendMsg(ws, {
+        type: 'PRESENCE',
+        payload: {
+          role: 'client',
+          projectId: state.host.projectId,
+          myName: info.coderName,
+          hostName: state.host.hostName,
+          coders
+        }
+      });
+    }
   }
 
   function handleClientConnection(ws, req) {

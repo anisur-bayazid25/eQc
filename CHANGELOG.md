@@ -4,7 +4,21 @@ All notable changes to **eQc - Easy Qual Coding** are documented in this file.
 
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## 1.5.2 - 2026-08-13
+
+### Added
+- **Auto-Code word matching modes** — the Auto-Coder now has **Literal** (exact substring) and **Word roots & variants** matching: word-boundary-aware, light English inflection normalization (`green` → `greens` / `greenery`, `tree` → `trees`), falling back to whole-word matching for non-English (e.g. Bangla) words.
+- **Live match preview** — before executing, the Auto-Coder shows how many **new** segments would be applied across how many documents (debounced; excludes passages already coded with the target code).
+
+### Changed
+- **Codebook editing performance** — code name/summary inputs use debounced local state and commit on blur/Enter instead of persisting+re-rendering the app on every keystroke.
+- **Performance** — document tree badges, codebook excerpt lookups, and code-tree sorting now use precomputed maps instead of per-row scans.
+
+### Fixed
+- **LAN client role** — connecting peers are now broadcast their own role (`client`), name, and the host name, so the client UI shows the **Disconnect** button (and the right session banner) instead of the host's "Stop Session" button.
+- **LAN session tab** — the collaboration panel opens on the correct tab (Join) for sessions you joined.
+
+## 1.5.0 - 2026-08-13
 
 ### Added
 - **LAN collaboration** — a `🌐 LAN` button in the header starts a live, password-protected coding session over the local network:

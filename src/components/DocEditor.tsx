@@ -62,6 +62,7 @@ export default function DocEditor({
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chunks = useMemo(() => buildChunks(doc.content, segments, highlightRange), [doc.content, segments, highlightRange]);
+  const segById = useMemo(() => new Map(segments.map(s => [s.id, s])), [segments]);
 
   const handleMouseUp = () => {
     if (!containerRef.current) return;
@@ -116,7 +117,7 @@ export default function DocEditor({
             </span>
           );
         }
-        const segsHere = segments.filter(s => chunk.segIds.includes(s.id));
+        const segsHere = chunk.segIds.map(id => segById.get(id)!);
         const primaryCode = codesById.get(segsHere[0].codeId);
         const multi = segsHere.length > 1;
         return (

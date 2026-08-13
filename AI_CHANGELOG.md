@@ -139,6 +139,47 @@ The left workspace panel previously showed images twice (once in `DocTree` per-f
 ### `src/App.tsx`
 - `🌐 LAN` header button (+ `·Hosting` / `·Joined` badge). `handleRemoteProject()` applies remote snapshots non-destructively (restores previously open doc/selection after load) and toasts a diff (`[Coder] +2 coded passages, +1 code`). A debounced effect broadcasts the current project after local edits (`lan:sendAction`); the per-project last-applied `seq` is tracked in `localStorage` for delta rejoin. The name used for hosting is remembered via `localStorage`.
 
+## 12. Auto-Code word-root matching, live preview, and app perf pass — v1.5.2
+
+### Auto-Code matching modes — `src/lib/autoCode.ts`
+- New types: `AutoCodeMatchMode = 'literal' | 'root'`; `runAutoCode(content, keyword, boundary, languageCode, matchMode = 'literal')` gained a `matchMode` parameter (default keeps old behavior).
+- `findRootMatches(content, query)` — whole-word, order-preserving phrase matching against `[\p{L}\p{N}]+` tokens. **Word-boundary aware by design**, so it removes literal-mode false positives like `tree` inside `street`/`treehouse`.
+- `roughStem(word)` — light English inflection normalizer (not a full stemmer): `-ies/-ied → -y`, `-ing/-ingly/-ers/-est/-ed/-er` with double-consonant collapse (`running→run`, `bigger→big`), sibilant plurals (`classes→class`, `boxes→box`), plain `-s` plural. Non-ASCII words (Bangla etc.) are returned unchanged so they fall back to literal whole-word matching.
+- `isInflected(w)` + `wordMatches(queryWord, contentWord)` — allow derived forms sharing a long common root (`green` ↔ `greenery`) **only** when one side is clearly inflected and the other is the base form, avoiding over-eager prefix hits.
+- `runAutoCode` now chooses the matcher first via `matchMode`, then applies the existing exact/sentence boundary logic unchanged.
+
+### Auto-Code UI — `src/App.tsx`
+- State renamed: the legacy `ac*` auto-code state was removed; single source is `autoCodeQuery` / `autoCodeBoundary` / `autoCodeLanguage` / `autoCodeTargetCodeId` / `autoCodeResultText` (the old duplicate set). New: `autoCodeMatchMode` and `autoCodePreview`.
+- **Match-mode radio group** ("Literal" vs "Word roots & variants") in the Auto-Code tab; `handleRunAutoCode` passes `autoCodeMatchMode` into `runAutoCode`.
+- **Live preview effect** (debounced 300 ms): for each doc it runs `runAutoCode` with current settings, filters out passages that already carry the target code (same dedupe key as the executor), and accumulates `{count, docs}` shown as "Would apply to **N** new passages across **M** documents (not yet applied)". Cleared when the query/target is empty.
+
+### Codebook form performance — `src/App.tsx`
+- New `DebouncedCodeText` component (input/textarea): keeps **local** state while typing, commits to the parent on blur/Enter or after a 500 ms pause. Replaces the direct `updateCode({name})` / `updateCode({summary})` `onChange` bindings, so typing no longer triggers a full app persist + re-render per keystroke. `useEffect` keeps local state in sync when the committed value changes externally.
+
+### Memoized derived data (hook-order + perf) — `src/App.tsx`
+- Precomputed count/index maps to replace per-render O(n) scans:
+  - `flatCodes` (`flattenCodes`), `docsById` (`Map`), `codebookExcerpts`/`codebookRegions` (filtered once), `codeCodedCounts` (segment count per code) → drives `sortedCodes` (the Codebook tab sort, formerly computed inline inside the JSX).
+  - `codedCountByDoc` / `regionCountByImage` → O(1) doc/image tree badge lookups; `codedCountForDoc` and the new `codedRegionCount` callback read from them.
+- These are declared **before** the early `!project` return so hook order stays constant whether or not a project is loaded (the old inline computations moved out of the Codebook tab render).
+- Doc segments memo `docSegments` used by `DocEditor`'s `segments` prop; excerpt rows now look up the doc via `docsById` instead of `find`.
+
+### Other fixes
+- **Prompt modal consolidation** — `IsolatedPromptModal` is rendered once at the app root instead of three times (workspace aside, codebook aside, codebook tree panel); `handlePromptResolve` drives all prompts.
+- **global prompt** — the modal is now above the project-settings modal in the tree, and the previous duplicate/misplaced instances were removed.
+
+## 13. LAN presence per-client role + session tab — v1.5.2
+
+**Problem found in testing:** `broadcastPresence()` in `electron/lan.cjs` sent every client a `role: 'host'` payload, so the client UI rendered the host's "Stop Session" button and hid the Disconnect button.
+
+- `electron/lan.cjs` — `broadcastPresence()` now builds a **per-client** `PRESENCE` payload: `role: 'client'`, `myName: <client's own coderName>` (from `state.host.clients`), plus new `hostName` (= the host's name). The host renderer still receives its own `'host'` snapshot unchanged. This is broadcast both on connect and on every presence change (coders join/leave).
+- `src/global.d.ts` — `LanSessionState` gained optional `hostName?: string`.
+- `src/components/LanModal.tsx` — new `initialTab?: 'host' | 'join'` prop (defaults `'host'`); opened session now starts on the tab matching the active session's role (`App.tsx` passes `lanSession.role === 'host' ? 'host' : 'join'`, so revisiting a joined session lands on Join). The "Connected to…" banner now shows `session.hostName || session.myName`.
+- `src/App.tsx` — defensive client-role fix: `onSessionState` sets `role: 'client'` when `lanJoinedRef.current` (i.e. this peer joined), even if a host still runs an older build advertising `role: 'host'`; `lanJoinedRef` is set true on a successful join and cleared on start-host/stop/disconnect.
+
+## 14. DocEditor segment lookup — `src/components/DocEditor.tsx`
+
+- `segById` memo (`Map<s.id, source>`); rendering a chunk now resolves that chunk's segment ids via the map instead of `segments.filter(...)` per chunk — O(1) per row.
+
 ## Conventions & gotchas when extending
 - Never call a renderer↔main bridge method without adding it in **all three places**: `electron/main.cjs` handler, `electron/preload.cjs`, `src/global.d.ts` (`QvBridge`).
 - **LAN gotchas:** all networking lives in the main process (`electron/lan.cjs`) — the renderer never touches `ws`/`dgram` directly. On Windows, two sockets sharing `UDP_PORT` with `reuseAddr` deliver loopback datagrams to an *arbitrary* socket, so same-machine discovery uses the WebSocket `LAN_HELLO` probe, not UDP. Cross-machine UDP broadcast/unicast is unaffected. `lan:*` IPC channels are registered in both directions: `ipcMain.handle` (invoke) and `pushToRenderer`/event listeners (push).

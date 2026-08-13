@@ -41,5 +41,24 @@ onUpdateProgress: (cb) => ipcRenderer.on('update:progress', (_e, pct) => cb(pct)
   exportReport: (project, html) => ipcRenderer.invoke('report:export', { project, html }),
 
   // REFI-QDA import
-  pickAndParseQdpx: () => ipcRenderer.invoke('qdpx:pickAndParse')
+  pickAndParseQdpx: () => ipcRenderer.invoke('qdpx:pickAndParse'),
+
+  // REFI-QDA export
+  exportQdpx: (payload) => ipcRenderer.invoke('qdpx:export', payload),
+
+  // LAN collaboration (host discovery, WebSocket sessions, live sync)
+  lan: {
+    startHost: (config) => ipcRenderer.invoke('lan:startHost', config),
+    stopHost: () => ipcRenderer.invoke('lan:stopHost'),
+    startDiscovery: () => ipcRenderer.invoke('lan:startDiscovery'),
+    stopDiscovery: () => ipcRenderer.invoke('lan:stopDiscovery'),
+    pingHost: (ip) => ipcRenderer.invoke('lan:pingHost', ip),
+    joinSession: (credentials) => ipcRenderer.invoke('lan:joinSession', credentials),
+    disconnectSession: () => ipcRenderer.invoke('lan:disconnectSession'),
+    sendAction: (payload) => ipcRenderer.invoke('lan:sendAction', payload),
+    onHostsUpdated: (cb) => ipcRenderer.on('lan:hostsUpdated', (_e, hosts) => cb(hosts)),
+    onSessionState: (cb) => ipcRenderer.on('lan:sessionState', (_e, s) => cb(s)),
+    onSyncProgress: (cb) => ipcRenderer.on('lan:syncProgress', (_e, p) => cb(p)),
+    onRemoteProject: (cb) => ipcRenderer.on('lan:remoteProject', (_e, r) => cb(r))
+  }
 });

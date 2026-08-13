@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import {
   Project, ProjectSummary, Folder, SourceDoc, Code, CodedSegment, FrameworkCell, CodeRelationNote,
   ID, uid, newProject, colorForNewCode, childCodes, descendantCodeIds,
@@ -13,6 +13,7 @@ import { getSelectionOffsets, SelectionOffsets } from './lib/textOffsets';
 import { relocateSegmentsAfterEdit } from './lib/relocateSegments';
 import { importCsvDataset } from './lib/csvImport';
 import { importQdpx } from './lib/qdpxImport';
+import { buildQdpxExport } from './lib/qdpxExport';
 import { importDocxComments } from './lib/docxCommentImport';
 import { mergeProjectInto } from './lib/merge';
 import { codingFrequency, codeDocumentMatrix, codeCooccurrenceMatrix } from './lib/analysis';
@@ -24,6 +25,8 @@ import { buildScopedExport, buildCodebookOutline, ExportScope, SCOPE_LABELS } fr
 import pkg from '../package.json';
 import ImageEditor from './components/ImageEditor';
 import { cropRegionToPng, renderCodedImagePng } from './lib/imageCrop';
+import LanModal from './components/LanModal';
+import type { LanHostInfo, LanSessionState, LanSyncProgress, LanRemoteProject, LanRole } from './global';
 
 function IsolatedPromptModal({ isOpen, message, buttonText, onResolve }: any) {
   const [val, setVal] = React.useState('');
@@ -68,6 +71,21 @@ function IsolatedPromptModal({ isOpen, message, buttonText, onResolve }: any) {
 }
 
 type Tab = 'workspace' | 'codebook' | 'autocode' | 'analysis' | 'about';
+
+function describeLanDiff(prev: Project, next: Project): string {
+  const parts: string[] = [];
+  const delSeg = next.codedSegments.length - prev.codedSegments.length;
+  if (delSeg) parts.push(`${delSeg > 0 ? '+' : ''}${delSeg} coded passage(s)`);
+  const delCodes = next.codes.length - prev.codes.length;
+  if (delCodes) parts.push(`${delCodes > 0 ? '+' : ''}${delCodes} code(s)`);
+  const delDocs = next.docs.length - prev.docs.length;
+  if (delDocs) parts.push(`${delDocs > 0 ? '+' : ''}${delDocs} document(s)`);
+  const delImgs = (next.images?.length || 0) - (prev.images?.length || 0);
+  if (delImgs) parts.push(`${delImgs > 0 ? '+' : ''}${delImgs} image(s)`);
+  const delRegs = (next.codedRegions?.length || 0) - (prev.codedRegions?.length || 0);
+  if (delRegs) parts.push(`${delRegs > 0 ? '+' : ''}${delRegs} image region(s)`);
+  return parts.length > 0 ? parts.join(', ') : 'updated the project';
+}
 
 function flattenCodes(codes: Code[]): Array<{ code: Code; depth: number }> {
   const out: Array<{ code: Code; depth: number }> = [];
@@ -220,6 +238,13 @@ export default function App() {
   const [readerTheme, setReaderTheme] = useState<ReaderTheme>(() => {
     return (localStorage.getItem('qda-reader-theme') as ReaderTheme) || 'paperwhite';
   });
+  const [readerFontSize, setReaderFontSize] = useState<number>(() => {
+    const v = parseInt(localStorage.getItem('qda-reader-font-size') || '', 10);
+    return Number.isNaN(v) ? 14 : Math.max(8, Math.min(48, v));
+  });
+  const [readerFontFamily, setReaderFontFamily] = useState<string>(() => {
+    return localStorage.getItem('qda-reader-font-family') || '';
+  });
   const [theme, setTheme] = useState<'dark' | 'light'>(
   () => (localStorage.getItem('qv-theme') as 'dark' | 'light') || 'dark'
 );
@@ -240,6 +265,14 @@ useEffect(() => {
   React.useEffect(() => {
     localStorage.setItem('qda-reader-theme', readerTheme);
   }, [readerTheme]);
+
+  React.useEffect(() => {
+    localStorage.setItem('qda-reader-font-size', String(readerFontSize));
+  }, [readerFontSize]);
+
+  React.useEffect(() => {
+    localStorage.setItem('qda-reader-font-family', readerFontFamily);
+  }, [readerFontFamily]);
 
   // Auto-update
   const [updateInfo, setUpdateInfo] = useState<{ version: string; url?: string; platform: string } | null>(null);
@@ -327,6 +360,129 @@ useEffect(() => {
     setToast(msg);
     setTimeout(() => setToast(t => (t === msg ? null : t)), 3500);
   }, []);
+
+  // ---------------------------------------------------------------
+  // LAN collaboration state
+  // ---------------------------------------------------------------
+  const [lanModalOpen, setLanModalOpen] = useState(false);
+  const [lanSession, setLanSession] = useState<LanSessionState | null>(null);
+  const [lanHosts, setLanHosts] = useState<LanHostInfo[]>([]);
+  const [lanSync, setLanSync] = useState<LanSyncProgress | null>(null);
+  const [lanJoining, setLanJoining] = useState(false);
+  const [lanMyName, setLanMyName] = useState(() => localStorage.getItem('qda-lan-name') || 'Coder');
+
+  const projectRef = useRef<Project | null>(null);
+  useEffect(() => { projectRef.current = project; }, [project]);
+
+  const lastLanSeqRef = useRef(0);
+  const lanApplyRemoteRef = useRef(false);
+  const lanRoleRef = useRef<LanRole | null>(null);
+  useEffect(() => {
+    lanRoleRef.current = lanSession?.role ?? null;
+    if (lanSession) localStorage.setItem('qda-lan-name', lanMyName);
+  }, [lanSession, lanMyName]);
+
+  const applyLanRemote = useCallback((r: LanRemoteProject) => {
+    const prev = projectRef.current;
+    lanApplyRemoteRef.current = true;
+    lastLanSeqRef.current = Math.max(lastLanSeqRef.current, r.seq);
+    const seqKey = `qda-lan-seq-${r.project.id}`;
+    if (prev && prev.id === r.project.id) {
+      setProject(r.project);
+      window.qv.saveProject(r.project).catch(() => {});
+      localStorage.setItem(seqKey, String(r.seq));
+      showToast(`[${r.coderName}] ${describeLanDiff(prev, r.project)}`);
+    } else {
+      setProject(r.project);
+      setProjects(p => [{ id: r.project.id, name: r.project.name, createdAt: r.project.createdAt }, ...p.filter(x => x.id !== r.project.id)]);
+      window.qv.saveProject(r.project).catch(() => {});
+      localStorage.setItem(seqKey, String(r.seq));
+      setTab('workspace');
+      showToast(`Joined ${r.coderName}'s session`);
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    window.qv.lan.onHostsUpdated(h => setLanHosts(h));
+    window.qv.lan.onSessionState(s => setLanSession(s));
+    window.qv.lan.onSyncProgress(p => {
+      setLanSync(p.phase === 'done' || p.phase === 'error' ? null : p);
+      if (p.phase === 'error' && p.message) showToast(`LAN: ${p.message}`);
+    });
+    window.qv.lan.onRemoteProject(r => applyLanRemote(r));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Broadcast every local project change while in a LAN session (200ms
+  // debounce, latest wins). The suppression flag is consumed here so a
+  // remote apply never echoes back (the first effect run after an apply
+  // skips, subsequent local edits broadcast normally).
+  useEffect(() => {
+    if (!project) return;
+    const suppressed = lanApplyRemoteRef.current;
+    lanApplyRemoteRef.current = false;
+    if (suppressed || !lanRoleRef.current) return;
+    const t = setTimeout(() => {
+      window.qv.lan.sendAction({ project, coderName: lanMyName }).catch(() => {});
+    }, 200);
+    return () => clearTimeout(t);
+  }, [project, lanMyName]);
+
+  async function handleLanStartHost(hostName: string, password: string) {
+    if (!project) return;
+    const res = await window.qv.lan.startHost({ hostName, password, project });
+    if (res.ok) showToast(`Hosting "${project.name}" on port ${res.wsPort ?? 8080}`);
+    else showToast(res.error || 'Failed to start hosting');
+  }
+
+  async function handleLanStopHost() {
+    await window.qv.lan.stopHost();
+    showToast('LAN session stopped');
+  }
+
+  async function handleLanJoin(host: LanHostInfo, password: string) {
+    if (lanJoining) return;
+    setLanJoining(true);
+    setLanSync({ phase: 'connect', percent: 0, message: 'Starting…' });
+    const existing = projects.find(p => p.id === host.projectId);
+    const lastSeq = existing ? Number(localStorage.getItem(`qda-lan-seq-${host.projectId}`)) || null : null;
+    const res = await window.qv.lan.joinSession({
+      hostIp: host.ip,
+      wsPort: host.wsPort,
+      password,
+      coderName: lanMyName,
+      projectId: host.projectId,
+      lastSeq
+    });
+    setLanJoining(false);
+    setLanSync(null);
+    if (!res.ok) {
+      window.qv.lan.startDiscovery().catch(() => {});
+      showToast(res.error || 'Join failed');
+      return;
+    }
+    if (res.project) {
+      if (lastLanSeqRef.current >= (res.seq ?? 0)) {
+        // A newer live snapshot arrived and was applied during the sync.
+      } else {
+        lanApplyRemoteRef.current = true;
+        lastLanSeqRef.current = Math.max(lastLanSeqRef.current, res.seq ?? 0);
+        setProject(res.project);
+        setProjects(p => [{ id: res.project!.id, name: res.project!.name, createdAt: res.project!.createdAt }, ...p.filter(x => x.id !== res.project!.id)]);
+        localStorage.setItem(`qda-lan-seq-${res.project.id}`, String(res.seq));
+        setTab('workspace');
+      }
+      showToast(`Joined ${host.hostName}'s session — project synced`);
+    } else {
+      showToast(`Connected to ${host.hostName}'s session (already up to date)`);
+    }
+  }
+
+  async function handleLanDisconnect() {
+    await window.qv.lan.disconnectSession();
+    window.qv.lan.startDiscovery().catch(() => {});
+    showToast('Disconnected from LAN session');
+  }
 
   
   // ---------------------------------------------------------------
@@ -1422,17 +1578,28 @@ function handleRunAutoCode() {
         codes: [...project.codes],
         codedSegments: [...project.codedSegments]
       };
-      const summary = importQdpx(draft, payload);
+      const summary = await importQdpx(draft, payload);
       persist(draft);
       if (summary.sourcesSkipped.length > 0) {
         console.log('qdpx import — skipped non-text sources:', summary.sourcesSkipped);
       }
       showToast(
         `Imported ${payload.fileName}: +${summary.codesCreated} codes, +${summary.docsCreated} docs, ` +
-        `+${summary.segmentsCreated} coded passages, ${summary.memosImported} memos` +
+        `+${summary.imagesCreated} images, +${summary.segmentsCreated} coded passages, ${summary.memosImported} memos` +
         (summary.segmentsSkipped ? ` (${summary.segmentsSkipped} selections skipped)` : '') +
         (summary.sourcesSkipped.length ? ` — ${summary.sourcesSkipped.length} non-text source(s) skipped (see console)` : '')
       );
+    } catch (e: any) {
+      showToast(e.message || String(e));
+    }
+  }
+
+  async function handleQdpxExport() {
+    if (!project) return;
+    try {
+      const payload = await buildQdpxExport(project);
+      const savedPath = await window.qv.exportQdpx(payload);
+      if (savedPath) showToast(`Exported REFI-QDA project: ${savedPath}`);
     } catch (e: any) {
       showToast(e.message || String(e));
     }
@@ -1722,11 +1889,37 @@ function openDocxCommentImport() {
           <button className="icon-btn" title="Export backup (.json)" onClick={handleExportBackup}>⬇️ Export</button>
           <button className="icon-btn" title="Import backup (.json)" onClick={handleImportBackup}>⬆️ Import</button>
           <button className="icon-btn" title="Merge project(s) into current" onClick={handleMerge}>🔀 Merge</button>
+          <button
+            className="icon-btn"
+            title="LAN collaboration — host or join a live session on this network"
+            onClick={() => setLanModalOpen(v => !v)}
+            style={lanSession ? { color: '#16a34a', fontWeight: 'bold' } : undefined}
+          >
+            🌐 LAN{lanSession ? (lanSession.role === 'host' ? ' ·Hosting' : ' ·Joined') : ''}
+          </button>
           
           <span className="header-divider" style={{ margin: '0 8px', borderLeft: '1px solid #ccc', height: '20px' }} />
           
           <button className="icon-btn" title="Undo (Ctrl+Z)" disabled={past.length === 0} onClick={undo}>↶ Undo</button>
           <button className="icon-btn" title="Redo (Ctrl+Shift+Z)" disabled={future.length === 0} onClick={redo}>↷ Redo</button>
+          <span className="header-divider" style={{ margin: '0 8px', borderLeft: '1px solid #ccc', height: '20px' }} />
+          <select
+            title="Reading font"
+            value={readerFontFamily}
+            onChange={e => setReaderFontFamily(e.target.value)}
+            style={{ padding: '3px 4px', fontSize: '12px', maxWidth: '150px' }}
+          >
+            <option value="">Font (default)</option>
+            <option value="Georgia, serif">Georgia</option>
+            <option value="'Times New Roman', serif">Times New Roman</option>
+            <option value="Arial, sans-serif">Arial</option>
+            <option value="Verdana, sans-serif">Verdana</option>
+            <option value="Calibri, sans-serif">Calibri</option>
+            <option value="'Courier New', monospace">Courier New</option>
+          </select>
+          <button className="icon-btn" title="Decrease font size" onClick={() => setReaderFontSize(s => Math.max(8, s - 1))}>A−</button>
+          <span title="Font size (px)" style={{ fontSize: '12px', minWidth: '30px', textAlign: 'center' }}>{readerFontSize}px</span>
+          <button className="icon-btn" title="Increase font size" onClick={() => setReaderFontSize(s => Math.min(48, s + 1))}>A+</button>
           <button className="icon-btn" title="Toggle light/dark theme" onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}>
             {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
           </button>
@@ -1940,6 +2133,8 @@ function openDocxCommentImport() {
                       doc={selectedDoc}
                       segments={project.codedSegments.filter(s => s.docId === selectedDoc.id)}
                       codesById={codesById}
+                      fontSize={readerFontSize}
+                      fontFamily={readerFontFamily}
                       onSelectionChange={sel => {
                         setPendingSelection(sel);
                         // Clear navigation targets when user makes a new selection
@@ -2015,18 +2210,18 @@ function openDocxCommentImport() {
                     <button className="mini-btn" onClick={() => setShowImageNotes(v => !v)}>
                       📝 Notes{selectedImage.notes ? ' ●' : ''}
                     </button>
-                    <button className="mini-btn" onClick={() => setImageZoom(z => Math.max(0.25, +(z - 0.25).toFixed(2)))}>−</button>
+                    <button className="mini-btn" onClick={() => setImageZoom(z => Math.max(0.1, +(z - 0.1).toFixed(2)))}>−</button>
                     <input
                       type="range"
-                      min={25}
+                      min={10}
                       max={400}
-                      step={25}
+                      step={10}
                       value={Math.round(imageZoom * 100)}
                       onChange={e => setImageZoom(Number(e.target.value) / 100)}
                       style={{ width: '140px', verticalAlign: 'middle' }}
                     />
                     <span style={{ fontSize: 12, minWidth: 40, textAlign: 'center', display: 'inline-block' }}>{Math.round(imageZoom * 100)}%</span>
-                    <button className="mini-btn" onClick={() => setImageZoom(z => Math.min(4, +(z + 0.25).toFixed(2)))}>+</button>
+                    <button className="mini-btn" onClick={() => setImageZoom(z => Math.min(4, +(z + 0.1).toFixed(2)))}>+</button>
                     <button className="mini-btn" onClick={() => setImageZoom(1)}>Reset</button>
                   </div>
                 </div>
@@ -2309,6 +2504,10 @@ function openDocxCommentImport() {
             Export Options
           </div>
           
+          <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleQdpxExport}>
+            ⬇️ REFI-QDA
+          </button>
+
           <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleExportManuscriptSkeleton}>
             📄 Manuscript Skeleton
           </button>
@@ -2748,6 +2947,21 @@ function openDocxCommentImport() {
       </div>
     </div>
   </div>
+)}
+{lanModalOpen && (
+  <LanModal
+    session={lanSession}
+    hosts={lanHosts}
+    sync={lanSync}
+    joining={lanJoining}
+    myName={lanMyName}
+    onMyNameChange={setLanMyName}
+    onStartHost={handleLanStartHost}
+    onStopHost={handleLanStopHost}
+    onJoin={handleLanJoin}
+    onDisconnect={handleLanDisconnect}
+    onClose={() => setLanModalOpen(false)}
+  />
 )}
 </div>
   );

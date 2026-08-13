@@ -85,9 +85,14 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
       seq: 0,
       log: [],
       clients: new Map(),
+      heartbeatTimer: null,
       server
     };
     server.on('connection', handleClientConnection);
+    // Heartbeat keeps the session alive: without it, routers/NAT drop the
+    // idle WebSocket after a few minutes and the session silently "ends".
+    // Ping every 30s; terminate peers that miss a full cycle.
+    state.host.heartbeatTimer = setInterval(heartbeatClients, 30000);
     startBroadcast();
     broadcastPresence();
     return { ok: true, wsPort: WS_PORT, ip: localIPv4() };
@@ -98,10 +103,27 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
       for (const ws of state.host.clients.keys()) { try { ws.close(); } catch {} }
       try { state.host.server.close(); } catch {}
     }
+    if (state.host && state.host.heartbeatTimer) clearInterval(state.host.heartbeatTimer);
     if (state.broadcastSocket) { try { state.broadcastSocket.close(); } catch {} state.broadcastSocket = null; }
     if (state.host && state.host.beaconTimer) clearInterval(state.host.beaconTimer);
     state.host = null;
     if (state.role === 'host') { state.role = null; clearSessionUI(); }
+  }
+
+  function heartbeatClients() {
+    if (state.role !== 'host' || !state.host) return;
+    let changed = false;
+    for (const ws of state.host.clients.keys()) {
+      if (ws.isAlive === false) {
+        try { ws.terminate(); } catch {}
+        state.host.clients.delete(ws);
+        changed = true;
+      } else {
+        ws.isAlive = false;
+        try { ws.ping(); } catch {}
+      }
+    }
+    if (changed) broadcastPresence();
   }
 
   function startBroadcast() {
@@ -167,7 +189,10 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
   function handleClientConnection(ws, req) {
     let authed = false;
     ws.coderName = 'Coder';
+    ws.isAlive = true;
+    ws.on('pong', () => { ws.isAlive = true; });
     ws.on('message', data => {
+      ws.isAlive = true;
       let msg;
       try { msg = JSON.parse(String(data)); } catch { return; }
       if (!msg) return;
@@ -200,9 +225,11 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
         state.host.clients.set(ws, { coderName: ws.coderName });
         broadcastPresence();
 
+        // Always hand the peer the host's current project: on every (re)join
+        // the host's project is the single source of truth, so the joiner is
+        // guaranteed to end up viewing exactly what the host shares.
         const seq = state.host.seq;
-        const lastSeq = Number.isFinite(msg.lastSeq) && msg.lastSeq !== null ? msg.lastSeq : null;
-        if (state.host.currentProject && (lastSeq === null || lastSeq < seq)) {
+        if (state.host.currentProject) {
           const json = JSON.stringify(state.host.currentProject);
           const totalChunks = Math.ceil(json.length / CHUNK_SIZE);
           sendMsg(ws, { type: 'AUTH_SUCCESS', projectId: state.host.projectId, seq, totalChunks, totalSize: json.length });
@@ -232,6 +259,9 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
   function acceptDispatch({ coderName, project, senderWs, notifyHostRenderer }) {
     if (state.role !== 'host' || !state.host) return { ok: false, error: 'Not hosting' };
     if (!project || !project.id) return { ok: false, error: 'Invalid project payload' };
+    if (state.host.projectId && project.id !== state.host.projectId) {
+      return { ok: false, error: 'Project mismatch — only the shared session project can be synced' };
+    }
     const seq = ++state.host.seq;
     state.host.currentProject = project;
     state.host.log.push({ seq, coderName: String(coderName || 'Coder') });
@@ -344,6 +374,7 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
       const client = {
         ws,
         coderName: String(coderName || 'Coder'),
+        projectId: String(projectId || ''),
         chunks: [],
         totalChunks: 0,
         buffered: [],
@@ -454,6 +485,9 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
       return acceptDispatch({ coderName, project, senderWs: null, notifyHostRenderer: false });
     }
     if (state.role === 'client' && state.client && state.client.ws.readyState === 1) {
+      if (state.client.projectId && project && project.id !== state.client.projectId) {
+        return { ok: false, error: 'Project mismatch — only the shared session project can be synced' };
+      }
       sendMsg(state.client.ws, { type: 'ACTION_DISPATCH', coderName, project });
       return { ok: true };
     }

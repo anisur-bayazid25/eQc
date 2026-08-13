@@ -1,14 +1,16 @@
-import { Project, Code, SourceDoc, CodedSegment, ID, uid, colorForNewCode } from '../domain';
+import { Project, Code, SourceDoc, CodedSegment, ImageSource, CodedRegion, ID, uid, colorForNewCode } from '../domain';
 
 export interface QdpxParsePayload {
   fileName: string;
   qdeXml: string;
   sourceFiles: Record<string, string>; // zip path -> text content
+  sourceBytes?: Record<string, string>; // zip path -> base64 payload (images etc.)
 }
 
 export interface QdpxImportSummary {
   codesCreated: number;
   docsCreated: number;
+  imagesCreated: number;
   segmentsCreated: number;
   segmentsSkipped: number;
   memosImported: number;
@@ -168,7 +170,12 @@ function importCodeTree(
     summary.memosImported++;
   }
 
-  for (const child of directChildren(el, 'Code')) {
+  // REFI-QDA-2 usually nests subcodes inside a <SubCodes> wrapper, but some
+  // exporters place <Code> directly under the parent — accept both.
+  const childEls = [...directChildren(el, 'Code')];
+  const subCodes = directChild(el, 'SubCodes');
+  if (subCodes) childEls.push(...directChildren(subCodes, 'Code'));
+  for (const child of childEls) {
     importCodeTree(project, guidMap, noteMap, child, code.id, summary);
   }
 }
@@ -194,6 +201,26 @@ function resolveSourceText(el: Element, payload: QdpxParsePayload): string | nul
   const cleaned = path.replace(/^internal:\/\//i, '').replace(/^\/+/, '');
   const match = Object.keys(payload.sourceFiles).find(k => k.endsWith(cleaned) || k === cleaned);
   return match ? payload.sourceFiles[match] : null;
+}
+
+function base64ToImageDataUrl(base64: string, entryName: string): string {
+  const m = /\.(png|jpe?g|gif|webp|bmp)$/i.exec(entryName || '');
+  const ext = (m ? m[1].toLowerCase() : 'png').replace('jpeg', 'jpg');
+  const mime = ext === 'jpg' ? 'jpeg' : ext;
+  return `data:image/${mime};base64,${base64}`;
+}
+
+function getImageSize(dataUrl: string): Promise<{ w: number; h: number }> {
+  return new Promise(resolve => {
+    try {
+      const img = new Image();
+      img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+      img.onerror = () => resolve({ w: 0, h: 0 });
+      img.src = dataUrl;
+    } catch {
+      resolve({ w: 0, h: 0 });
+    }
+  });
 }
 
 function importSelection(
@@ -272,7 +299,123 @@ function importSelection(
   }
 }
 
-function importSources(
+function importPictureSelection(
+  project: Project,
+  sel: Element,
+  image: ImageSource,
+  size: { w: number; h: number },
+  guidMap: Map<string, ID>,
+  noteMap: Map<string, string>,
+  summary: QdpxImportSummary
+) {
+  if (!size.w || !size.h) {
+    summary.segmentsSkipped++;
+    return;
+  }
+  const firstX = parseInt(sel.getAttribute('firstX') || '', 10);
+  const firstY = parseInt(sel.getAttribute('firstY') || '', 10);
+  const secondX = parseInt(sel.getAttribute('secondX') || '', 10);
+  const secondY = parseInt(sel.getAttribute('secondY') || '', 10);
+  if ([firstX, firstY, secondX, secondY].some(Number.isNaN)) {
+    summary.segmentsSkipped++;
+    return;
+  }
+
+  const x = Math.max(0, Math.min(firstX, size.w)) / size.w;
+  const y = Math.max(0, Math.min(firstY, size.h)) / size.h;
+  const ex = Math.max(0, Math.min(secondX, size.w)) / size.w;
+  const ey = Math.max(0, Math.min(secondY, size.h)) / size.h;
+  const width = Math.abs(ex - x);
+  const height = Math.abs(ey - y);
+  if (width < 0.001 || height < 0.001) {
+    summary.segmentsSkipped++;
+    return;
+  }
+
+  const memo = resolveMemoText(sel, noteMap);
+
+  for (const coding of directChildren(sel, 'Coding')) {
+    const codeRef = directChild(coding, 'CodeRef');
+    const targetGuid = codeRef?.getAttribute('targetGUID');
+    const codeId = targetGuid ? guidMap.get(targetGuid) : null;
+    if (!codeId) {
+      summary.segmentsSkipped++;
+      continue;
+    }
+
+    const alreadyCoded = (project.codedRegions || []).some(
+      r => r.imageId === image.id && r.codeId === codeId &&
+        Math.abs(r.x - x) < 0.001 && Math.abs(r.y - y) < 0.001
+    );
+    if (alreadyCoded) continue;
+
+    const region: CodedRegion = {
+      id: uid('region'),
+      imageId: image.id,
+      codeId,
+      x,
+      y,
+      width,
+      height,
+      createdAt: Date.now(),
+      ...(memo ? { note: memo } : {})
+    };
+    if (!project.codedRegions) project.codedRegions = [];
+    project.codedRegions.push(region);
+    summary.segmentsCreated++;
+    if (memo) summary.memosImported++;
+  }
+}
+
+async function importPictureSource(
+  project: Project,
+  srcEl: Element,
+  payload: QdpxParsePayload,
+  guidMap: Map<string, ID>,
+  noteMap: Map<string, string>,
+  summary: QdpxImportSummary
+) {
+  const name = srcEl.getAttribute('name') || 'Unnamed picture';
+  const guid = srcEl.getAttribute('guid') || uid('guid');
+
+  const path = srcEl.getAttribute('path') || srcEl.getAttribute('picturePath') || '';
+  const cleaned = path.replace(/^internal:\/\//i, '').replace(/^\/+/, '');
+  const entry = Object.keys(payload.sourceBytes || {}).find(k => k.endsWith(cleaned) || k === cleaned);
+  if (!entry) {
+    summary.sourcesSkipped.push(`${name} (PictureSource, image bytes not found)`);
+    return;
+  }
+  const dataUrl = base64ToImageDataUrl(payload.sourceBytes![entry], entry);
+
+  let image = (project.images || []).find(i => normalize(i.name) === normalize(name));
+  if (!image) {
+    image = {
+      id: uid('img'),
+      folderId: null,
+      name,
+      dataUrl,
+      addedAt: Date.now(),
+      sizeBytes: dataUrl.length
+    };
+    if (!project.images) project.images = [];
+    project.images.push(image);
+    summary.imagesCreated++;
+  }
+  guidMap.set(guid, image.id);
+
+  const sourceMemo = resolveMemoText(srcEl, noteMap);
+  if (sourceMemo) {
+    appendMemo(image, 'notes', sourceMemo);
+    summary.memosImported++;
+  }
+
+  const size = await getImageSize(dataUrl);
+  for (const sel of directChildren(srcEl, 'PictureSelection')) {
+    importPictureSelection(project, sel, image, size, guidMap, noteMap, summary);
+  }
+}
+
+async function importSources(
   project: Project,
   doc: XMLDocument,
   payload: QdpxParsePayload,
@@ -287,9 +430,16 @@ function importSources(
     const kind = srcEl.localName || srcEl.tagName;
     const name = srcEl.getAttribute('name') || 'Unnamed source';
 
+    if (kind === 'PictureSource') {
+      // Async: image dimension decoding is needed to normalize the coded
+      // region coordinates into the app's 0–1 space.
+      await importPictureSource(project, srcEl, payload, guidMap, noteMap, summary);
+      continue;
+    }
+
     if (kind !== 'TextSource') {
-      // PDFSource, PictureSource, AudioSource, VideoSource, etc. — not
-      // handled in this MVP. Report it rather than silently dropping it.
+      // PDFSource, AudioSource, VideoSource, etc. — not handled in this MVP.
+      // Report it rather than silently dropping it.
       summary.sourcesSkipped.push(`${name} (${kind.replace('Source', '')})`);
       continue;
     }
@@ -332,10 +482,11 @@ function importSources(
 
 // --- Entry point ---------------------------------------------------------
 
-export function importQdpx(project: Project, payload: QdpxParsePayload): QdpxImportSummary {
+export async function importQdpx(project: Project, payload: QdpxParsePayload): Promise<QdpxImportSummary> {
   const summary: QdpxImportSummary = {
     codesCreated: 0,
     docsCreated: 0,
+    imagesCreated: 0,
     segmentsCreated: 0,
     segmentsSkipped: 0,
     memosImported: 0,
@@ -354,7 +505,7 @@ export function importQdpx(project: Project, payload: QdpxParsePayload): QdpxImp
   const noteMap = buildNoteMap(doc);
 
   importCodebook(project, doc, guidMap, noteMap, summary);
-  importSources(project, doc, payload, guidMap, noteMap, summary);
+  await importSources(project, doc, payload, guidMap, noteMap, summary);
 
   return summary;
 }

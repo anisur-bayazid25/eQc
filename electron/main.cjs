@@ -11,6 +11,7 @@ const JSZip = require('jszip');
 
 const { autoUpdater } = require('electron-updater');
 const https = require('https');
+const setupLan = require('./lan.cjs');
 
 // Prevents a second checkForUpdates() call (e.g. the "Check for Updates"
 // button on the About tab) from starting a duplicate download while one
@@ -145,6 +146,7 @@ function createWindow() {
 app.whenReady().then(() => {
   initDb();
   createWindow();
+  setupLan(ipcMain, { getWindow: () => mainWindow, saveProject });
 
   // 🟢 Trigger the silent update check 3 seconds after initial launch
   setTimeout(() => checkForUpdates(true), 3000);
@@ -459,22 +461,55 @@ ipcMain.handle('qdpx:pickAndParse', async () => {
   // imports TextSource content, which covers the common case of
   // transcripts/interviews/documents coded as plain text.
   const sourceFiles = {};
+  const sourceBytes = {};
   const sourceEntries = Object.values(zip.files).filter(
     f => !f.dir && /(^|\/)sources\//i.test(f.name)
   );
+  const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp)$/i;
   for (const entry of sourceEntries) {
+    if (IMAGE_EXT_RE.test(entry.name)) {
+      // Image file — hand back raw base64 so the renderer can rebuild a
+      // data URL and import it as a PictureSource / image coding region.
+      sourceBytes[entry.name] = await entry.async('base64');
+      continue;
+    }
     try {
       sourceFiles[entry.name] = await entry.async('string');
     } catch {
-      // Binary file (e.g. embedded audio/PDF) — skip, not text-decodable.
+      // Binary, non-image file (e.g. embedded audio/PDF) — skip.
     }
   }
 
   return {
     fileName: path.basename(filePaths[0]),
     qdeXml,
-    sourceFiles
+    sourceFiles,
+    sourceBytes
   };
+});
+
+// IPC: REFI-QDA (.qdpx) export. The renderer (qdpxExport.ts) builds the
+// project.qde XML plus a map of source files / binary payloads; we zip them
+// into a .qdpx archive at a user-chosen location. Mirror of the import flow.
+ipcMain.handle('qdpx:export', async (_e, { fileName, qdeXml, sourceFiles, sourceBytes }) => {
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+    title: 'Export REFI-QDA project (.qdpx)',
+    defaultPath: fileName || 'project.qdpx',
+    filters: [{ name: 'REFI-QDA project', extensions: ['qdpx'] }]
+  });
+  if (canceled || !filePath) return null;
+
+  const zip = new JSZip();
+  zip.file('project.qde', qdeXml);
+  for (const [name, content] of Object.entries(sourceFiles || {})) {
+    zip.file(name, content);
+  }
+  for (const [name, base64] of Object.entries(sourceBytes || {})) {
+    if (base64) zip.file(name, Buffer.from(base64, 'base64'));
+  }
+  const buffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+  fs.writeFileSync(filePath, buffer);
+  return filePath;
 });
 
 // ---------------------------------------------------------------------

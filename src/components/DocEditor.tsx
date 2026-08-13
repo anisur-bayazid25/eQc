@@ -6,6 +6,8 @@ interface Props {
   doc: SourceDoc;
   segments: CodedSegment[];
   codesById: Map<string, Code>;
+  fontSize?: number;
+  fontFamily?: string;
   onSelectionChange: (sel: SelectionOffsets | null) => void;
   onClickSegment: (segments: CodedSegment[], x: number, y: number) => void;
   scrollToSegmentId?: string | null;
@@ -55,7 +57,7 @@ function buildChunks(content: string, segments: CodedSegment[], highlightRange?:
 }
 
 export default function DocEditor({
-  doc, segments, codesById, onSelectionChange, onClickSegment,
+  doc, segments, codesById, fontSize, fontFamily, onSelectionChange, onClickSegment,
   scrollToSegmentId, scrollNonce, highlightRange, highlightNonce
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -93,7 +95,15 @@ export default function DocEditor({
   }, [highlightRange, highlightNonce, chunks]);
 
   return (
-    <div className="doc-editor" ref={containerRef} onMouseUp={handleMouseUp}>
+    <div
+      className="doc-editor"
+      ref={containerRef}
+      onMouseUp={handleMouseUp}
+      style={{
+        fontSize: fontSize ? `${fontSize}px` : undefined,
+        fontFamily: fontFamily || undefined
+      }}
+    >
       {chunks.map((chunk, i) => {
         if (chunk.segIds.length === 0) {
           return (

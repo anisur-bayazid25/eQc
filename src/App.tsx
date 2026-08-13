@@ -419,6 +419,9 @@ useEffect(() => {
   // skips, subsequent local edits broadcast normally).
   useEffect(() => {
     if (!project) return;
+    // Only the project that was shared when this session started may be
+    // broadcast; other local projects must never leak into the session.
+    if (lanSession && lanSession.projectId !== project.id) return;
     const suppressed = lanApplyRemoteRef.current;
     lanApplyRemoteRef.current = false;
     if (suppressed || !lanRoleRef.current) return;
@@ -426,7 +429,7 @@ useEffect(() => {
       window.qv.lan.sendAction({ project, coderName: lanMyName }).catch(() => {});
     }, 200);
     return () => clearTimeout(t);
-  }, [project, lanMyName]);
+  }, [project, lanMyName, lanSession]);
 
   async function handleLanStartHost(hostName: string, password: string) {
     if (!project) return;
@@ -444,15 +447,13 @@ useEffect(() => {
     if (lanJoining) return;
     setLanJoining(true);
     setLanSync({ phase: 'connect', percent: 0, message: 'Starting…' });
-    const existing = projects.find(p => p.id === host.projectId);
-    const lastSeq = existing ? Number(localStorage.getItem(`qda-lan-seq-${host.projectId}`)) || null : null;
     const res = await window.qv.lan.joinSession({
       hostIp: host.ip,
       wsPort: host.wsPort,
       password,
       coderName: lanMyName,
       projectId: host.projectId,
-      lastSeq
+      lastSeq: null
     });
     setLanJoining(false);
     setLanSync(null);
@@ -462,19 +463,16 @@ useEffect(() => {
       return;
     }
     if (res.project) {
-      if (lastLanSeqRef.current >= (res.seq ?? 0)) {
-        // A newer live snapshot arrived and was applied during the sync.
-      } else {
-        lanApplyRemoteRef.current = true;
-        lastLanSeqRef.current = Math.max(lastLanSeqRef.current, res.seq ?? 0);
-        setProject(res.project);
-        setProjects(p => [{ id: res.project!.id, name: res.project!.name, createdAt: res.project!.createdAt }, ...p.filter(x => x.id !== res.project!.id)]);
-        localStorage.setItem(`qda-lan-seq-${res.project.id}`, String(res.seq));
-        setTab('workspace');
-      }
+      // Joining always ends with the host's project on screen and in the
+      // local project list.
+      lanApplyRemoteRef.current = true;
+      lastLanSeqRef.current = Math.max(lastLanSeqRef.current, res.seq ?? 0);
+      setProject(res.project);
+      setProjects(p => [{ id: res.project!.id, name: res.project!.name, createdAt: res.project!.createdAt }, ...p.filter(x => x.id !== res.project!.id)]);
+      setTab('workspace');
       showToast(`Joined ${host.hostName}'s session — project synced`);
     } else {
-      showToast(`Connected to ${host.hostName}'s session (already up to date)`);
+      showToast(`Connected to ${host.hostName}'s session`);
     }
   }
 
@@ -1760,7 +1758,17 @@ function openDocxCommentImport() {
             <button onClick={() => setDeleteStep(2)} style={{ backgroundColor: '#ef4444', color: 'white', border: 'none', padding: '4px 12px', borderRadius: '4px' }}>Yes, proceed</button>
           </div>
         </div>
-      ) : null}
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <p style={{ margin: 0 }}>
+            <strong>This cannot be reverted.</strong> Project <em>{project ? `“${project.name}”` : ''}</em> and all of its documents, codes, memos, and analysis will be permanently deleted.
+          </p>
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <button onClick={() => setDeleteStep(0)} style={{ backgroundColor: '#16a34a', color: 'white', border: 'none', padding: '4px 12px', borderRadius: '4px' }}>No / Keep</button>
+            <button onClick={confirmDeleteProject} style={{ backgroundColor: '#ef4444', color: 'white', border: 'none', padding: '4px 12px', borderRadius: '4px' }}>Yes, delete forever</button>
+          </div>
+        </div>
+      )}
     </div>
   </>
 )}

@@ -174,6 +174,17 @@ export default function LanModal({
               </div>
             ) : (
               <>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 'bold', marginBottom: 4 }}>Your name (shown to the host)</label>
+                  <input
+                    value={myName}
+                    onChange={e => onMyNameChange(e.target.value)}
+                    placeholder="e.g. Coder 2"
+                    disabled={busy}
+                    style={{ width: '100%', padding: '8px', boxSizing: 'border-box', fontSize: 13 }}
+                  />
+                </div>
+
                 <div style={{ fontSize: 12, color: '#475569', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 10, backgroundColor: hosts.length > 0 ? '#22c55e' : '#94a3b8', animation: 'none' }} />
                   {hosts.length > 0 ? `${hosts.length} host(s) found on this network` : 'Scanning for hosts on this network…'}

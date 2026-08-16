@@ -3,6 +3,7 @@
   --bg: #faf7f0;           /* paperwhite */
   --panel: #ffffff;
   --panel-alt: #f1ede3;
+  --bg-panel: #f1ede3;     /* alias of --panel-alt (kept for inline select/input styles) */
   --border: #ddd6c5;
   --text: #2b2620;
   --text-dim: #6b6357;
@@ -18,6 +19,7 @@
   --bg: #0f172a;
   --panel: #111c33;
   --panel-alt: #16213f;
+  --bg-panel: #16213f;     /* alias of --panel-alt (kept for inline select/input styles) */
   --border: #23304f;
   --text: #e2e8f0;
   --text-dim: #94a3b8;
@@ -143,6 +145,20 @@ input, select, textarea {
 
 .project-controls { display: flex; align-items: center; gap: 6px; }
 .icon-btn { white-space: nowrap; }
+/* Compact icon-only buttons (Undo/Redo/Save): square, exactly the size of
+   the icon, no label padding — used where the text label would add clutter. */
+.icon-btn-sm {
+  white-space: nowrap;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  box-sizing: border-box;
+  font-size: 14px;
+}
 .header-divider { width: 1px; align-self: stretch; background: var(--border); margin: 0 4px; }
 
 .save-status { font-size: 12px; padding: 0 4px; white-space: nowrap; }

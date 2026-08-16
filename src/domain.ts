@@ -41,7 +41,7 @@ export interface CodedSegment {
   source: 'manual' | 'csv-import' | 'auto-code' | 'qdpx-import'| 'docx-comment-import';
   note?: string;          // segment-level memo (e.g. from REFI-QDA import)
   starred?: boolean;      // marked as a "key quote" for manuscript writing
-  coder?: string;   // which coder/project this segment came from — set during merge
+  coder?: string;   // coder identity stamped when this segment was created/imported — never auto-rewritten
 }
 
 export interface ImageSource {
@@ -65,6 +65,7 @@ export interface CodedRegion {
   createdAt: number;
   note?: string;
   starred?: boolean;
+  coder?: string;          // coder identity stamped when this region was created/imported — never auto-rewritten
 }
 
 export interface CodeRelationNote {
@@ -87,6 +88,7 @@ export interface Project {
   id: ID;
   name: string;
   createdAt: number;
+  updatedAt?: number;   // last local/remote edit time — used to detect offline edits before a LAN join
   folders: Folder[];
   docs: SourceDoc[];
   codes: Code[];
@@ -107,6 +109,12 @@ export interface ProjectSummary {
 export function uid(prefix = 'id'): ID {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
 }
+
+// Stable display label for segments/regions that have no coder stamp yet
+// (e.g. data coded before attribution existed, or imported without one).
+// This is a structural value, so the Workspace/Codebook coder filter treats
+// "Unattributed" as a real group instead of hiding untagged items.
+export const UNATTRIBUTED_CODER = 'Unattributed';
 
 export function newProject(name: string): Project {
   return {

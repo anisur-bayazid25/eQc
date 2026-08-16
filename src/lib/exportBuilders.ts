@@ -1,4 +1,4 @@
-import { Project, Code, codeAncestorPath, childCodes } from '../domain';
+import { Project, Code, codeAncestorPath, childCodes, UNATTRIBUTED_CODER } from '../domain';
 
 export type ExportScope = 'codesOnly' | 'codesExcerpts' | 'codesExcerptsSummaries' | 'full';
 
@@ -49,7 +49,7 @@ export function buildScopedExport(project: Project, scope: ExportScope): ScopedE
   const includeDocument = scope === 'full';
   const headers = [
     ...(includeDocument ? ['Document'] : []),
-    'Parent Node', 'Child Node 1', 'Child Node 2', 'Quote',
+    'Parent Node', 'Child Node 1', 'Child Node 2', 'Quote', 'Coder',
     ...(includeSummary ? ['Code Summary'] : [])
   ];
 
@@ -69,7 +69,7 @@ export function buildScopedExport(project: Project, scope: ExportScope): ScopedE
     const [parent, child1, child2] = codeLevelColumns(project.codes, code);
     const row: string[] = [];
     if (includeDocument) row.push(docsById.get(seg.docId)?.name || 'Unknown source');
-    row.push(parent, child1, child2, seg.text);
+    row.push(parent, child1, child2, seg.text, seg.coder || UNATTRIBUTED_CODER);
     if (includeSummary) row.push(code.summary || '');
     rows.push(row);
   }

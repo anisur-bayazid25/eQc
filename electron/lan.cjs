@@ -84,6 +84,7 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
       currentProject: project,
       seq: 0,
       log: [],
+      activeDocId: null,       // doc/image the host renderer is currently viewing
       clients: new Map(),
       heartbeatTimer: null,
       server
@@ -174,8 +175,8 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
   function broadcastPresence() {
     if (state.role !== 'host' || !state.host) return;
     const coders = [
-      { coderName: state.host.hostName, source: 'host' },
-      ...[...state.host.clients.values()].map(c => ({ coderName: c.coderName, source: 'client' }))
+      { coderName: state.host.hostName, source: 'host', activeDocId: state.host.activeDocId },
+      ...[...state.host.clients.values()].map(c => ({ coderName: c.coderName, source: 'client', activeDocId: c.activeDocId || null }))
     ];
     // The host renderer reports itself as the host…
     pushToRenderer('lan:sessionState', {
@@ -238,7 +239,7 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
         }
         authed = true;
         ws.coderName = String(msg.coderName || 'Coder');
-        state.host.clients.set(ws, { coderName: ws.coderName });
+        state.host.clients.set(ws, { coderName: ws.coderName, activeDocId: null });
         broadcastPresence();
 
         // Always hand the peer the host's current project: on every (re)join
@@ -255,6 +256,15 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
         }
       } else if (msg.type === 'ACTION_DISPATCH' && authed && state.host) {
         acceptDispatch({ coderName: ws.coderName, project: msg.project, senderWs: ws, notifyHostRenderer: true });
+      } else if (msg.type === 'SET_ACTIVE_DOC' && authed && state.host) {
+        // Presence: a client tells the host which document/image it is
+        // currently viewing. The host stores it and re-broadcasts PRESENCE
+        // so everyone's DocTree can show "who is viewing what".
+        const info = state.host.clients.get(ws);
+        if (info) {
+          info.activeDocId = (msg.docId === null || msg.docId === undefined) ? null : String(msg.docId);
+          broadcastPresence();
+        }
       }
     });
     ws.on('close', () => {
@@ -386,109 +396,187 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
 
     return new Promise(resolve => {
       let settled = false;
-      const ws = new WebSocket(`ws://${hostIp}:${wsPort}`);
       const client = {
-        ws,
+        ws: null,
+        hostIp: String(hostIp || ''),
+        wsPort: Number(wsPort || 8080),
+        password: String(password || ''),
+        lastSeq: (lastSeq === null || lastSeq === undefined) ? null : Number(lastSeq),
         coderName: String(coderName || 'Coder'),
         projectId: String(projectId || ''),
         chunks: [],
         totalChunks: 0,
         buffered: [],
         syncing: false,
-        resolved: false
+        resolved: false,
+        reconnectTimer: null,
+        reconnectAttempts: 0,
+        userStopped: false
       };
       state.client = client;
       pushProgress({ phase: 'connect', percent: 0, message: 'Connecting…' });
 
-      function fail(reason) {
+      function cancelReconnect() {
+        if (client.reconnectTimer) { clearInterval(client.reconnectTimer); client.reconnectTimer = null; }
+      }
+
+      function formalDisconnect(reason) {
+        cancelReconnect();
         if (state.client === client) { state.client = null; clearSessionUI(); }
         if (state.role === 'client' || !settled) state.role = null;
         pushProgress({ phase: 'error', percent: 0, message: reason });
         if (!settled) { settled = true; resolve({ ok: false, error: reason }); }
-        try { ws.close(); } catch {}
       }
 
-      ws.on('open', () => {
-        pushProgress({ phase: 'auth', percent: 5, message: 'Authenticating…' });
-        sendMsg(ws, { type: 'AUTH_REQUEST', password: String(password || ''), coderName: client.coderName, lastSeq });
-      });
+      function fail(reason) {
+        formalDisconnect(reason);
+        if (client.ws) { try { client.ws.close(); } catch {} }
+      }
 
-      ws.on('message', data => {
-        let msg;
-        try { msg = JSON.parse(String(data)); } catch { return; }
-        if (!msg) return;
+      function connect() {
+        let ws;
+        try { ws = new WebSocket(`ws://${client.hostIp}:${client.wsPort}`); }
+        catch (err) { return; }
+        client.ws = ws;
 
-        if (msg.type === 'AUTH_FAILED') {
-          fail(msg.reason || 'Authentication failed');
-          return;
-        }
+        ws.on('open', () => {
+          pushProgress({ phase: 'auth', percent: 5, message: client.resolved ? 'Reconnecting…' : 'Authenticating…' });
+          sendMsg(ws, { type: 'AUTH_REQUEST', password: client.password, coderName: client.coderName, lastSeq: client.lastSeq });
+        });
 
-        if (msg.type === 'AUTH_SUCCESS') {
-          client.seq = msg.seq;
-          client.totalChunks = msg.totalChunks || 0;
-          client.syncing = client.totalChunks > 0;
-          if (!client.syncing) finishJoin(null);
-          return;
-        }
+        ws.on('message', data => {
+          let msg;
+          try { msg = JSON.parse(String(data)); } catch { return; }
+          if (!msg) return;
 
-        if (msg.type === 'SYNC_CHUNK') {
-          client.chunks[msg.chunkIndex] = msg.data || '';
-          pushProgress({
-            phase: 'sync',
-            percent: Math.round(((msg.chunkIndex + 1) / (msg.totalChunks || 1)) * 100),
-            received: msg.chunkIndex + 1,
-            total: msg.totalChunks
-          });
-          if (msg.chunkIndex === (msg.totalChunks || 0) - 1) {
-            let project = null;
-            try { project = JSON.parse(client.chunks.join('')); } catch { fail('Could not parse host project data'); return; }
-            saveProject(project); // dual local persistence — never touches other project rows
-            finishJoin(project);
+          if (msg.type === 'AUTH_FAILED') {
+            fail(msg.reason || 'Authentication failed');
+            return;
           }
-          return;
-        }
 
-        if (msg.type === 'ACTION_DISPATCH') {
-          if (client.syncing) {
-            client.buffered.push(msg); // live edits that raced the initial sync
-          } else {
-            pushToRenderer('lan:remoteProject', { seq: msg.seq, coderName: msg.coderName, project: msg.project });
+          if (msg.type === 'AUTH_SUCCESS') {
+            client.seq = msg.seq;
+            client.totalChunks = msg.totalChunks || 0;
+            client.syncing = client.totalChunks > 0;
+            if (!client.syncing) finishJoin(null);
+            return;
           }
-          return;
-        }
 
-        if (msg.type === 'PRESENCE') {
-          pushToRenderer('lan:sessionState', msg.payload);
-        }
-      });
+          if (msg.type === 'SYNC_CHUNK') {
+            client.chunks[msg.chunkIndex] = msg.data || '';
+            pushProgress({
+              phase: 'sync',
+              percent: Math.round(((msg.chunkIndex + 1) / (msg.totalChunks || 1)) * 100),
+              received: msg.chunkIndex + 1,
+              total: msg.totalChunks
+            });
+            if (msg.chunkIndex === (msg.totalChunks || 0) - 1) {
+              let project = null;
+              try { project = JSON.parse(client.chunks.join('')); } catch { fail('Could not parse host project data'); return; }
+              saveProject(project); // dual local persistence — never touches other project rows
+              finishJoin(project);
+            }
+            return;
+          }
 
-      ws.on('close', () => {
-        if (state.client === client) { state.client = null; clearSessionUI(); }
-        if (!settled) { settled = true; state.role = null; resolve({ ok: false, error: 'Connection closed before sync completed' }); }
-      });
+          if (msg.type === 'ACTION_DISPATCH') {
+            if (client.syncing) {
+              client.buffered.push(msg); // live edits that raced the (re)sync
+            } else {
+              pushToRenderer('lan:remoteProject', { seq: msg.seq, coderName: msg.coderName, project: msg.project });
+            }
+            return;
+          }
 
-      ws.on('error', err => {
-        if (!settled) fail(err.message || String(err));
-      });
+          if (msg.type === 'PRESENCE') {
+            pushToRenderer('lan:sessionState', msg.payload);
+          }
+        });
+
+        ws.on('close', code => {
+          if (state.client !== client) return;
+          if (!client.resolved) {
+            // Initial join interrupted before we ever had a session — fail it.
+            if (!settled) {
+              settled = true;
+              state.role = null;
+              if (state.client === client) { state.client = null; clearSessionUI(); }
+              resolve({ ok: false, error: 'Connection closed before sync completed' });
+            }
+            return;
+          }
+          if (client.userStopped) return;
+          // A clean server close (1000) while in session = the host/session
+          // ended → formal disconnect. Anything else is treated as a network
+          // drop → silent reconnect grace period (10s, attempt every 2s).
+          if (code === 1000) {
+            formalDisconnect('Connection to host closed');
+            return;
+          }
+          if (client.reconnectTimer) return; // already buffering
+          pushProgress({ phase: 'reconnect', percent: 0, message: 'Network interrupted. Reconnecting…' });
+          client.reconnectAttempts = 0;
+          client.reconnectTimer = setInterval(() => {
+            client.reconnectAttempts++;
+            if (client.reconnectAttempts > 5) {
+              formalDisconnect('Connection lost. Reconnect failed.');
+              return;
+            }
+            if (client.userStopped || state.client !== client) { cancelReconnect(); return; }
+            // Skip if a socket is still CONNECTING(0) / OPEN(1).
+            if (client.ws && client.ws.readyState !== 2 && client.ws.readyState !== 3) return;
+            pushProgress({ phase: 'reconnect', percent: 0, message: `Network interrupted. Reconnecting (attempt ${client.reconnectAttempts}/5)…` });
+            connect();
+          }, 2000);
+        });
+
+        ws.on('error', error => {
+          // For the initial join an error is fatal; after that it just routes
+          // through `close` (fires right after) into the reconnect machinery.
+          if (!client.resolved && !settled) fail((error && error.message) || String(error));
+        });
+      }
 
       function finishJoin(project) {
-        if (client.resolved) return;
+        client.syncing = false;
+        if (client.resolved) {
+          // Reconnect landed: flush any edits that raced the re-sync, then
+          // hand the fresh snapshot to the renderer so its in-memory state is
+          // always current. Marked `quiet` so it restores state without a
+          // "someone updated the project" toast.
+          for (const b of client.buffered) {
+            pushToRenderer('lan:remoteProject', { seq: b.seq, coderName: b.coderName, project: b.project, quiet: true });
+          }
+          if (project) {
+            pushToRenderer('lan:remoteProject', { seq: client.seq || 0, coderName: client.coderName, project, quiet: true });
+          }
+          pushProgress({ phase: 'done', percent: 100, message: 'Reconnected' });
+          return;
+        }
         client.resolved = true;
         state.role = 'client';
-        client.syncing = false;
         for (const b of client.buffered) {
           pushToRenderer('lan:remoteProject', { seq: b.seq, coderName: b.coderName, project: b.project });
         }
         pushProgress({ phase: 'done', percent: project ? 100 : 100, message: project ? 'Project synced' : 'Up to date' });
+        cancelReconnect();
         settled = true;
         resolve({ ok: true, project: project || null, seq: client.seq });
       }
+
+      connect();
     });
   }
 
   function stopClient() {
-    if (state.client && state.client.ws) { try { state.client.ws.close(); } catch {} }
-    state.client = null;
+    // User-initiated: cancel any reconnect buffer before closing, otherwise
+    // the socket's 'close' handler would start a 10s reconnect loop.
+    if (state.client) {
+      state.client.userStopped = true;
+      if (state.client.reconnectTimer) { clearInterval(state.client.reconnectTimer); state.client.reconnectTimer = null; }
+      if (state.client.ws) { try { state.client.ws.close(); } catch {} }
+      state.client = null;
+    }
     if (state.role === 'client') { state.role = null; clearSessionUI(); }
   }
 
@@ -524,4 +612,17 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
   ipcMain.handle('lan:joinSession', (_e, creds) => joinSession(creds || {}));
   ipcMain.handle('lan:disconnectSession', () => { stopClient(); return true; });
   ipcMain.handle('lan:sendAction', (_e, payload) => applyPublish(payload));
+  ipcMain.handle('lan:setActiveDoc', (_e, docId) => {
+    const did = (docId === null || docId === undefined) ? null : String(docId);
+    if (state.role === 'host' && state.host) {
+      state.host.activeDocId = did;
+      broadcastPresence();
+    } else if (state.role === 'client' && state.client && state.client.ws && state.client.ws.readyState === 1) {
+      // Clients keep the host as the single source of truth, so their
+      // "currently viewing" state is forwarded to the host, which then
+      // re-broadcasts presence to everyone.
+      sendMsg(state.client.ws, { type: 'SET_ACTIVE_DOC', docId: did });
+    }
+    return true;
+  });
 };

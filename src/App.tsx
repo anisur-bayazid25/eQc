@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import {
   Project, ProjectSummary, Folder, SourceDoc, Code, CodedSegment, FrameworkCell, CodeRelationNote,
   ID, uid, newProject, colorForNewCode, childCodes, descendantCodeIds,
-  CodedRegion,
+  CodedRegion, UNATTRIBUTED_CODER,
   ImageSource
 } from './domain';
 import CodeTree from './components/CodeTree';
@@ -25,7 +25,7 @@ import pkg from '../package.json';
 import ImageEditor from './components/ImageEditor';
 import { cropRegionToPng, renderCodedImagePng } from './lib/imageCrop';
 import LanModal from './components/LanModal';
-import type { LanHostInfo, LanSessionState, LanSyncProgress, LanRemoteProject, LanRole } from './global';
+import type { LanHostInfo, LanSessionState, LanSyncProgress, LanRemoteProject, LanRole, LanCoder } from './global';
 
 function IsolatedPromptModal({ isOpen, message, buttonText, onResolve }: any) {
   const [val, setVal] = React.useState('');
@@ -110,6 +110,15 @@ function DebouncedCodeText({ value, onCommit, multiline }: { value: string; onCo
 }
 
 type Tab = 'workspace' | 'codebook' | 'autocode' | 'analysis' | 'about';
+
+// Coder filter predicate shared by the Workspace and Codebook lists. A
+// segment matches when it is explicitly stamped with the chosen coder, or —
+// when the "Unattributed" group is chosen — when it has no stamp at all.
+// Untagged items therefore show up under BOTH "Everyone" and "Unattributed",
+// never under a named coder, exactly matching what the UI displays.
+function matchesCoder(coder: string | undefined, filter: string): boolean {
+  return filter === 'all' || coder === filter || (filter === UNATTRIBUTED_CODER && !coder);
+}
 
 function describeLanDiff(prev: Project, next: Project): string {
   const parts: string[] = [];
@@ -363,6 +372,13 @@ useEffect(() => {
   const [docxLastIsExcerpt, setDocxLastIsExcerpt] = useState(true);
   const [sortOrder, setSortOrder] = useState<string>('name');
   const [excerptSort, setExcerptSort] = useState('notes_first');
+  // Coder attribution filter (Workspace & Codebook). 'all' = show everyone's
+  // work; a specific name shows only that coder's segments/regions/excerpts.
+  const [selectedCoderFilter, setSelectedCoderFilter] = useState<string>('all');
+
+  useEffect(() => {
+    setSelectedCoderFilter('all'); // switching projects must not keep a stale coder
+  }, [project?.id]);
 
   // Auto-code state
   const [autoCodeQuery, setAutoCodeQuery] = useState('');
@@ -405,6 +421,25 @@ useEffect(() => {
   const [lanSync, setLanSync] = useState<LanSyncProgress | null>(null);
   const [lanJoining, setLanJoining] = useState(false);
   const [lanMyName, setLanMyName] = useState(() => localStorage.getItem('qda-lan-name') || 'Coder');
+  // The LAN identity defaults to this project's Coder Name (set in Project
+  // Settings) the moment a project loads, so hosted/joined sessions display
+  // it by default. It stays editable from the LAN dialog for that session.
+  useEffect(() => {
+    if (project?.id) setLanMyName(project.coderName || 'Coder');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.id]);
+  // Offline-edit conflict waiting on a user decision after joining a host that
+  // serves the same project we edited while disconnected. The host snapshot is
+  // NOT applied until one of the three resolutions runs.
+  const [lanConflict, setLanConflict] = useState<{
+    hostProject: Project;
+    hostName: string;
+    seq: number;
+  } | null>(null);
+  const lanConflictRef = useRef<typeof lanConflict>(null);
+  useEffect(() => {
+    lanConflictRef.current = lanConflict;
+  }, [lanConflict]);
 
   const projectRef = useRef<Project | null>(null);
   useEffect(() => { projectRef.current = project; }, [project]);
@@ -419,31 +454,57 @@ useEffect(() => {
   }, [lanSession, lanMyName]);
 
   const applyLanRemote = useCallback((r: LanRemoteProject) => {
+    // While an offline-conflict decision is pending we must NOT overwrite the
+    // local (offline-edited) project with live host snapshots — the user still
+    // has to pick merge/backup/discard. Reconnect flows re-sync right after.
+    if (lanConflictRef.current && lanConflictRef.current.hostProject.id === r.project.id) return;
     const prev = projectRef.current;
     lanApplyRemoteRef.current = true;
     lastLanSeqRef.current = Math.max(lastLanSeqRef.current, r.seq);
     const seqKey = `qda-lan-seq-${r.project.id}`;
+    // Every remote apply that we accept IS a sync point: afterwards our local
+    // copy equals the session state, so only edits made after this moment can
+    // count as "offline edits" on a later join.
+    localStorage.setItem(`qda-lan-synced-at-${r.project.id}`, String(r.project.updatedAt ?? Date.now()));
     if (prev && prev.id === r.project.id) {
       setProject(r.project);
       window.qv.saveProject(r.project).catch(() => {});
       localStorage.setItem(seqKey, String(r.seq));
-      showToast(`[${r.coderName}] ${describeLanDiff(prev, r.project)}`);
+      if (!r.quiet) showToast(`[${r.coderName}] ${describeLanDiff(prev, r.project)}`);
     } else {
       setProject(r.project);
       setProjects(p => [{ id: r.project.id, name: r.project.name, createdAt: r.project.createdAt }, ...p.filter(x => x.id !== r.project.id)]);
       window.qv.saveProject(r.project).catch(() => {});
       localStorage.setItem(seqKey, String(r.seq));
       setTab('workspace');
-      showToast(`Joined ${r.coderName}'s session`);
+      if (!r.quiet) showToast(`Joined ${r.coderName}'s session`);
     }
   }, [showToast]);
 
   useEffect(() => {
     window.qv.lan.onHostsUpdated(h => setLanHosts(h));
+    // Track the previous coder roster to notify the HOST when someone new
+    // joins. 'client' role users don't get these: only the host receives
+    // join announcements (the joining side already confirmed its own name).
+    const prevCoders = new Map<string | null, LanCoder[]>([[null, []]]);
     window.qv.lan.onSessionState(s => {
       // Defensive: a client always sees its own role as 'client', even if
       // the host is still running an older build that reports 'host'.
-      setLanSession(s && lanJoinedRef.current ? { ...s, role: 'client' } : s);
+      const next = s && lanJoinedRef.current ? { ...s, role: 'client' as const } : s;
+      setLanSession(next);
+      if (next && next.role === 'host' && s) {
+        const prior = prevCoders.get(s.projectId) ?? [];
+        const added = s.coders.filter(c => !prior.some(p => p.coderName === c.coderName));
+        if (prior.length > 0 && added.length > 0) {
+          showToast(`${added.map(c => c.coderName).join(', ')} joined your session`);
+        }
+        prevCoders.set(s.projectId, s.coders);
+      } else {
+        // Session ended (or this build reports a role we don't toast for):
+        // forget the previous roster so a brand-new host session doesn't
+        // mistake itself for a "joiner".
+        prevCoders.clear();
+      }
     });
     window.qv.lan.onSyncProgress(p => {
       setLanSync(p.phase === 'done' || p.phase === 'error' ? null : p);
@@ -466,7 +527,15 @@ useEffect(() => {
     lanApplyRemoteRef.current = false;
     if (suppressed || !lanRoleRef.current) return;
     const t = setTimeout(() => {
-      window.qv.lan.sendAction({ project, coderName: lanMyName }).catch(() => {});
+      window.qv.lan.sendAction({ project, coderName: lanMyName }).then((res: { ok: boolean }) => {
+        // Our own edit reached the host → this moment is now a sync point.
+        // Without this, reconnecting after having edited *while connected*
+        // would wrongly trigger the offline-conflict prompt.
+        if (res.ok) {
+          const syncKey = `qda-lan-synced-at-${project.id}`;
+          localStorage.setItem(syncKey, String(project.updatedAt ?? Date.now()));
+        }
+      }).catch(() => {});
     }, 200);
     return () => clearTimeout(t);
   }, [project, lanMyName, lanSession]);
@@ -483,6 +552,22 @@ useEffect(() => {
     lanJoinedRef.current = false;
     await window.qv.lan.stopHost();
     showToast('LAN session stopped');
+  }
+
+  // Record that the given snapshot is the state we share with the session and
+  // make it the active project. Shared by the plain join path and by every
+  // offline-conflict resolution.
+  function applyJoinedState(p: Project, seq: number) {
+    lanJoinedRef.current = true;
+    lanApplyRemoteRef.current = true;
+    lastLanSeqRef.current = Math.max(lastLanSeqRef.current, seq);
+    const seqKey = `qda-lan-seq-${p.id}`;
+    localStorage.setItem(seqKey, String(seq));
+    localStorage.setItem(`qda-lan-synced-at-${p.id}`, String(p.updatedAt ?? Date.now()));
+    setProject(p);
+    setProjects(list => [{ id: p.id, name: p.name, createdAt: p.createdAt }, ...list.filter(x => x.id !== p.id)]);
+    setTab('workspace');
+    setLanConflict(null);
   }
 
   async function handleLanJoin(host: LanHostInfo, password: string) {
@@ -504,23 +589,84 @@ useEffect(() => {
       showToast(res.error || 'Join failed');
       return;
     }
-    if (res.project) {
-      // Joining always ends with the host's project on screen and in the
-      // local project list.
-      lanJoinedRef.current = true;
-      lanApplyRemoteRef.current = true;
-      lastLanSeqRef.current = Math.max(lastLanSeqRef.current, res.seq ?? 0);
-      setProject(res.project);
-      setProjects(p => [{ id: res.project!.id, name: res.project!.name, createdAt: res.project!.createdAt }, ...p.filter(x => x.id !== res.project!.id)]);
-      setTab('workspace');
-      showToast(`Joined ${host.hostName}'s session — project synced`);
-    } else {
+    if (!res.project) {
       showToast(`Connected to ${host.hostName}'s session`);
+      return;
     }
+    const hostProject = res.project;
+    const seq = res.seq ?? 0;
+    const localProj = projectRef.current;
+
+    // Offline-edit detection: the same project id means we've synced with this
+    // host before. If our local copy was edited after our last confirmed sync
+    // point, applying the host snapshot blindly would throw that home work
+    // away — so we pause and ask instead.
+    if (localProj && localProj.id === hostProject.id) {
+      const lastSyncAt = Number(localStorage.getItem(`qda-lan-synced-at-${hostProject.id}`) || '0');
+      const localUpdatedAt = localProj.updatedAt ?? localProj.createdAt ?? 0;
+      if (localUpdatedAt > lastSyncAt) {
+        setLanConflict({ hostProject, hostName: host.hostName, seq });
+        return; // host snapshot is NOT applied until the user resolves
+      }
+    }
+    applyJoinedState(hostProject, seq);
+    showToast(`Joined ${host.hostName}'s session — project synced`);
+  }
+
+  // Option 1 — merge offline work into the Host Session (default).
+  // local project data is merged into a clone of the host snapshot, the merged
+  // project is uploaded to the host (which fans it out to every client), and
+  // the merged copy becomes the active project here.
+  async function handleLanConflictMerge() {
+    const conflict = lanConflictRef.current;
+    const localProj = projectRef.current;
+    if (!conflict || !localProj) return;
+    // mergeProjectInto(target, source) mutates target — clone so we never
+    // touch the JSON-parsed host snapshot in place.
+    const merged = JSON.parse(JSON.stringify(conflict.hostProject)) as Project;
+    const source = { ...localProj, coderName: lanMyName };
+    const summary = mergeProjectInto(merged, source);
+    const stamped = { ...merged, updatedAt: Date.now() } as Project;
+    const res = await window.qv.lan.sendAction({ project: stamped, coderName: lanMyName });
+    if (!res.ok) {
+      showToast(res.error || 'Could not upload merged project — try again or pick another option');
+      return; // keep the modal open
+    }
+    applyJoinedState(stamped, res.seq ?? conflict.seq);
+    showToast(
+      `Merged into ${conflict.hostName}'s session: +${summary.codesAdded} code(s), ` +
+      `+${summary.segmentsAdded} passage(s), ${summary.docsMerged} doc(s) matched, +${summary.docsAdded} doc(s) added`
+    );
+  }
+
+  // Option 2 — keep offline work as a separate local project, then adopt the
+  // host snapshot untouched.
+  async function handleLanConflictBackup() {
+    const conflict = lanConflictRef.current;
+    const localProj = projectRef.current;
+    if (!conflict || !localProj) return;
+    const backup = {
+      ...localProj,
+      id: crypto.randomUUID(),
+      name: `${localProj.name} (Home Backup)`
+    } as Project;
+    await window.qv.saveProject(backup).catch(() => {});
+    setProjects(list => [{ id: backup.id, name: backup.name, createdAt: backup.createdAt }, ...list]);
+    applyJoinedState(conflict.hostProject, conflict.seq);
+    showToast(`Saved "${backup.name}" locally — joined ${conflict.hostName}'s session`);
+  }
+
+  // Option 3 — discard offline edits and take the host snapshot as-is.
+  function handleLanConflictDiscard() {
+    const conflict = lanConflictRef.current;
+    if (!conflict) return;
+    applyJoinedState(conflict.hostProject, conflict.seq);
+    showToast(`Joined ${conflict.hostName}'s session — offline edits discarded`);
   }
 
   async function handleLanDisconnect() {
     lanJoinedRef.current = false;
+    setLanConflict(null);
     await window.qv.lan.disconnectSession();
     window.qv.lan.startDiscovery().catch(() => {});
     showToast('Disconnected from LAN session');
@@ -565,17 +711,23 @@ useEffect(() => {
   }, [showToast]);
 
   const persist = useCallback((next: Project) => {
+    // Stamping `updatedAt` here (rather than at every call site) records the
+    // moment of every local content edit in one place. LAN uses it to tell
+    // "edits made while disconnected" apart from "already synced state".
+    // Remote applications bypass persist (setProject + saveProject directly),
+    // so they never advance the marker.
+    const stamped: Project = { ...next, updatedAt: Date.now() };
     setProject(prevProj => {
-      if (prevProj && prevProj.id === next.id) {
+      if (prevProj && prevProj.id === stamped.id) {
         setPast(p => {
           const updated = [...p, prevProj];
           return updated.length > HISTORY_LIMIT ? updated.slice(updated.length - HISTORY_LIMIT) : updated;
         });
         setFuture([]);
       }
-      return next;
+      return stamped;
     });
-    saveToDisk(next).catch(() => {});
+    saveToDisk(stamped).catch(() => {});
   }, [saveToDisk]);
 
   function manualSave() {
@@ -596,8 +748,9 @@ useEffect(() => {
     const previous = past[past.length - 1];
     setPast(p => p.slice(0, -1));
     setFuture(f => [project, ...f].slice(0, HISTORY_LIMIT));
-    setProject(previous);
-    saveToDisk(previous).catch(() => {});
+    const stamped = { ...previous, updatedAt: Date.now() };
+    setProject(stamped);
+    saveToDisk(stamped).catch(() => {});
   }
 
   function redo() {
@@ -605,8 +758,9 @@ useEffect(() => {
     const next = future[0];
     setFuture(f => f.slice(1));
     setPast(p => [...p, project].slice(-HISTORY_LIMIT));
-    setProject(next);
-    saveToDisk(next).catch(() => {});
+    const stamped = { ...next, updatedAt: Date.now() };
+    setProject(stamped);
+    saveToDisk(stamped).catch(() => {});
   }
 
   function goToExcerpt(seg: CodedSegment) {
@@ -718,7 +872,8 @@ async function handleExportCodedImage() {
       y: pendingRegion.y,
       width: pendingRegion.width,
       height: pendingRegion.height,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      ...(activeCoderName ? { coder: activeCoderName } : {})
     };
     persist({ ...project, codedRegions: [...(project.codedRegions || []), region] });
     setPendingRegion(null);
@@ -881,6 +1036,23 @@ function openProjectSettings() {
     const coderTrimmed = projectCoderDraft.trim();
     if (trimmed) persist({ ...project, name: trimmed, coderName: coderTrimmed || undefined });
     setProjectModalOpen(false);
+  }
+
+  // Explicit, non-mutating migration for legacy/imported items that carry no
+  // coder stamp: the user deliberately signs any Unattributed segments and
+  // regions with the coder name currently entered in Project Settings. This
+  // is the ONLY path that backfills attribution, so it can never silently
+  // overwrite or relabel existing stamps when the active name later changes.
+  function claimUnattributed() {
+    if (!project) return;
+    const name = projectCoderDraft.trim();
+    if (!name) return;
+    persist({
+      ...project,
+      codedSegments: project.codedSegments.map(s => (s.coder ? s : { ...s, coder: name })),
+      codedRegions: (project.codedRegions || []).map(r => (r.coder ? r : { ...r, coder: name }))
+    });
+    showToast(`Assigned ${unattributedCount} Unattributed item(s) to ${name}`);
   }
 
   async function confirmDeleteProject() {
@@ -1366,7 +1538,8 @@ function moveDoc(docId: ID, targetFolderId: ID | null) {
       end: pendingSelection.end,
       text: pendingSelection.text,
       createdAt: Date.now(),
-      source: 'manual'
+      source: 'manual',
+      ...(activeCoderName ? { coder: activeCoderName } : {})
     };
     persist({ ...project, codedSegments: [...project.codedSegments, segment] });
     setPendingSelection(null);
@@ -1431,11 +1604,12 @@ function toggleStarSegment(segId: ID) {
       showToast('No starred quotes yet — star an excerpt first.');
       return;
     }
-    const headers = ['Quote', 'Code', 'Document', 'Note'];
+    const headers = ['Quote', 'Code', 'Document', 'Coder', 'Note'];
     const rows = starred.map(s => [
       s.text,
       codesById.get(s.codeId)?.name || 'Unknown code',
       project.docs.find(d => d.id === s.docId)?.name || 'Unknown source',
+      s.coder || UNATTRIBUTED_CODER,
       s.note || ''
     ]);
     const filenameBase = `${project.name.replace(/[^\w\- ]/g, '_')}_starred_quotes`;
@@ -1474,7 +1648,8 @@ async function handleExportManuscriptSkeleton() {
             .filter(s => s.codeId === code.id && s.starred)
             .map(s => {
               const doc = project!.docs.find(d => d.id === s.docId);
-              return `"${s.text}" (${doc?.name || 'Unknown source'})`;
+              const attribution = s.coder ? ` [Coded by: ${s.coder}]` : '';
+              return `"${s.text}" (${doc?.name || 'Unknown source'})${attribution}`;
             });
 
           const starredRegions = (project!.codedRegions || []).filter(r => r.codeId === code.id && r.starred);
@@ -1581,7 +1756,8 @@ function handleRunAutoCode() {
             end: m.end,
             text: m.text,
             createdAt: Date.now(),
-            source: 'auto-code'
+            source: 'auto-code',
+            ...(activeCoderName ? { coder: activeCoderName } : {})
           });
         }
       }
@@ -1621,8 +1797,10 @@ function handleRunAutoCode() {
   }, [project, autoCodeQuery, autoCodeBoundary, autoCodeLanguage, autoCodeMatchMode, autoCodeTargetCodeId]);
 
   const docSegments = useMemo(
-    () => (selectedDoc ? project?.codedSegments.filter(s => s.docId === selectedDoc.id) || [] : []),
-    [project?.codedSegments, selectedDoc]
+    () => (selectedDoc
+      ? (project?.codedSegments.filter(s => s.docId === selectedDoc.id && matchesCoder(s.coder, selectedCoderFilter)) || [])
+      : []),
+    [project?.codedSegments, selectedDoc, selectedCoderFilter]
   );
 
   // =================================================================
@@ -1758,13 +1936,43 @@ function openDocxCommentImport() {
   }, [project?.docs]);
 
   const codebookCode = codebookSelectedCodeId ? codesById.get(codebookSelectedCodeId) || null : null;
+
+  // Unique coder names present in this project, for the filter dropdowns.
+  // Attribution lives on CodedSegment.coder and CodedRegion.coder (set at
+  // creation/merge). Also used to attribute new manual/auto segments.
+  const coderOptions = useMemo(() => {
+    const names = new Set<string>();
+    let untagged = false;
+    for (const s of project?.codedSegments ?? []) { if (s.coder) names.add(s.coder); else untagged = true; }
+    for (const r of project?.codedRegions ?? []) { if (r.coder) names.add(r.coder); else untagged = true; }
+    const out: string[] = ['all', ...Array.from(names).sort((a, b) => a.localeCompare(b))];
+    if (untagged) out.push(UNATTRIBUTED_CODER);
+    return out;
+  }, [project?.codedSegments, project?.codedRegions]);
+
+  // How many coded items have no coder stamp yet — powers the "Unattributed"
+  // filter group and the one-click claim button in Project Settings.
+  const unattributedCount = useMemo(
+    () => (project?.codedSegments ?? []).filter(s => !s.coder).length + (project?.codedRegions ?? []).filter(r => !r.coder).length,
+    [project?.codedSegments, project?.codedRegions]
+  );
+
+  // The name stamped onto newly created coded segments/regions: the LAN
+  // session identity when collaborating live, otherwise the project's own
+  // coder identity (if set). Unknown attribution stays unset.
+  const activeCoderName = lanRoleRef.current ? lanMyName : (project?.coderName || undefined);
+
   const codebookExcerpts = useMemo(
-    () => (codebookCode ? (project?.codedSegments ?? []).filter(s => s.codeId === codebookCode.id) : []),
-    [codebookCode, project?.codedSegments]
+    () => (codebookCode
+      ? (project?.codedSegments ?? []).filter(s => s.codeId === codebookCode.id && matchesCoder(s.coder, selectedCoderFilter))
+      : []),
+    [codebookCode, project?.codedSegments, selectedCoderFilter]
   );
   const codebookRegions = useMemo(
-    () => (codebookCode ? (project?.codedRegions ?? []).filter(r => r.codeId === codebookCode.id) : []),
-    [codebookCode, project?.codedRegions]
+    () => (codebookCode
+      ? (project?.codedRegions ?? []).filter(r => r.codeId === codebookCode.id && matchesCoder(r.coder, selectedCoderFilter))
+      : []),
+    [codebookCode, project?.codedRegions, selectedCoderFilter]
   );
 
   // Segment-count per code, reused by the codebook tree sort. Built once per
@@ -1820,6 +2028,47 @@ function openDocxCommentImport() {
   onResolve={handlePromptResolve}
 />
 
+{/* --- OFFLINE EDITS DETECTED (LAN join conflict) --- */}
+{lanConflict && (
+  <>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 11000, backgroundColor: 'rgba(15,23,42,0.7)' }} />
+    <div className="modal" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 11001, width: 520, maxWidth: '92vw', maxHeight: '85vh', overflowY: 'auto', backgroundColor: '#ffffff', color: '#0f172a', padding: '24px', borderRadius: '10px', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <span style={{ fontSize: 18 }}>⚠️</span>
+        <h3 style={{ margin: 0, fontSize: 16 }}>Offline Edits Detected</h3>
+      </div>
+      <p style={{ fontSize: 13, margin: '0 0 8px', color: '#334155' }}>
+        You edited <strong>“{project?.name}”</strong> locally since your last LAN sync with{' '}
+        <strong>{lanConflict.hostName}</strong>'s session. Joining normally would overwrite those changes.
+      </p>
+      <p style={{ fontSize: 13, margin: '0 0 16px', color: '#334155' }}>
+        What would you like to do?
+      </p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <button className="primary-btn" style={{ textAlign: 'left', padding: '12px 14px', fontSize: 13 }} onClick={handleLanConflictMerge}>
+          <span style={{ fontWeight: 'bold' }}>Merge my work into Host Session</span>
+          <span style={{ display: 'block', fontSize: 12, opacity: 0.85, marginTop: 2 }}>
+            Combine your offline codes &amp; passages with the host's project, then share the merged result with everyone. (Recommended)
+          </span>
+        </button>
+        <button className="mini-btn" style={{ textAlign: 'left', padding: '12px 14px', fontSize: 13 }} onClick={handleLanConflictBackup}>
+          <span style={{ fontWeight: 'bold' }}>Save offline work as a new project &amp; join host</span>
+          <span style={{ display: 'block', fontSize: 12, opacity: 0.85, marginTop: 2 }}>
+            Keep “{project?.name} (Home Backup)” on this PC and open the host session separately.
+          </span>
+        </button>
+        <button className="mini-btn" style={{ textAlign: 'left', padding: '12px 14px', fontSize: 13 }} onClick={handleLanConflictDiscard}>
+          <span style={{ fontWeight: 'bold' }}>Discard offline edits</span>
+          <span style={{ display: 'block', fontSize: 12, opacity: 0.85, marginTop: 2 }}>
+            Replace local work with the host's project as-is.
+          </span>
+        </button>
+      </div>
+    </div>
+  </>
+)}
+
 {/* --- RESTORED PROJECT SETTINGS MODAL --- */}
 {projectModalOpen && (
   <>
@@ -1846,6 +2095,16 @@ function openDocxCommentImport() {
                   value={projectCoderDraft}
                   onChange={e => setProjectCoderDraft(e.target.value)}
                 />
+                {unattributedCount > 0 && (
+                  <button
+                    onClick={claimUnattributed}
+                    disabled={!projectCoderDraft.trim()}
+                    title="Stamps every coded excerpt/region that has no coder yet with the name above. Already-attributed items are never changed."
+                    style={{ marginTop: 8, fontSize: 11, padding: '4px 10px', borderRadius: 4, border: '1px solid #cbd5e1', background: 'rgba(59,130,246,0.1)', cursor: projectCoderDraft.trim() ? 'pointer' : 'not-allowed', color: 'var(--text)' }}
+                  >
+                    Assign {unattributedCount} Unattributed item(s) to this coder
+                  </button>
+                )}
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <button onClick={saveProjectName} className="primary-btn">Save</button>
@@ -2100,6 +2359,16 @@ function openDocxCommentImport() {
                 <option value="coded">Amount coded</option>
               </select>
             </div>
+            {coderOptions.length > 1 && (
+              <div className="sort-row">
+                <label>Coder</label>
+                <select value={selectedCoderFilter} onChange={e => setSelectedCoderFilter(e.target.value)}>
+                  {coderOptions.map(name => (
+                    <option key={name} value={name}>{name === 'all' ? 'Everyone' : name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
              <div className="code-search">
               <input
                 className="code-search-input"
@@ -2142,12 +2411,14 @@ function openDocxCommentImport() {
     setSelectedImageId(null); 
     setPendingSelection(null); 
     setEditingDocId(null); 
+    window.qv.lan.setActiveDoc(d.id).catch(() => {}); // presence: "viewing this doc"
   }}
   onSelectImage={img => { 
     setSelectedImageId(img.id); 
     setSelectedDocId(null); 
     setPendingSelection(null); 
     setEditingDocId(null); 
+    window.qv.lan.setActiveDoc(img.id).catch(() => {}); // presence: "viewing this image"
   }}
   onAddRootFolder={addRootFolder}
   onAddSubfolder={addSubfolder}
@@ -2179,6 +2450,8 @@ function openDocxCommentImport() {
       importDroppedImages(imagePaths, folderId);
     }
   }}
+  lanCoders={lanSession?.coders ?? []}
+  lanMyName={lanMyName}
 />
             )}
           </aside>
@@ -2414,7 +2687,7 @@ function openDocxCommentImport() {
                     <span className="code-swatch" style={{ background: codesById.get(s.codeId)?.color }} />
                     <span style={{ flex: 1 }}>
                       {codesById.get(s.codeId)?.name || 'Unknown code'}
-                      {s.coder && <span className="section-hint" style={{ marginLeft: 6, fontSize: 11 }}>({s.coder})</span>}
+                      <span className="section-hint" style={{ marginLeft: 6, fontSize: 11 }}>Coded by: {s.coder || UNATTRIBUTED_CODER}</span>
                     </span>
                     <button className="mini-btn" onClick={() => toggleStarSegment(s.id)} title={s.starred ? 'Unstar' : 'Star as key quote'}>
                       {s.starred ? '⭐' : '☆'}
@@ -2476,7 +2749,10 @@ function openDocxCommentImport() {
                     <div key={r.id} className="segment-popup-row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span className="code-swatch" style={{ background: codesById.get(r.codeId)?.color }} />
-                        <span style={{ flex: 1 }}>{codesById.get(r.codeId)?.name || 'Unknown code'}</span>
+                        <span style={{ flex: 1 }}>
+                          {codesById.get(r.codeId)?.name || 'Unknown code'}
+                        <span className="section-hint" style={{ marginLeft: 6, fontSize: 11 }}>Coded by: {r.coder || UNATTRIBUTED_CODER}</span>
+                        </span>
                         <button className="mini-btn" onClick={() => toggleStarRegion(r.id)} title={r.starred ? 'Unstar' : 'Star as key region'}>
                           {r.starred ? '⭐' : '☆'}
                         </button>
@@ -2647,7 +2923,19 @@ function openDocxCommentImport() {
             {/* Header with Sort Dropdown */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #cbd5e1', paddingBottom: '8px', marginBottom: '16px' }}>
               <h3 style={{ margin: 0 }}>Excerpts</h3>
-              <select 
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                {coderOptions.length > 1 && (
+                  <select
+                    value={selectedCoderFilter}
+                    onChange={(e) => setSelectedCoderFilter(e.target.value)}
+                    style={{ padding: '4px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1', backgroundColor: 'var(--bg-panel)' }}
+                  >
+                    {coderOptions.map(name => (
+                      <option key={name} value={name}>{name === 'all' ? 'Everyone' : name}</option>
+                    ))}
+                  </select>
+                )}
+                <select 
                 value={excerptSort} 
                 onChange={(e) => setExcerptSort(e.target.value)}
                 style={{ padding: '4px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1', backgroundColor: 'var(--bg-panel)' }}
@@ -2656,6 +2944,7 @@ function openDocxCommentImport() {
                 <option value="notes_first">Notes First</option>
                 <option value="starred_first">Starred First</option>
               </select>
+              </div>
             </div>
 
             {codebookExcerpts.length > 0 ? (
@@ -2691,11 +2980,9 @@ function openDocxCommentImport() {
                         {doc?.name || 'Unknown source'}
                       </div>
                       <div className="excerpt-text" style={{ marginBottom: '8px', lineHeight: '1.5' }}>"{seg.text}"</div>
-                      {seg.coder && (
-                          <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 4 }}>
-                            Coded by: {seg.coder}
-                          </div>
-                        )}
+                      <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 4 }}>
+                        Coded by: {seg.coder || UNATTRIBUTED_CODER}
+                      </div>
                       {editingNoteFor === seg.id ? (
                         <div style={{ marginBottom: 6 }}>
                           <textarea
@@ -2769,6 +3056,9 @@ function openDocxCommentImport() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         <div className="excerpt-doc" style={{ fontSize: '11px', color: '#64748b', marginBottom: '6px', fontWeight: 'bold' }}>
           {image.name}
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 4 }}>
+          Coded by: {r.coder || UNATTRIBUTED_CODER}
         </div>
         
         {/* Editing Note UI for Images */}

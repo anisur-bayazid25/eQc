@@ -340,6 +340,11 @@ input, select, textarea {
   padding: 1px 6px;
   margin-left: 4px;
 }
+.presence-dots { display: inline-flex; gap: 2px; margin-left: 4px; flex: none; }
+.presence-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
 .row-actions { margin-left: auto; display: flex; gap: 2px; }
 .mini-btn {
   padding: 1px 6px;

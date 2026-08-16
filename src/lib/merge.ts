@@ -47,18 +47,14 @@ function buildCoderColorPicker(target: Project) {
 // - Codes are unified by matching name + position in the hierarchy, so
 //   the same theme coded independently in two files collapses into one
 //   code with combined excerpts.
-// - Every merged-in segment is tagged with source.coderName (if set), and
-//   any of target's own pre-existing segments that don't yet have a coder
-//   tag are backfilled with target.coderName — so after a merge, every
-//   segment has attribution, not just the newly-arrived ones.
+// - Every merged-in segment is tagged with source.coderName (if set).
+//   Pre-existing segments in the target are NEVER re-labeled: the stamps
+//   they carry were captured when they were created and are the stable
+//   source of truth. If a target segment has no coder yet, it stays
+//   "Unattributed" until the user explicitly assigns one in Project
+//   Settings — never silently attributed to whoever happens to be active.
 export function mergeProjectInto(target: Project, source: Project): MergeSummary {
   const summary: MergeSummary = { foldersAdded: 0, docsAdded: 0, docsMerged: 0, codesAdded: 0, codesReused: 0, segmentsAdded: 0 };
-
-  if (target.coderName) {
-    for (const s of target.codedSegments) {
-      if (!s.coder) s.coder = target.coderName;
-    }
-  }
 
   const folderIdMap = new Map<string, string>();
   for (const f of source.folders) {
@@ -163,7 +159,9 @@ export function mergeProjectInto(target: Project, source: Project): MergeSummary
       text: seg.text,
       createdAt: seg.createdAt || Date.now(),
       source: seg.source || 'manual',
-      ...(coder ? { coder } : {})
+      ...(coder ? { coder } : {}),
+      ...(seg.note ? { note: seg.note } : {}),
+      ...(seg.starred ? { starred: true } : {})
     };
     target.codedSegments.push(mapped);
     summary.segmentsAdded++;

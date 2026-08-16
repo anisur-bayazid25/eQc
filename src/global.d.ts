@@ -65,6 +65,7 @@ export type LanRole = 'host' | 'client';
 export interface LanCoder {
   coderName: string;
   source: 'host' | 'client';
+  activeDocId?: string | null;   // document/image the coder is currently viewing, for presence badges
 }
 
 export interface LanSessionState {
@@ -76,7 +77,7 @@ export interface LanSessionState {
 }
 
 export interface LanSyncProgress {
-  phase: 'connect' | 'auth' | 'sync' | 'done' | 'error';
+  phase: 'connect' | 'auth' | 'sync' | 'done' | 'error' | 'reconnect';
   percent: number;
   received?: number;
   total?: number;
@@ -87,6 +88,7 @@ export interface LanRemoteProject {
   seq: number;
   coderName: string;
   project: Project;
+  quiet?: boolean;   // reconnect resync — restore state without the diff toast
 }
 
 export interface LanStartHostConfig {
@@ -118,6 +120,7 @@ export interface LanBridge {
   joinSession: (credentials: LanJoinCredentials) => Promise<{ ok: boolean; error?: string; project?: Project | null; seq?: number }>;
   disconnectSession: () => Promise<boolean>;
   sendAction: (payload: LanPublishPayload) => Promise<{ ok: boolean; error?: string; seq?: number }>;
+  setActiveDoc: (docId: string | null) => Promise<boolean>;
   onHostsUpdated: (cb: (hosts: LanHostInfo[]) => void) => void;
   onSessionState: (cb: (s: LanSessionState | null) => void) => void;
   onSyncProgress: (cb: (p: LanSyncProgress) => void) => void;

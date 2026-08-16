@@ -3,7 +3,7 @@ import {
   Project, ProjectSummary, Folder, SourceDoc, Code, CodedSegment, FrameworkCell, CodeRelationNote,
   ID, uid, newProject, colorForNewCode, childCodes, descendantCodeIds,
   CodedRegion, UNATTRIBUTED_CODER,
-  ImageSource
+  MapEdgeStyle, ImageSource
 } from './domain';
 import CodeTree from './components/CodeTree';
 import CodeSearch from './components/CodeSearch';
@@ -13,7 +13,7 @@ import { getSelectionOffsets, SelectionOffsets } from './lib/textOffsets';
 import { relocateSegmentsAfterEdit } from './lib/relocateSegments';
 import { importCsvDataset } from './lib/csvImport';
 import { importQdpx } from './lib/qdpxImport';
-import { buildQdpxExport } from './lib/qdpxExport';
+import { buildQdpxExport, buildQdpxCodebookExport } from './lib/qdpxExport';
 import { importDocxComments } from './lib/docxCommentImport';
 import { mergeProjectInto } from './lib/merge';
 import { codingFrequency, codeDocumentMatrix, codeCooccurrenceMatrix } from './lib/analysis';
@@ -24,6 +24,8 @@ import { buildScopedExport, buildCodebookOutline, ExportScope, SCOPE_LABELS } fr
 import pkg from '../package.json';
 import ImageEditor from './components/ImageEditor';
 import { cropRegionToPng, renderCodedImagePng } from './lib/imageCrop';
+import CodeMap from './components/CodeMap';
+import DocumentPortrait from './components/DocumentPortrait';
 import LanModal from './components/LanModal';
 import type { LanHostInfo, LanSessionState, LanSyncProgress, LanRemoteProject, LanRole, LanCoder } from './global';
 
@@ -109,7 +111,7 @@ function DebouncedCodeText({ value, onCommit, multiline }: { value: string; onCo
   return React.createElement(el, commonProps);
 }
 
-type Tab = 'workspace' | 'codebook' | 'autocode' | 'analysis' | 'about';
+type Tab = 'workspace' | 'codebook' | 'codemap' | 'autocode' | 'analysis' | 'about';
 
 // Coder filter predicate shared by the Workspace and Codebook lists. A
 // segment matches when it is explicitly stamped with the chosen coder, or —
@@ -262,6 +264,24 @@ function toCsv(headers: string[], rows: string[][]): string {
 
 export type ReaderTheme = 'paperwhite' | 'white' | 'dark';
 
+// Extended preset palette for the "More colors" picker (plain hex buttons —
+// no canvas, no image resources, negligible cost to render).
+const MORE_COLORS = [
+  '#ef4444', '#dc2626', '#b91c1c', '#991b1b', '#f87171', '#fb7185', '#f43f5e', '#e11d48', '#be123c', '#9f1239',
+  '#f97316', '#ea580c', '#c2410c', '#fb923c', '#fdba74', '#f59e0b', '#d97706', '#b45309', '#92400e', '#78350f',
+  '#facc15', '#eab308', '#ca8a04', '#fde047', '#fef08a', '#fef9c3', '#a16207', '#854d0e', '#713f12', '#7c2d12',
+  '#22c55e', '#16a34a', '#15803d', '#166534', '#14532d', '#4ade80', '#86efac', '#bbf7d0', '#a3e635', '#84cc16',
+  '#65a30d', '#4d7c0f', '#3f6212', '#365314', '#059669', '#10b981', '#34d399', '#6ee7b7', '#a7f3d0', '#0f766e',
+  '#115e59', '#134e4a', '#2dd4bf', '#14b8a6', '#0d9488', '#5eead4', '#99f6e4', '#06b6d4', '#0891b2', '#0e7490',
+  '#22d3ee', '#67e8f9', '#a5f3fc', '#155e75', '#164e63', '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', '#60a5fa',
+  '#93c5fd', '#bfdbfe', '#0ea5e9', '#0284c7', '#0369a1', '#38bdf8', '#7dd3fc', '#bae6fd', '#075985', '#0c4a6e',
+  '#6366f1', '#4f46e5', '#4338ca', '#3730a3', '#312e81', '#818cf8', '#a5b4fc', '#c7d2fe', '#8b5cf6', '#7c3aed',
+  '#6d28d9', '#5b21b6', '#4c1d95', '#a78bfa', '#c4b5fd', '#ddd6fe', '#9333ea', '#7e22ce', '#6b21a8', '#581c87',
+  '#c026d3', '#a21caf', '#86198f', '#701a75', '#d946ef', '#e879f9', '#f0abfc', '#f5d0fe', '#ec4899', '#db2777',
+  '#be185d', '#9d174d', '#831843', '#f472b6', '#f9a8d4', '#fbcfe8', '#8b5e3c', '#a0522d', '#6f4e37', '#c19a6b',
+  '#334155', '#475569', '#64748b', '#94a3b8', '#cbd5e1', '#0f172a'
+];
+
 const THEME_STYLES: Record<ReaderTheme, React.CSSProperties> = {
   paperwhite: {
       backgroundColor: '#f8f1e3', // Paperwhite/Warm e-reader tan
@@ -297,6 +317,7 @@ export default function App() {
   () => (localStorage.getItem('qv-theme') as 'dark' | 'light') || 'dark'
 );
   const [showDocNotes, setShowDocNotes] = useState(false);
+  const [showDocPortrait, setShowDocPortrait] = useState(false);
   const [docNotesDraft, setDocNotesDraft] = useState('');
   const [editingNoteFor, setEditingNoteFor] = useState<ID | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
@@ -364,6 +385,7 @@ useEffect(() => {
   const [codebookSelectedCodeId, setCodebookSelectedCodeId] = useState<ID | null>(null);
   const [workspaceCodeSearch, setWorkspaceCodeSearch] = useState('');
   const [codebookCodeSearch, setCodebookCodeSearch] = useState('');
+  const [showColorPalette, setShowColorPalette] = useState(false);
   const [exportScope, setExportScope] = useState<ExportScope>('codesExcerptsSummaries');
   const [docxCommentModalOpen, setDocxCommentModalOpen] = useState(false);
   const [docxSeparatorChoice, setDocxSeparatorChoice] = useState<',' | ';' | '|' | 'custom'>(',');
@@ -395,6 +417,15 @@ useEffect(() => {
     buttonText: string;
     resolve: ((value: string | null) => void) | null;
   }>({ isOpen: false, message: '', buttonText: '', resolve: null });
+
+  // In-app confirm dialog. Native window.confirm() stalls renderer keyboard
+  // focus in Electron (after it closes, no input accepts keystrokes until the
+  // window loses and regains focus), so delete confirmations use this instead.
+  const [confirmDialog, setConfirmDialog] = React.useState<{
+    message: string;
+    confirmText: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const customPrompt = (message: string, defaultValue: string = '', buttonText: string = 'Create'): Promise<string | null> => {
     return new Promise((resolve) => {
@@ -819,6 +850,22 @@ useEffect(() => {
     setGotoTarget({ segId: seg.id, nonce: Date.now() });
   }
 
+  // Portrait strip click → scroll the document to the clicked passage.
+  function handleJumpToSegment(segment: CodedSegment) {
+    // Attempt 1: exact chunk lookup (DocEditor renders chunks with data-seg-ids)
+    const chunk = document.querySelector(`[data-seg-ids~="${segment.id}"]`) as HTMLElement | null;
+    if (chunk) {
+      chunk.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    // Attempt 2: fallback to proportional scroll
+    const container = document.getElementById('doc-scroll-container');
+    if (container && selectedDoc) {
+      const scrollPercentage = segment.start / Math.max(selectedDoc.content.length, 1);
+      container.scrollTo({ top: container.scrollHeight * scrollPercentage, behavior: 'smooth' });
+    }
+  }
+
   // Ctrl+Z to undo, Ctrl+Shift+Z or Ctrl+Y to redo (Cmd on macOS).
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -1141,6 +1188,54 @@ function openProjectSettings() {
     showToast(`Removed ${segCount} segment(s) and ${regCount} region(s) for coder: ${targetCoder}`);
   }
 
+  // Merges overlapping codings of the same code on the same document into
+  // single segments (min start, max end, notes joined), so duplicate codings
+  // never inflate counts. persist() stamps updatedAt for LAN offline-edit
+  // tracking and writes the cleaned state to disk.
+  function cleanRedundantCodings() {
+    if (!project) return;
+    const groups = new Map<string, CodedSegment[]>();
+    for (const s of project.codedSegments) {
+      const key = `${s.docId}::${s.codeId}`;
+      const list = groups.get(key);
+      if (list) list.push(s);
+      else groups.set(key, [s]);
+    }
+    const cleaned: CodedSegment[] = [];
+    let mergedCount = 0;
+    for (const list of groups.values()) {
+      if (list.length <= 1) {
+        cleaned.push(...list);
+        continue;
+      }
+      list.sort((a, b) => a.start - b.start || a.end - b.end);
+      let cur = list[0];
+      for (let i = 1; i < list.length; i++) {
+        const nextSeg = list[i];
+        if (nextSeg.start <= cur.end) {
+          mergedCount++;
+          const notes: string[] = [];
+          if (cur.note) notes.push(cur.note);
+          if (nextSeg.note) notes.push(nextSeg.note);
+          cur = {
+            ...cur,
+            start: Math.min(cur.start, nextSeg.start),
+            end: Math.max(cur.end, nextSeg.end),
+            note: notes.length > 0 ? notes.join('\n') : cur.note
+          };
+        } else {
+          cleaned.push(cur);
+          cur = nextSeg;
+        }
+      }
+      cleaned.push(cur);
+    }
+    persist({ ...project, codedSegments: cleaned });
+    showToast(mergedCount > 0
+      ? `Cleaned ${mergedCount} redundant coded passage(s).`
+      : 'No redundant codings found — nothing to clean.');
+  }
+
   async function confirmDeleteProject() {
     if (!project) return;
     if (isLanSharedProjectLocked) { showToast('The session-shared project can’t be deleted — switch to a different project to manage it'); setDeleteStep(0); setProjectModalOpen(false); return; }
@@ -1228,10 +1323,15 @@ function openProjectSettings() {
 
   function deleteFolder(folder: Folder) {
     if (!project) return;
-    if (!window.confirm(`Delete folder "${folder.name}"? Documents inside will move to the root level.`)) return;
-    const folders = project.folders.filter(f => f.id !== folder.id);
-    const docs = project.docs.map(d => (d.folderId === folder.id ? { ...d, folderId: null } : d));
-    persist({ ...project, folders, docs });
+    setConfirmDialog({
+      message: `Delete folder "${folder.name}"? Documents inside will move to the root level.`,
+      confirmText: 'Delete',
+      onConfirm: () => {
+        const folders = project.folders.filter(f => f.id !== folder.id);
+        const docs = project.docs.map(d => (d.folderId === folder.id ? { ...d, folderId: null } : d));
+        persist({ ...project, folders, docs });
+      },
+    });
   }
 
   async function addDocs(folderId: ID | null) {
@@ -1378,11 +1478,16 @@ async function addScannedPdf(folderId: ID | null) {
 
   function deleteDoc(doc: SourceDoc) {
     if (!project) return;
-    if (!window.confirm(`Delete document "${doc.name}"? Its coded passages will also be removed.`)) return;
-    const docs = project.docs.filter(d => d.id !== doc.id);
-    const codedSegments = project.codedSegments.filter(s => s.docId !== doc.id);
-    persist({ ...project, docs, codedSegments });
-    if (selectedDocId === doc.id) setSelectedDocId(null);
+    setConfirmDialog({
+      message: `Delete document "${doc.name}"? Its coded passages will also be removed.`,
+      confirmText: 'Delete',
+      onConfirm: () => {
+        const docs = project.docs.filter(d => d.id !== doc.id);
+        const codedSegments = project.codedSegments.filter(s => s.docId !== doc.id);
+        persist({ ...project, docs, codedSegments });
+        if (selectedDocId === doc.id) setSelectedDocId(null);
+      },
+    });
   }
 
 // 1. This just opens the modal
@@ -1551,15 +1656,50 @@ async function handleExportDocx() {
     persist({ ...project, codes: project.codes.map(c => (c.id === codeId ? { ...c, ...patch } : c)) });
   }
 
+  function updateCodesBatch(updates: Array<{ id: ID; patch: Partial<Code> }>) {
+    if (!project) return;
+    const byId = new Map(updates.map(u => [u.id, u.patch]));
+    persist({
+      ...project,
+      codes: project.codes.map(c => (byId.has(c.id) ? { ...c, ...byId.get(c.id)! } : c))
+    });
+  }
+
+  function updateMapEdgeStyle(edgeId: ID, patch: Partial<MapEdgeStyle>) {
+    if (!project) return;
+    persist({
+      ...project,
+      mapEdgeStyles: (project.mapEdgeStyles || []).map(e => (e.id === edgeId ? { ...e, ...patch } : e))
+    });
+  }
+
+  function addMapEdgeStyle(style: MapEdgeStyle) {
+    if (!project) return;
+    persist({ ...project, mapEdgeStyles: [...(project.mapEdgeStyles || []), style] });
+  }
+
+  function deleteMapEdgeStyle(edgeId: ID) {
+    if (!project) return;
+    persist({ ...project, mapEdgeStyles: (project.mapEdgeStyles || []).filter(e => e.id !== edgeId) });
+  }
+
   function deleteCode(code: Code) {
     if (!project) return;
     const idsToRemove = descendantCodeIds(project.codes, code.id);
     const label = idsToRemove.size > 1 ? `"${code.name}" and its ${idsToRemove.size - 1} subcode(s)` : `"${code.name}"`;
-    if (!window.confirm(`Delete code ${label}? All coded passages using it will also be removed.`)) return;
-    const codes = project.codes.filter(c => !idsToRemove.has(c.id));
-    const codedSegments = project.codedSegments.filter(s => !idsToRemove.has(s.codeId));
-    persist({ ...project, codes, codedSegments });
-    if (codebookSelectedCodeId && idsToRemove.has(codebookSelectedCodeId)) setCodebookSelectedCodeId(null);
+    setConfirmDialog({
+      message: `Delete code ${label}? All coded passages using it will also be removed.`,
+      confirmText: 'Delete',
+      onConfirm: () => {
+        const ids = descendantCodeIds(project.codes, code.id);
+        const codes = project.codes.filter(c => !ids.has(c.id));
+        const codedSegments = project.codedSegments.filter(s => !ids.has(s.codeId));
+        const codedRegions = (project.codedRegions || []).filter(r => !ids.has(r.codeId));
+        const mapEdgeStyles = (project.mapEdgeStyles || []).filter(e => !ids.has(e.fromCodeId) && !ids.has(e.toCodeId));
+        persist({ ...project, codes, codedSegments, codedRegions, mapEdgeStyles });
+        if (codebookSelectedCodeId && ids.has(codebookSelectedCodeId)) setCodebookSelectedCodeId(null);
+      },
+    });
   }
 
 function moveDoc(docId: ID, targetFolderId: ID | null) {
@@ -1568,6 +1708,14 @@ function moveDoc(docId: ID, targetFolderId: ID | null) {
       d.id === docId ? { ...d, folderId: targetFolderId } : d
     );
     persist({ ...project, docs });
+  }
+
+  function moveImage(imageId: ID, targetFolderId: ID | null) {
+    if (!project) return;
+    const images = (project.images || []).map(img =>
+      img.id === imageId ? { ...img, folderId: targetFolderId } : img
+    );
+    persist({ ...project, images });
   }
 
   function moveCode(codeId: ID, targetParentId: ID | null) {
@@ -1588,6 +1736,28 @@ function moveDoc(docId: ID, targetFolderId: ID | null) {
     const codes = project.codes.map(c =>
       c.id === codeId ? { ...c, parentId: targetParentId } : c
     );
+    persist({ ...project, codes });
+  }
+
+  // Drag-reorder from the code tree: applies a new sibling order (sortIndex
+  // renumbering) and/or a reparent in one atomic persist. Mirrors moveCode's
+  // cycle guard: a code can never be dropped inside its own subtree.
+  function reorderCode(codeId: ID, newParentId: ID | null, newSortIndex: number, siblingUpdates: Array<{ id: ID; sortIndex: number }>) {
+    if (!project) return;
+    if (newParentId !== null) {
+      const descendants = descendantCodeIds(project.codes, codeId);
+      if (descendants.has(newParentId)) {
+        showToast('Cannot move a code into its own subcode.');
+        return;
+      }
+    }
+    const sortByCode = new Map(siblingUpdates.map(u => [u.id, u.sortIndex]));
+    const codes = project.codes.map(c => {
+      if (c.id === codeId) return { ...c, parentId: newParentId, sortIndex: newSortIndex };
+      const idx = sortByCode.get(c.id);
+      if (typeof idx === 'number' && idx !== c.sortIndex) return { ...c, sortIndex: idx };
+      return c;
+    });
     persist({ ...project, codes });
   }
 
@@ -1959,6 +2129,57 @@ function handleRunAutoCode() {
     }
   }
 
+  // Codebook-only REFI-QDA export: valid QDPX with just the code tree.
+  async function handleQdpxCodebookExport() {
+    if (!project) return;
+    try {
+      const payload = buildQdpxCodebookExport(project);
+      const savedPath = await window.qv.exportQdpx(payload);
+      if (savedPath) showToast(`Exported codebook: ${savedPath}`);
+    } catch (e: any) {
+      showToast(e.message || String(e));
+    }
+  }
+
+  // Global notes & memos: every non-empty doc memo, code summary, excerpt
+  // note, and image-region note in one CSV.
+  async function handleExportNotesCsv() {
+    if (!project) return;
+    const rows: Array<[string, string, string]> = [];
+    for (const d of project.docs) {
+      if (d.notes && d.notes.trim()) rows.push(['Doc Memo', d.name, d.notes.trim()]);
+    }
+    for (const c of project.codes) {
+      if (c.summary && c.summary.trim()) rows.push(['Code Summary', c.name, c.summary.trim()]);
+    }
+    const codeName = (id: ID) => project.codes.find(c => c.id === id)?.name || 'Unknown code';
+    for (const s of project.codedSegments) {
+      if (s.note && s.note.trim()) {
+        const docName = project.docs.find(d => d.id === s.docId)?.name || 'Unknown document';
+        rows.push(['Segment Note', `${docName} — ${codeName(s.codeId)}`, s.note.trim()]);
+      }
+    }
+    for (const r of project.codedRegions || []) {
+      if (r.note && r.note.trim()) {
+        const imgName = (project.images || []).find(img => img.id === r.imageId)?.name || 'Unknown image';
+        rows.push(['Region Note', `${imgName} — ${codeName(r.codeId)}`, r.note.trim()]);
+      }
+    }
+    if (rows.length === 0) {
+      showToast('No notes or memos found — nothing to export.');
+      return;
+    }
+    const csv = toCsv(['Type', 'Target Name', 'Note/Memo Text'], rows);
+    const path = await window.qv.exportText({
+      title: 'Export All Notes & Memos (CSV)',
+      defaultName: `${project.name.replace(/[^\w\- ]/g, '_')}_notes_and_memos.csv`,
+      content: csv,
+      extension: 'csv',
+      filterName: 'CSV file'
+    });
+    if (path) showToast(`Exported notes & memos to ${path}`);
+  }
+
 function openDocxCommentImport() {
     setDocxCommentModalOpen(true);
   }
@@ -2229,6 +2450,15 @@ function openDocxCommentImport() {
                     <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '6px' }}>
                       Deleting requires typing the exact coder name — safe against typos.
                     </div>
+                    <div style={{ marginTop: '10px', borderTop: '1px solid var(--border)', paddingTop: '8px' }}>
+                      <button
+                        onClick={cleanRedundantCodings}
+                        title="Merges overlapping coded passages of the same code in the same document into single segments"
+                        style={{ fontSize: '11px', padding: '4px 10px', borderRadius: 4, border: '1px solid #fde68a', background: 'rgba(245,158,11,0.08)', cursor: 'pointer', color: 'var(--text)' }}
+                      >
+                        🧹 Clean Redundant Codings
+                      </button>
+                    </div>
                   </div>
                 )}
           </div>
@@ -2351,10 +2581,11 @@ function openDocxCommentImport() {
 
           {/* Navigation Tabs */}
           <nav className="tabs" style={{ display: 'flex', gap: '5px' }}>
-            {(['workspace', 'codebook', 'autocode', 'analysis', 'about'] as Tab[]).map(t => (
+            {(['workspace', 'codebook', 'codemap', 'autocode', 'analysis', 'about'] as Tab[]).map(t => (
               <button key={t} className={`tab-btn ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
                 {t === 'workspace' && 'Workspace'}
                 {t === 'codebook' && 'Codebook'}
+                {t === 'codemap' && 'Code Map'}
                 {t === 'autocode' && 'Auto-Code'}
                 {t === 'analysis' && 'Analysis'}
                 {t === 'about' && 'About'}
@@ -2419,15 +2650,25 @@ function openDocxCommentImport() {
             title="Reading font"
             value={readerFontFamily}
             onChange={e => setReaderFontFamily(e.target.value)}
-            style={{ padding: '3px 4px', fontSize: '12px', maxWidth: '150px' }}
+            style={{ padding: '3px 4px', fontSize: '12px', maxWidth: '210px' }}
           >
             <option value="">Font (default)</option>
-            <option value="Georgia, serif">Georgia</option>
-            <option value="'Times New Roman', serif">Times New Roman</option>
-            <option value="Arial, sans-serif">Arial</option>
-            <option value="Verdana, sans-serif">Verdana</option>
-            <option value="Calibri, sans-serif">Calibri</option>
-            <option value="'Courier New', monospace">Courier New</option>
+            <optgroup label="English">
+              <option value="Cambria, Georgia, 'Times New Roman', serif">Cambria</option>
+              <option value="'Caladea', Cambria, Georgia, serif">Caladea (open-source Cambria)</option>
+              <option value="Georgia, serif">Georgia</option>
+              <option value="'Times New Roman', serif">Times New Roman</option>
+              <option value="Arial, sans-serif">Arial</option>
+              <option value="Verdana, sans-serif">Verdana</option>
+              <option value="Calibri, sans-serif">Calibri</option>
+              <option value="'Courier New', monospace">Courier New</option>
+            </optgroup>
+            <optgroup label="বাংলা (Bangla)">
+              <option value="'Kalpurush', 'SolaimanLipi', 'Nirmala UI', 'Segoe UI', sans-serif">Kalpurush</option>
+              <option value="'SolaimanLipi', 'Kalpurush', 'Nirmala UI', 'Segoe UI', sans-serif">SolaimanLipi</option>
+              <option value="'Siyam Rupali', 'Kalpurush', 'SolaimanLipi', 'Nirmala UI', sans-serif">Siyam Rupali</option>
+              <option value="'Nikosh', 'Kalpurush', 'SolaimanLipi', 'Nirmala UI', sans-serif">Nikosh</option>
+            </optgroup>
           </select>
           <button className="icon-btn" title="Decrease font size" onClick={() => setReaderFontSize(s => Math.max(8, s - 1))}>A−</button>
           <span title="Font size (px)" style={{ fontSize: '12px', minWidth: '30px', textAlign: 'center' }}>{readerFontSize}px</span>
@@ -2573,6 +2814,7 @@ function openDocxCommentImport() {
   onRenameImage={renameImageWithPrompt}
   onDeleteImage={requestDeleteImage}
   onMoveDoc={moveDoc}
+  onMoveImage={moveImage}
   onDropFiles={(files, folderId) => {
     const fileArray = Array.from(files);
     
@@ -2635,6 +2877,16 @@ function openDocxCommentImport() {
                   >
                     🌙 Dark
                   </button>
+                  <button
+                    className="mini-btn"
+                    onClick={() => setShowDocPortrait(v => !v)}
+                    style={{
+                      fontWeight: showDocPortrait ? 'bold' : 'normal',
+                      border: showDocPortrait ? '2px solid #3b82f6' : '1px solid #475569'
+                    }}
+                  >
+                    📊 Portrait
+                  </button>
                 </div>
                 <div className="doc-title-row">
                   <h3>{selectedDoc.name}</h3>
@@ -2651,30 +2903,47 @@ function openDocxCommentImport() {
                   )}
                 </div>
                 {!editingDocId && (
-                  <div 
-                    style={{ flex: 1, overflowY: 'auto', padding: '16px', boxSizing: 'border-box' }}
-                    onClick={() => { setHighlightTarget(null); setGotoTarget(null); }}
-                  >
-                    <DocEditor
-                      doc={selectedDoc}
-                      segments={docSegments}
-                      codesById={codesById}
-                      fontSize={readerFontSize}
-                      fontFamily={readerFontFamily}
-                      onSelectionChange={sel => {
-                        setPendingSelection(sel);
-                        // Clear navigation targets when user makes a new selection
-                        if (sel) {
-                          setHighlightTarget(null);
-                          setGotoTarget(null);
-                        }
-                      }}
-                      onClickSegment={(segments, x, y) => setSegmentPopup({ segments, x, y })}
-                      scrollToSegmentId={gotoTarget?.segId}
-                      scrollNonce={gotoTarget?.nonce}
-                      highlightRange={highlightTarget?.docId === selectedDoc.id ? { start: highlightTarget.start, end: highlightTarget.end } : null}
-                      highlightNonce={highlightTarget?.nonce}
-                    />
+                  <div style={{ display: 'flex', flexDirection: 'row', height: '100%', minHeight: 0, alignItems: 'stretch' }}>
+                    <div
+                      id="doc-scroll-container"
+                      style={{ flex: 1, overflowY: 'auto', padding: '16px', boxSizing: 'border-box', minWidth: 0 }}
+                      onClick={() => { setHighlightTarget(null); setGotoTarget(null); }}
+                    >
+                      <DocEditor
+                        doc={selectedDoc}
+                        segments={docSegments}
+                        codesById={codesById}
+                        fontSize={readerFontSize}
+                        fontFamily={readerFontFamily}
+                        onSelectionChange={sel => {
+                          setPendingSelection(sel);
+                          // Clear navigation targets when user makes a new selection
+                          if (sel) {
+                            setHighlightTarget(null);
+                            setGotoTarget(null);
+                          }
+                        }}
+                        onClickSegment={(segments, x, y) => setSegmentPopup({ segments, x, y })}
+                        onDropCode={codeId => {
+                          const code = project.codes.find(c => c.id === codeId);
+                          if (code) handleWorkspaceCodeClick(code);
+                        }}
+                        scrollToSegmentId={gotoTarget?.segId}
+                        scrollNonce={gotoTarget?.nonce}
+                        highlightRange={highlightTarget?.docId === selectedDoc.id ? { start: highlightTarget.start, end: highlightTarget.end } : null}
+                        highlightNonce={highlightTarget?.nonce}
+                      />
+                    </div>
+                    {showDocPortrait && (
+                      <div style={{ width: '20px', flexShrink: 0, borderLeft: '1px solid #ccc', backgroundColor: '#f9f9f9' }}>
+                        <DocumentPortrait
+                          doc={selectedDoc}
+                          segments={docSegments}
+                          codesById={codesById}
+                          onJumpToSegment={handleJumpToSegment}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
                 {editingDocId === selectedDoc.id && (
@@ -2718,7 +2987,7 @@ function openDocxCommentImport() {
                 <div className="doc-title-actions">
                   {pendingSelection && (
                     <span className="selection-hint">
-                      Selected {pendingSelection.text.length} chars — click a code in the legend to apply it
+                      Selected {pendingSelection.text.length} chars — click or drag a code (legend or search box) to apply it
                     </span>
                   )}
                   <button onClick={() => startEditDoc(selectedDoc)}>✏️ Edit text</button>
@@ -2806,6 +3075,7 @@ function openDocxCommentImport() {
                 onAddSubcode={addSubcode}
                 onDeleteCode={deleteCode}
                 onMoveCode={moveCode}
+                onReorderCode={reorderCode}
               />
             )}
             </aside>
@@ -2972,7 +3242,7 @@ function openDocxCommentImport() {
 
             <div>
               <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Color</label>
-              <div className="color-picker" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+              <div className="color-picker" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
                 {['#f87171', '#fb923c', '#fbbf24', '#a3e635', '#4ade80', '#34d399', '#2dd4bf', '#22d3ee', '#38bdf8', '#60a5fa', '#818cf8', '#a78bfa', '#c084fc', '#e879f9', '#f472b6'].map(c => (
                   <button
                     key={c}
@@ -2986,6 +3256,47 @@ function openDocxCommentImport() {
                     onClick={() => updateCode(codebookCode.id, { color: c })}
                   />
                 ))}
+                <div style={{ position: 'relative', display: 'inline-block' }}>
+                  <button
+                    className={`mini-btn ${showColorPalette ? 'active' : ''}`}
+                    title="More colors…"
+                    style={{ padding: '1px 6px', fontSize: '12px' }}
+                    onClick={() => setShowColorPalette(v => !v)}
+                  >
+                    🎨
+                  </button>
+                  {showColorPalette && (
+                    <div style={{ position: 'absolute', top: '24px', left: '0', zIndex: 100, background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', width: '255px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: '3px' }}>
+                        {MORE_COLORS.map(c => (
+                          <button
+                            key={c}
+                            title={c}
+                            style={{
+                              width: '20px', height: '20px',
+                              background: c,
+                              border: codebookCode.color === c ? '2px solid #000' : '1px solid #e2e8f0',
+                              borderRadius: '3px', cursor: 'pointer', padding: 0
+                            }}
+                            onClick={() => {
+                              updateCode(codebookCode.id, { color: c });
+                              setShowColorPalette(false);
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', borderTop: '1px solid #e2e8f0', paddingTop: '6px' }}>
+                        <span style={{ fontSize: '11px', color: '#64748b' }}>Custom:</span>
+                        <input
+                          type="color"
+                          value={codebookCode.color}
+                          onChange={e => updateCode(codebookCode.id, { color: e.target.value })}
+                          style={{ width: '40px', height: '24px', padding: 0, border: '1px solid #cbd5e1', borderRadius: '3px', cursor: 'pointer', background: 'transparent' }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -3011,6 +3322,14 @@ function openDocxCommentImport() {
           
           <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleQdpxExport}>
             ⬇️ REFI-QDA
+          </button>
+
+          <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleQdpxCodebookExport}>
+            📚 Export Codebook (QDPX)
+          </button>
+
+          <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleExportNotesCsv}>
+            📝 Export All Notes &amp; Memos (CSV)
           </button>
 
           <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleExportManuscriptSkeleton}>
@@ -3311,6 +3630,7 @@ function openDocxCommentImport() {
             onAddSubcode={addSubcode}
             onDeleteCode={deleteCode}
             onMoveCode={moveCode}
+            onReorderCode={reorderCode}
           />
         )}
 
@@ -3405,6 +3725,24 @@ function openDocxCommentImport() {
   <AnalysisTab project={project} onExportReport={handleExportReport} onSaveCell={updateFrameworkCell} onSaveRelationNote={updateRelationNote} showToast={showToast} />
 )}
 
+{tab === 'codemap' && (
+  <div className="panel codemap-panel" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+    <h2>Code Map</h2>
+    <CodeMap
+      codes={project.codes}
+      codedSegments={project.codedSegments}
+      mapEdgeStyles={project.mapEdgeStyles || []}
+      onUpdateCode={updateCode}
+      onUpdateCodesBatch={updateCodesBatch}
+      onUpdateEdgeStyle={updateMapEdgeStyle}
+      onAddEdgeStyle={addMapEdgeStyle}
+      onDeleteEdgeStyle={deleteMapEdgeStyle}
+      onSelectCode={code => { setTab('codebook'); setCodebookSelectedCodeId(code.id); }}
+      onShowToast={showToast}
+    />
+  </div>
+)}
+
 {tab === 'about' && (
   <main 
     className="panel about-panel" 
@@ -3464,6 +3802,33 @@ function openDocxCommentImport() {
         <button 
           className="secondary-btn" 
           onClick={() => setPendingDeleteImageId(null)}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+{confirmDialog && (
+  <div className="modal-overlay">
+    <div className="modal-content">
+      <h3>Delete</h3>
+      <p>{confirmDialog.message}</p>
+      <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '20px' }}>
+        <button
+          className="primary-btn"
+          style={{ background: '#d9534f', color: 'white', border: 'none', padding: '8px 24px' }}
+          onClick={() => {
+            const fn = confirmDialog.onConfirm;
+            setConfirmDialog(null);
+            fn();
+          }}
+        >
+          {confirmDialog.confirmText || 'Delete'}
+        </button>
+        <button
+          className="secondary-btn"
+          onClick={() => setConfirmDialog(null)}
         >
           Cancel
         </button>
@@ -3541,8 +3906,54 @@ function AnalysisExportButtons({
 }
 
 function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, showToast }: { project: Project; onExportReport: () => void; onSaveCell: (docId: ID, codeId: ID, text: string) => void; onSaveRelationNote: (codeAId: ID, codeBId: ID, note: string) => void; showToast: (msg: string) => void }) {
-  const [subTab, setSubTab] = useState<'frequency' | 'docMatrix' | 'coMatrix' | 'framework'>('frequency');
+  const [subTab, setSubTab] = useState<'frequency' | 'docMatrix' | 'coMatrix' | 'framework' | 'words' | 'kwic'>('frequency');
   const codesByIdLocal = useMemo(() => new Map(project.codes.map(c => [c.id, c])), [project.codes]);
+
+  const [kwicKeyword, setKwicKeyword] = useState('');
+  const [kwicWindow, setKwicWindow] = useState(5);
+  const [kwicResults, setKwicResults] = useState<Array<{ docName: string; before: string[]; keyword: string; after: string[] }>>([]);
+
+  function runKwicSearch() {
+    const kw = kwicKeyword.trim().toLowerCase();
+    if (!kw) return;
+    const windowN = Math.max(1, Math.min(20, kwicWindow || 5));
+    const results: Array<{ docName: string; before: string[]; keyword: string; after: string[] }> = [];
+    for (const doc of project.docs) {
+      const words = (doc.content || '').toLowerCase().split(/[\s\.,!\?:"';\(\)\[\]\{\}\-\–\—\‘\’\“\”\n\r\t]+/).filter(w => w.length > 0);
+      for (let i = 0; i < words.length; i++) {
+        if (words[i] !== kw) continue;
+        results.push({
+          docName: doc.name,
+          before: words.slice(Math.max(0, i - windowN), i),
+          keyword: words[i],
+          after: words.slice(i + 1, i + 1 + windowN)
+        });
+      }
+    }
+    setKwicResults(results);
+  }
+
+  const STOP_WORDS_DEFAULT = 'the, is, at, which, and, a, an, in, on, of, to, for, with, it, this, that, এবং, ও, আর, কি, যে, এই, সেই, হয়, না, থেকে, কে, করে, এর, তে';
+  const [stopWordsText, setStopWordsText] = useState(STOP_WORDS_DEFAULT);
+  const [wordFreqs, setWordFreqs] = useState<Array<{ word: string; count: number }> | null>(null);
+
+  function generateWordFrequencies() {
+    const stopSet = new Set(
+      stopWordsText.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+    );
+    const allText = project.docs.map(d => d.content || '').join('\n');
+    const rawWords = allText.toLowerCase().split(/[\s\.,!\?:"';\(\)\[\]\{\}\-\–\—\‘\’\“\”\n\r\t]+/);
+    const tally = new Map<string, number>();
+    for (const word of rawWords) {
+      if (/\d/.test(word)) continue;
+      if (word.length <= 1) continue;
+      if (!word || stopSet.has(word)) continue;
+      tally.set(word, (tally.get(word) || 0) + 1);
+    }
+    const rows = Array.from(tally.entries()).map(([word, count]) => ({ word, count }));
+    rows.sort((a, b) => b.count - a.count);
+    setWordFreqs(rows.slice(0, 100));
+  }
 
   const [freqSort, setFreqSort] = useState<FreqSortKey>('groupedNameAsc');
   const freqTree = useMemo(() => sortFrequencyTree(project, freqSort), [project, freqSort]);
@@ -3628,6 +4039,12 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
         </button>
         <button className={`subtab-btn ${subTab === 'framework' ? 'active' : ''}`} onClick={() => setSubTab('framework')}>
           Framework Matrix
+        </button>
+        <button className={`subtab-btn ${subTab === 'words' ? 'active' : ''}`} onClick={() => setSubTab('words')}>
+          Word Frequencies
+        </button>
+        <button className={`subtab-btn ${subTab === 'kwic' ? 'active' : ''}`} onClick={() => setSubTab('kwic')}>
+          KWIC
         </button>
       </nav>
 
@@ -3892,6 +4309,104 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
             {sortedFrameworkRows.length === 0 && <div className="empty-hint">No top-level (theme) codes yet — add a root code to use the framework matrix.</div>}
             {project.docs.length === 0 && <div className="empty-hint">No documents yet.</div>}
           </div>
+        </section>
+      )}
+
+      {subTab === 'words' && (
+        <section>
+          <div className="sort-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '8px' }}>
+            <label style={{ marginBottom: 0 }}>Stop words (comma-separated) — edit freely, then click Generate List:</label>
+            <textarea
+              value={stopWordsText}
+              onChange={e => setStopWordsText(e.target.value)}
+              rows={4}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '8px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-panel)', color: 'var(--text)', resize: 'vertical' }}
+            />
+            <div>
+              <button className="primary-btn" onClick={generateWordFrequencies}>Generate List</button>
+            </div>
+          </div>
+          {wordFreqs && (
+            <div className="matrix-wrap" style={{ marginTop: '12px' }}>
+              <table className="matrix-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Word</th>
+                    <th>Count</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {wordFreqs.map((row, i) => (
+                    <tr key={row.word}>
+                      <td style={{ color: 'var(--text-dim)' }}>{i + 1}</td>
+                      <td>{row.word}</td>
+                      <td>{row.count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {wordFreqs.length === 0 && <div className="empty-hint">No words found (check that documents are loaded).</div>}
+            </div>
+          )}
+        </section>
+      )}
+
+      {subTab === 'kwic' && (
+        <section>
+          <div className="sort-row" style={{ flexDirection: 'row', alignItems: 'flex-end', gap: '8px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <label style={{ marginBottom: 0 }}>Keyword</label>
+              <input
+                type="text"
+                value={kwicKeyword}
+                onChange={e => setKwicKeyword(e.target.value)}
+                placeholder="e.g. education"
+                style={{ padding: '4px 8px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text)' }}
+                onKeyDown={e => { if (e.key === 'Enter') runKwicSearch(); }}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <label style={{ marginBottom: 0 }}>Context window (words)</label>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={kwicWindow}
+                onChange={e => setKwicWindow(parseInt(e.target.value || '5', 10))}
+                style={{ width: '90px', padding: '4px 8px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text)' }}
+              />
+            </div>
+            <button className="primary-btn" onClick={runKwicSearch}>Search</button>
+          </div>
+
+          {kwicResults.length > 0 && (
+            <div className="matrix-wrap" style={{ marginTop: '12px' }}>
+              <table className="matrix-table kwic-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '160px' }}>Document Name</th>
+                    <th>Pre-Context</th>
+                    <th style={{ width: '140px' }}>Keyword</th>
+                    <th>Post-Context</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {kwicResults.map((r, i) => (
+                    <tr key={i}>
+                      <td style={{ color: 'var(--text-dim)', fontSize: '12px' }}>{r.docName}</td>
+                      <td style={{ textAlign: 'right', fontStyle: 'italic', color: 'var(--text-dim)' }}>… {r.before.join(' ')}</td>
+                      <td style={{ textAlign: 'center', fontWeight: 'bold', color: 'var(--accent)' }}>{r.keyword}</td>
+                      <td style={{ textAlign: 'left', fontStyle: 'italic', color: 'var(--text-dim)' }}>{r.after.join(' ')} …</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {kwicResults.length === 0 && kwicKeyword.trim() && (
+            <div className="empty-hint" style={{ marginTop: '12px' }}>No matches found for "{kwicKeyword}".</div>
+          )}
         </section>
       )}
     </div>

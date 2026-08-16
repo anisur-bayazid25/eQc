@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useEffect } from 'react';
-import { CodedSegment, Code, SourceDoc } from '../domain';
+import { CodedSegment, Code, ID, SourceDoc } from '../domain';
 import { getSelectionOffsets, SelectionOffsets } from '../lib/textOffsets';
 
 interface Props {
@@ -10,6 +10,7 @@ interface Props {
   fontFamily?: string;
   onSelectionChange: (sel: SelectionOffsets | null) => void;
   onClickSegment: (segments: CodedSegment[], x: number, y: number) => void;
+  onDropCode?: (codeId: ID) => void;
   scrollToSegmentId?: string | null;
   scrollNonce?: number;
   highlightRange?: { start: number; end: number } | null;
@@ -57,17 +58,53 @@ function buildChunks(content: string, segments: CodedSegment[], highlightRange?:
 }
 
 export default function DocEditor({
-  doc, segments, codesById, fontSize, fontFamily, onSelectionChange, onClickSegment,
+  doc, segments, codesById, fontSize, fontFamily, onSelectionChange, onClickSegment, onDropCode,
   scrollToSegmentId, scrollNonce, highlightRange, highlightNonce
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chunks = useMemo(() => buildChunks(doc.content, segments, highlightRange), [doc.content, segments, highlightRange]);
   const segById = useMemo(() => new Map(segments.map(s => [s.id, s])), [segments]);
 
-  const handleMouseUp = () => {
-    if (!containerRef.current) return;
-    const sel = getSelectionOffsets(containerRef.current);
-    onSelectionChange(sel);
+  // Track the selection via `selectionchange` rather than mouseup inside the
+  // container: a drag that ends over the code search box still counted —
+  // the input's focus collapses the browser selection before mouseup fires,
+  // but selectionchange observed the live (non-collapsed) range during the
+  // drag. Sticky rule: if the selection collapses because focus moved
+  // *outside* the document (e.g. the search box), keep the last good
+  // selection so the user can search and apply codes afterwards.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const handleSelectionChange = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+      if (range.collapsed) {
+        if (container.contains(range.commonAncestorContainer)) {
+          onSelectionChange(null); // clicked inside the doc without selecting
+        }
+        return; // collapsed outside (e.g. search box focus) → keep sticky selection
+      }
+      if (container.contains(range.commonAncestorContainer)) {
+        const offsets = getSelectionOffsets(container);
+        if (offsets) onSelectionChange(offsets);
+      }
+    };
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => document.removeEventListener('selectionchange', handleSelectionChange);
+  }, [onSelectionChange]);
+
+  // Drop a code (legend or search results) onto the text: applies to the
+  // sticky selection, or falls back to the same unified code action as a click.
+  const handleDragOver = (e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes('text/plain')) e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    const codeId = e.dataTransfer.getData('text/plain');
+    if (!codeId) return;
+    e.preventDefault();
+    onDropCode?.(codeId);
   };
 
   // Jump to a specific coded segment (e.g. "Go to Document" from the
@@ -99,7 +136,8 @@ export default function DocEditor({
     <div
       className="doc-editor"
       ref={containerRef}
-      onMouseUp={handleMouseUp}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
       style={{
         fontSize: fontSize ? `${fontSize}px` : undefined,
         fontFamily: fontFamily || undefined

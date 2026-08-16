@@ -4,6 +4,25 @@ All notable changes to **eQc - Easy Qual Coding** are documented in this file.
 
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 1.5.6 - 2026-08-16
+
+### Added
+- **🗺️ Code Map is now a real canvas** — pick the canvas size (Map, A5, A4, Letter, Legal, or a fully **Custom** W×H) and zoom from 10–400% with the slider. The map renders as a paper with true pixel dimensions inside a scrollable viewport, so zooming in scrolls instead of stretching. Switching canvas size **instantly rescales every placed node** to fit the new bounds (40px padding), and auto-layout for new codes always respects the active canvas.
+- **🎨 Style edges and shapes on the Code Map** — every node can be a **circle, square, or diamond** (right-click to cycle). Click any edge to style it: **solid/dashed/dotted**, straight or **curved**, **arrowheads**, custom **colors**, and optional **labels**. Hierarchy and co-occurrence edges keep defaults until you style them; “**✏️ Draw edge**” lets you connect any two nodes with a custom edge, and styled/custom edges persist with the project. Co-occurrence edges (derived from shared documents) can be toggled on/off.
+- **📊 Document Portrait is now a vertical coding strip** — the minimap moved from above the document to a narrow strip on the document's right edge. Each colored band sits exactly where that passage is in the text; **click it to scroll the document to the passage** (no popup). Lines **widen on hover** so even single-line codings are easy to hit.
+- **🔍 Code while you search** — select a passage, click the code search box, and type: the selection is kept (sticky), and **clicking any search result applies that code**. You can also **drag a code** from the search results or the legend onto the document to apply it, and images can now be **dragged between folders** in the document tree.
+- **🧹 Clean redundant codings** — a button merges overlapping codings of the same code on the same document into single segments (notes joined), so duplicated codings never inflate counts.
+- **🎨 60 more code colors** — the Codebook color picker gains a “🎨 More colors…” palette.
+- **⬇️ Codebook-only REFI-QDA export** — share just the code tree (hierarchy, colors, memos) as a valid `.qdpx` archive with no sources.
+- **↕️ Drag-reorder the code legend** — drag a code onto a sibling to reorder it (positions remembered), onto a parent to reparent it, or onto empty tree space to move it to root.
+
+### Changed
+- **Deleting a folder** no longer deletes its documents — they move to the root level instead.
+
+### Fixed
+- **Code Map clipping** — shrinking the canvas (e.g. Map → A4) no longer leaves nodes cropped outside the white paper; every node now fits with padding, and dragging is rigidly clamped to the canvas bounds.
+- **Code Map zoom stretch** — the old percentage-width scaling stretched the map horizontally; zoom now scales the paper while scrollbars handle overflow.
+
 ## 1.5.5 - 2026-08-16
 
 ### Added

@@ -28,6 +28,24 @@ export interface Code {
   color: string;
   parentId: ID | null;
   summary: string;       // memo / definition text
+  mapPosition?: { x: number; y: number };  // cached node position for the Code Map view
+  mapShape?: 'circle' | 'square' | 'diamond';  // node shape on the Code Map (defaults to circle)
+  sortIndex?: number;    // explicit sibling order within the same parent (Code Map tree reorder)
+}
+
+// Manual styling for a Code Map edge. Derived edges (hierarchy, co-occurrence)
+// are rendered from data; an entry here overrides their appearance. Custom
+// edges (kind: 'custom') exist only because the user drew them.
+export interface MapEdgeStyle {
+  id: ID;
+  fromCodeId: ID;
+  toCodeId: ID;
+  kind: 'hierarchy' | 'cooccurrence' | 'custom'; // custom = user-drawn, not derived from data
+  lineStyle: 'solid' | 'dashed' | 'dotted';
+  curve: 'straight' | 'curved';
+  arrow: 'none' | 'end' | 'both';
+  color?: string;      // overrides the default per-kind color if set
+  label?: string;       // optional user-added text on the edge
 }
 
 export interface CodedSegment {
@@ -97,6 +115,7 @@ export interface Project {
   relationNotes?: CodeRelationNote[]; // analytic memos on code-pair relationships (co-occurrence)
   images?: ImageSource[];
   codedRegions?: CodedRegion[];
+  mapEdgeStyles?: MapEdgeStyle[]; // manual styling overrides / custom edges for the Code Map
   coderName?: string;   // this project's coder identity, stamped onto segments when merged into another project
 }
 
@@ -126,7 +145,8 @@ export function newProject(name: string): Project {
     codes: [],
     codedSegments: [],
     frameworkCells: [],
-    relationNotes: []
+    relationNotes: [],
+    mapEdgeStyles: []
   };
 }
 
@@ -165,7 +185,10 @@ export function descendantCodeIds(codes: Code[], rootId: ID): Set<ID> {
 }
 
 export function childCodes(codes: Code[], parentId: ID | null): Code[] {
-  return codes.filter(c => c.parentId === parentId);
+  const kids = codes.filter(c => c.parentId === parentId);
+  const hasSortIndex = kids.some(c => typeof c.sortIndex === 'number');
+  if (!hasSortIndex) return kids; // legacy projects: keep insertion order
+  return [...kids].sort((a, b) => (a.sortIndex ?? Infinity) - (b.sortIndex ?? Infinity));
 }
 
 // Names of every ancestor of `code`, root-first, not including `code` itself.

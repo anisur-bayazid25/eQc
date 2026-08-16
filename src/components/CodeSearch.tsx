@@ -54,7 +54,12 @@ export default function CodeSearch({ codes, query, onQueryChange, onSelectCode, 
                 key={r.code.id}
                 className={`code-search-row ${applyHint ? 'apply-hint' : ''}`}
                 onClick={() => handleSelect(r.code)}
-                title={applyHint ? 'Click to apply this code to the current selection' : r.code.name}
+                draggable
+                onDragStart={e => {
+                  e.dataTransfer.setData('text/plain', r.code.id);
+                  e.dataTransfer.effectAllowed = 'move';
+                }}
+                title={applyHint ? 'Click or drag onto the text to apply this code to the current selection' : r.code.name}
               >
                 <span className="code-swatch" style={{ background: r.code.color }} />
                 {r.path.length > 0 && <span className="code-search-path">{r.path.join(' › ')} ›</span>}

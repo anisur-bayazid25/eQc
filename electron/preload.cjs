@@ -50,6 +50,7 @@ onUpdateProgress: (cb) => ipcRenderer.on('update:progress', (_e, pct) => cb(pct)
   lan: {
     startHost: (config) => ipcRenderer.invoke('lan:startHost', config),
     stopHost: () => ipcRenderer.invoke('lan:stopHost'),
+    kickClient: (clientId) => ipcRenderer.invoke('lan:kickClient', clientId),
     startDiscovery: () => ipcRenderer.invoke('lan:startDiscovery'),
     stopDiscovery: () => ipcRenderer.invoke('lan:stopDiscovery'),
     pingHost: (ip) => ipcRenderer.invoke('lan:pingHost', ip),
@@ -60,6 +61,7 @@ onUpdateProgress: (cb) => ipcRenderer.on('update:progress', (_e, pct) => cb(pct)
     onHostsUpdated: (cb) => ipcRenderer.on('lan:hostsUpdated', (_e, hosts) => cb(hosts)),
     onSessionState: (cb) => ipcRenderer.on('lan:sessionState', (_e, s) => cb(s)),
     onSyncProgress: (cb) => ipcRenderer.on('lan:syncProgress', (_e, p) => cb(p)),
-    onRemoteProject: (cb) => ipcRenderer.on('lan:remoteProject', (_e, r) => cb(r))
+    onRemoteProject: (cb) => ipcRenderer.on('lan:remoteProject', (_e, r) => cb(r)),
+    onRejected: (cb) => ipcRenderer.on('lan:rejected', (_e, r) => cb(r))
   }
 });

@@ -4,6 +4,21 @@ All notable changes to **eQc - Easy Qual Coding** are documented in this file.
 
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 1.5.4 - 2026-08-16
+
+### Added
+- **🚪 Host can remove a member** — while hosting, every connected coder's chip in the LAN panel now has an ✕ button to disconnect that specific person. The removed coder sees a clear **“You were disconnected by the host”** message and returns to local mode.
+- **🟢 / ⚪ LAN sync status chip** — a small, always-visible chip next to the 🌐 LAN button shows **“🟢 Synced”** when you're on the session-shared project and **“⚪ Local only (not synced)”** while you're viewing another project.
+- **🟢 Shared-project marker** — the project dropdown now prefixes the session-shared project with a green dot, so you always know which project is live even when a different one is open.
+
+### Changed
+- **🧭 Free multitasking during LAN sessions** — you can now open, view, and edit **any** local project while a session runs in the background. The old alarm-style “project mismatch” banner is gone (replaced by the quiet status chip); an unlikely host rejection is now logged instead of popping up.
+- **📦 Background syncing for the shared project** — if a teammate edits the shared LAN project while you're working on a different project, the incoming changes are saved silently to the database **without switching your screen** (and won't be mistaken for “offline edits” later).
+- **🛠️ Cleaner client-side project management** — LAN clients can now freely rename/delete their **own other** local projects during a session; only the session-shared project stays locked (it belongs to the host's live state).
+
+### Fixed
+- **🔒 LAN session project lock** — sessions are now hard-locked to exactly **one** project id end-to-end (host accept, client receive/buffer/replay, and client send). Previously, opening or switching to a different local project mid-session could leak its edits into the session or apply/save the wrong project's data; those paths are now rejected at every layer.
+
 ## 1.5.2 - 2026-08-13
 
 ### Added

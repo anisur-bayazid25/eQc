@@ -66,6 +66,7 @@ export interface LanCoder {
   coderName: string;
   source: 'host' | 'client';
   activeDocId?: string | null;   // document/image the coder is currently viewing, for presence badges
+  clientId?: string;             // set for clients only — lets the host disconnect one specific peer
 }
 
 export interface LanSessionState {
@@ -111,9 +112,16 @@ export interface LanPublishPayload {
   coderName: string;
 }
 
+// Sent to exactly the peer whose dispatch was refused by the host, so its
+// UI can explain why instead of silently dropping their edits.
+export interface LanRejectedNotice {
+  reason: 'project-mismatch' | string;
+}
+
 export interface LanBridge {
   startHost: (config: LanStartHostConfig) => Promise<{ ok: boolean; error?: string; wsPort?: number; ip?: string }>;
   stopHost: () => Promise<{ ok: boolean }>;
+  kickClient: (clientId: string) => Promise<{ ok: boolean; error?: string }>;
   startDiscovery: () => Promise<{ ok: boolean; error?: string }>;
   stopDiscovery: () => Promise<boolean>;
   pingHost: (ip: string) => Promise<{ ok: boolean; error?: string }>;
@@ -125,6 +133,7 @@ export interface LanBridge {
   onSessionState: (cb: (s: LanSessionState | null) => void) => void;
   onSyncProgress: (cb: (p: LanSyncProgress) => void) => void;
   onRemoteProject: (cb: (r: LanRemoteProject) => void) => void;
+  onRejected: (cb: (r: LanRejectedNotice) => void) => void;
 }
 
 export interface QvBridge {

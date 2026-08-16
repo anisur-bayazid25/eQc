@@ -1,8 +1,23 @@
 # eQc — Easy Qual Coding
 
-## Complete User Guide & Documentation (v1.5.5)
+## Complete User Guide & Documentation (v1.5.6)
 
 eQc is a lightweight, **local-first** qualitative data analysis (QDA) desktop application built with Electron, React, and SQLite. All project data — documents, codes, memos, matrices — is stored **locally on your device**. Nothing leaves your computer (except, optionally, the project backups you choose to export or share).
+
+---
+
+## What's New in v1.5.6
+
+- **🗺️ Code Map is now a real canvas** — choose the canvas size (**Map, A5, A4, Letter, Legal**, or a fully **Custom** W×H) and zoom from **10–400%**. The map is rendered as a paper with true pixel dimensions; zooming in scrolls the viewport instead of stretching the drawing. Changing size instantly rescales every node to fit the new bounds, so nothing is ever cropped off the paper.
+- **🎨 Style the map** — right-click any node to switch shape (**circle / square / diamond**); click any edge to set **solid/dashed/dotted**, straight or **curved**, **arrowheads**, **colors**, and **labels**. Styled and custom edges persist with the project. “**✏️ Draw edge**” connects any two nodes, and co-occurrence edges (codes that share documents) can be shown or hidden.
+- **📊 Vertical coding strip** — the Document Portrait is now a minimap running down the right edge of the document. **Click any colored band to jump straight to that passage** in the text; bands **widen on hover** so even one-line codings are easy to click.
+- **🔍 Code while you search** — select a passage in the document, click the code search box and type: the selection stays put, and a **click (or a drag) on any search result applies that code** to the selected text. You can also drag a code from the legend straight onto the document.
+- **↕️ Drag-reorder the code legend** — drag codes onto each other to **reorder** siblings, **reparent**, or drop them into empty space to move to root; the order is remembered.
+- **🧹 Clean redundant codings** — merges overlapping double-codings of the same code in the same document into one clean passage, so counts are never inflated.
+- **🎨 60 more code colors** — a “🎨 More colors…” palette joins the Codebook's swatches.
+- **⬇️ Codebook-only REFI-QDA export** — export just the code tree (hierarchy, colors, memos) as a compact `.qdpx` archive for sharing the codebook itself.
+- **🖼️ Drag images between folders** in the document tree.
+- **📁 Safer folder deletion** — deleting a folder moves its documents to the project root rather than deleting them.
 
 ---
 

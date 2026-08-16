@@ -25,6 +25,7 @@ interface Props {
   onRenameImage: (image: ImageSource) => void;
   onDeleteImage: (id: ID) => void;
   onMoveDoc: (docId: ID, targetFolderId: ID | null) => void;
+  onMoveImage: (imageId: ID, targetFolderId: ID | null) => void;
   onDropFiles: (files: FileList, folderId: ID | null) => void;
   // Live LAN presence: coders whose activeDocId matches a row get a colored
   // dot; the viewer's own name is excluded so the dots always mean "other
@@ -114,9 +115,16 @@ function FolderNode(props: Props & { folder: Folder; depth: number }) {
             return; // Exit early so we don't try to move an internal doc
           }
 
-          // 2. Otherwise, handle the internal document move like normal
-          const docId = e.dataTransfer.getData('text/plain');
-          if (docId) props.onMoveDoc(docId, folder.id);
+          // 2. Otherwise, handle the internal document/image move like normal
+          const payload = e.dataTransfer.getData('text/plain');
+          if (payload) {
+            const imagePrefix = 'image:';
+            if (payload.startsWith(imagePrefix)) {
+              props.onMoveImage(payload.slice(imagePrefix.length), folder.id);
+            } else if (payload) {
+              props.onMoveDoc(payload, folder.id);
+            }
+          }
         }}
       >
         <span className="tree-arrow" onClick={() => setExpanded(v => !v)}>
@@ -219,10 +227,14 @@ function ImageRow(props: Props & { image: ImageSource; depth: number }) {
   return (
     <div
       className={`doc-row ${isSelected ? 'selected' : ''}`}
-      style={{ paddingLeft: depth * 14 + 4, cursor: 'pointer' }}
+      style={{ paddingLeft: depth * 14 + 4, cursor: 'grab' }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       onClick={() => props.onSelectImage && props.onSelectImage(image)}
+      draggable={true}
+      onDragStart={(e) => {
+        e.dataTransfer.setData('text/plain', `image:${image.id}`);
+      }}
     >
       <span className="tree-arrow spacer" />
       <span className="doc-icon">🖼️</span>
@@ -273,9 +285,16 @@ export default function DocTree(props: Props) {
           props.onDropFiles(e.dataTransfer.files, null);
           return;
         }
-        const docId = e.dataTransfer.getData('text/plain');
+        const payload = e.dataTransfer.getData('text/plain');
         // Dropping into the main tree area moves it to the root (null)
-        if (docId) props.onMoveDoc(docId, null);
+        if (payload) {
+          const imagePrefix = 'image:';
+          if (payload.startsWith(imagePrefix)) {
+            props.onMoveImage(payload.slice(imagePrefix.length), null);
+          } else {
+            props.onMoveDoc(payload, null);
+          }
+        }
       }}
     >
       {rootFolders.map(f => (

@@ -197,3 +197,27 @@ export async function buildQdpxExport(project: Project): Promise<QdpxExportPaylo
     sourceBytes: bytes
   };
 }
+
+// Codebook-only QDPX: valid REFI-QDA-2 wrapper (Project + Users + CodeBook)
+// with no sources or codings — for sharing the code tree itself.
+export function buildQdpxCodebookExport(project: Project): QdpxExportPayload {
+  const codeGuids = new Map<string, string>();
+  for (const c of project.codes) codeGuids.set(c.id, uuid());
+
+  const nowIso = new Date().toISOString();
+  const qdeXml =
+    `<?xml version="1.0" encoding="UTF-8"?>\n` +
+    `<Project xmlns="${NS}" xmlns:xsi="${XSI}" xsi:schemaLocation="${NS} project.xsd" ` +
+    `guid="${uuid()}" name="${esc(project.name)}" creationDateTime="${nowIso}">` +
+    `<Users><User guid="${uuid()}" id="1" name="${esc(project.coderName || 'User')}"/></Users>` +
+    buildCodebook(project, codeGuids) +
+    `<Sources></Sources>` +
+    `</Project>`;
+
+  return {
+    fileName: `${sanitizeFileName(project.name)}_Codebook.qdpx`,
+    qdeXml,
+    sourceFiles: {},
+    sourceBytes: {}
+  };
+}

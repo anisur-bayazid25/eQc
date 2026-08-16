@@ -180,6 +180,65 @@ The left workspace panel previously showed images twice (once in `DocTree` per-f
 
 - `segById` memo (`Map<s.id, source>`); rendering a chunk now resolves that chunk's segment ids via the map instead of `segments.filter(...)` per chunk — O(1) per row.
 
+## 15. Project `updatedAt` marker — `src/domain.ts`
+
+- `Project` gained optional `updatedAt?: number` — the last edit time. It flows through the LAN transport like any other Project field (host snapshots carry it), which is what makes the offline-edit detection below possible.
+
+## 16. Handle client offline edits on LAN join — new
+
+**Problem:** a client that worked on the shared project offline (at home) then joins the host session gets its local copy overwritten by the host snapshot — the home work is silently lost.
+
+**Model chosen (with the user):** same project `id` ⇒ the local copy came from this host earlier. So "offline edits" = local `updatedAt` newer than the last confirmed sync point for that project id. A sync point (`qda-lan-synced-at-<projectId>`, localStorage) is advanced at **every** moment the local copy equals the session state.
+
+### Sync-point tracking (App.tsx)
+- `persist()` stamps `{ ...next, updatedAt: Date.now() }` centrally, so every local content edit advances the marker without touching every call site. Remote applications bypass `persist` (`setProject` + `saveProject` directly) and must NOT advance it — hence they don't.
+- `undo`/`redo` stamp `updatedAt` too (they are local mutations).
+- Sync points are set in three places:
+  - `applyLanRemote()` — every accepted host broadcast (`r.project.updatedAt ?? now`).
+  - the 200 ms broadcast effect — after `sendAction` resolves ok, the broadcaster's own edit reached the host (**critical:** otherwise editing *while connected* and reconnecting would falsely prompt "offline edits").
+  - `applyJoinedState()` — when a join / conflict resolution lands.
+
+### Detection + pause (App.tsx `handleLanJoin`)
+- After `joinSession` resolves with a project snapshot whose `id` equals the currently-open local project:
+  - `lastSyncAt = Number(localStorage['qda-lan-synced-at-<id>'] || 0)`, `localUpdatedAt = localProj.updatedAt ?? localProj.createdAt ?? 0`.
+  - if `localUpdatedAt > lastSyncAt` → `setLanConflict({ hostProject, hostName, seq })` and **return without applying the snapshot**.
+- While a conflict is pending, `applyLanRemote()` drops live host broadcasts for that project id (`lanConflictRef` guard) so incoming snapshots can't stomp the offline-edited local copy the user must still choose on.
+
+### Offline Conflict Modal (App.tsx render, zIndex 11001 — above LanModal's 10000)
+Three resolutions:
+1. **Merge into Host Session (default)** — `handleLanConflictMerge()`: deep-clones the host snapshot (`JSON.parse(JSON.stringify())`; `mergeProjectInto` mutates its target), merges the offline project in as the source with `coderName: lanMyName` (so every incoming segment is attributable), stamps `updatedAt`, uploads via `window.qv.lan.sendAction` (host `acceptDispatch` fans it out to all clients and its own renderer), then `applyJoinedState(merged)` locally. On upload error the modal stays open.
+2. **Save offline work as new project & join** — `handleLanConflictBackup()`: clones the local project with `id: crypto.randomUUID()` and name `"<name> (Home Backup)"`, `saveProject`s it, adds it to the list, then joins the host snapshot untouched.
+3. **Discard offline edits** — `handleLanConflictDiscard()`: joins the host snapshot as-is.
+
+`applyJoinedState(p, seq)` is the single landing routine (shared by the plain join path and all three resolutions): sets `lanJoinedRef`/`lanApplyRemoteRef`/`lastLanSeqRef`, writes seq + sync point, replaces the active project, prepends to the project list, switches to Workspace, clears the conflict.
+
+### Gotchas for extending
+- `crypto.randomUUID()` is used for the backup id (spec requirement); project ids elsewhere use `uid()` — both are plain strings, so no type impact.
+- The deep clone is JSON-based because `hostProject` arrives over JSON transport (always serializable); do not assume `structuredClone` (tsconfig lib is ES2020).
+- Detection is deliberately id-based: a *different* host serving a same-named-but-different-id project is treated as a fresh join (no prompt), per spec.
+- Pre-existing DBs sync in without a stored `qda-lan-synced-at-<id>` (only v1.5.2+ wrote `qda-lan-seq-<id>`), so their first post-upgrade join may prompt once even without real offline edits; all three options are safe, and Merge is idempotent (dedupe on doc/code/span/coder).
+
+## 17. LAN presence + coder attribution + coder-name disentanglement — v1.5.3
+
+### LAN presence ("who is viewing what")
+- `electron/lan.cjs`: clients tell the host which doc/image they're viewing via a new `SET_ACTIVE_DOC` message; `broadcastPresence()` includes each coder's `activeDocId` and re-broadcasts `PRESENCE` on view changes and on join/leave/heartbeat-terminate. Reconnect resync payloads are marked `quiet` so they restore state without a diff toast.
+- `electron/preload.cjs` + `src/global.d.ts`: `lan.setActiveDoc(docId)`, `LanCoder { coderName, source, activeDocId }`, `LanSessionState.coders`, `LanRemoteProject.quiet`.
+- `src/components/DocTree.tsx`: `PresenceDots` — one-colored dot per teammate viewing that doc/image (stable per-coder color hash), tooltip "Viewing: …"; the viewer's own name is excluded. New `lanCoders`/`lanMyName` props.
+- `src/App.tsx`: doc/image select handlers call `setActiveDoc`; `DocTree` receives `lanCoders`/`lanMyName`; `onSessionState` diffs the coder roster and toasts the **host** when someone joins (roster cleared on session-end so a fresh host session never announces itself). `applyLanRemote` honors `quiet`.
+
+### Coder attribution (who coded what)
+- `CodedSegment.coder` / `CodedRegion.coder` stamped at **creation time** (manual segment, manual region, auto-code) using `activeCoderName` = the LAN session name while collaborating, else the project's **Coder Name** (Project Settings).
+- **Coder filter dropdowns** (Workspace doc-tree panel + Codebook Excerpts header) drive `docSegments`, `codebookExcerpts`, `codebookRegions`; reset per project.
+- **Attribution display**: codebook excerpt/region cards, the workspace click popup for text AND images, exports (scoped CSV/DOCX + Starred Quotes get a `Coder` column), and the manuscript skeleton.
+
+### Coder-name disentanglement (stable attribution model)
+**Problem:** legacy/imported segments had no coder stamp; display fell back to the *mutable* Project Settings name, so old items flipped to whoever was last saved and the coder filter couldn't capture them.
+- `const UNATTRIBUTED_CODER = 'Unattributed'` (`src/domain.ts`) — untagged items display **only** this stable label (never the current project name) on cards, popups, skeleton, and exports.
+- `matchesCoder(coder, filter)` (`src/App.tsx`) — untagged items match "Everyone" AND the **Unattributed** group in both dropdowns, so display and filter always agree.
+- `src/lib/merge.ts`: removed the auto-backfill that stamped all of `target`'s pre-existing untagged segments with `target.coderName` each merge (the relabeling culprit). Merged-in segments still inherit their source's coder and now preserve `note`/`starred`.
+- **Stamps are frozen at creation** — editing Project Settings Coder Name (or the LAN name, which now defaults to the project's Coder Name on load, still editable in the LAN dialog) affects only new codes, never existing ones.
+- **Controlled migration**: Project Settings shows "Assign N Unattributed item(s) to this coder" (`claimUnattributed()`), an explicit one-click claim of untagged segments/regions with the entered name — the only code path that ever adds a stamp.
+
 ## Conventions & gotchas when extending
 - Never call a renderer↔main bridge method without adding it in **all three places**: `electron/main.cjs` handler, `electron/preload.cjs`, `src/global.d.ts` (`QvBridge`).
 - **LAN gotchas:** all networking lives in the main process (`electron/lan.cjs`) — the renderer never touches `ws`/`dgram` directly. On Windows, two sockets sharing `UDP_PORT` with `reuseAddr` deliver loopback datagrams to an *arbitrary* socket, so same-machine discovery uses the WebSocket `LAN_HELLO` probe, not UDP. Cross-machine UDP broadcast/unicast is unaffected. `lan:*` IPC channels are registered in both directions: `ipcMain.handle` (invoke) and `pushToRenderer`/event listeners (push).

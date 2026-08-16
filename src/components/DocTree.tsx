@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Folder, SourceDoc, ImageSource, ID } from '../domain';
+import type { LanCoder } from '../global';
 
 export type SortKey = 'name' | 'date' | 'size' | 'coded';
 
@@ -25,6 +26,11 @@ interface Props {
   onDeleteImage: (id: ID) => void;
   onMoveDoc: (docId: ID, targetFolderId: ID | null) => void;
   onDropFiles: (files: FileList, folderId: ID | null) => void;
+  // Live LAN presence: coders whose activeDocId matches a row get a colored
+  // dot; the viewer's own name is excluded so the dots always mean "other
+  // people are looking at this".
+  lanCoders?: LanCoder[];
+  lanMyName?: string;
 }
 
 function sortDocs(docs: SourceDoc[], sortBy: SortKey, codedCount: (id: ID) => number): SourceDoc[] {
@@ -39,6 +45,36 @@ function sortDocs(docs: SourceDoc[], sortBy: SortKey, codedCount: (id: ID) => nu
     case 'coded':
       return copy.sort((a, b) => codedCount(b.id) - codedCount(a.id));
   }
+}
+
+// One stable dot color per coder name, cycled deterministically so the
+// same person is always the same color in every session.
+const PRESENCE_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4', '#ec4899', '#84cc16'];
+
+function presenceColor(coderName: string): string {
+  let h = 0;
+  for (let i = 0; i < coderName.length; i++) h = (h * 31 + coderName.charCodeAt(i)) >>> 0;
+  return PRESENCE_COLORS[h % PRESENCE_COLORS.length];
+}
+
+// Which other coders are currently viewing this document/image.
+function viewersFor(list: LanCoder[] | undefined, itemId: string | null, selfName: string | undefined): string[] {
+  if (!list || !itemId) return [];
+  return list
+    .filter(c => c.activeDocId === itemId && c.coderName !== selfName)
+    .map(c => c.coderName);
+}
+
+function PresenceDots({ itemId, list, selfName }: { itemId: string; list?: LanCoder[]; selfName?: string }) {
+  const viewers = viewersFor(list, itemId, selfName);
+  if (viewers.length === 0) return null;
+  return (
+    <span className="presence-dots" title={`Viewing: ${viewers.join(', ')}`}>
+      {viewers.map(n => (
+        <i key={n} className="presence-dot" style={{ background: presenceColor(n) }} />
+      ))}
+    </span>
+  );
 }
 
 function FolderNode(props: Props & { folder: Folder; depth: number }) {
@@ -126,6 +162,7 @@ function DocRow(props: Props & { doc: SourceDoc; depth: number }) {
   const { doc, depth } = props;
   const [hover, setHover] = useState(false);
   const coded = props.codedCount(doc.id);
+  const viewers = viewersFor(props.lanCoders, doc.id, props.lanMyName);
   
   return (
     <div
@@ -144,6 +181,7 @@ function DocRow(props: Props & { doc: SourceDoc; depth: number }) {
       <span className="doc-icon">📄</span>
       <span className="doc-name">{doc.name}</span>
       {coded > 0 && <span className="doc-coded-badge">{coded}</span>}
+      {<PresenceDots itemId={doc.id} list={props.lanCoders} selfName={props.lanMyName} />}
       {hover && (
         <span className="row-actions">
           <button
@@ -190,6 +228,7 @@ function ImageRow(props: Props & { image: ImageSource; depth: number }) {
       <span className="doc-icon">🖼️</span>
       <span className="doc-name">{image.name}</span>
       {codedRegions > 0 && <span className="doc-coded-badge">{codedRegions}</span>}
+      {<PresenceDots itemId={image.id} list={props.lanCoders} selfName={props.lanMyName} />}
       {hover && (
         <span className="row-actions">
           <button

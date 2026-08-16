@@ -1,8 +1,19 @@
 # eQc — Easy Qual Coding
 
-## Complete User Guide & Documentation (v1.5.2)
+## Complete User Guide & Documentation (v1.5.3)
 
 eQc is a lightweight, **local-first** qualitative data analysis (QDA) desktop application built with Electron, React, and SQLite. All project data — documents, codes, memos, matrices — is stored **locally on your device**. Nothing leaves your computer (except, optionally, the project backups you choose to export or share).
+
+---
+
+## What's New in v1.5.3
+
+- **👥 Coder attribution** — every coded passage and image region records **who coded it** (manual, auto-code, or merged). Names are stamped at the moment the item is created and are **never changed later**.
+- **🎛️ Filter by coder** — new **Coder** dropdowns in the Workspace (doc tree panel) and Codebook (Excerpts header) let you view only one coder's work, or **Everyone**. Scan adds an **Unattributed** group so nothing is hidden.
+- **🧍 Coder-name disentanglement** — when one PC is shared by several coders, changing the Coder Name in Project Settings only affects codes made *afterward*; earlier codes keep their original attribution. Older/imported items with no stamp show as **Unattributed**, and you can assign them in one click via **Project Settings → “Assign N Unattributed item(s) to this coder.”**
+- **📤 Coder column in exports** — scoped CSV/DOCX exports and Starred Quotes include a **Coder** column (per-segment stamp, or "Unattributed").
+- **🟢 Live presence (LAN)** — in a shared session, the document tree shows colored dots next to documents/images that teammates are currently viewing, with a "Viewing: …" tooltip; the host is notified with a toast when someone joins.
+- **🔎 Clearer "Coded by" everywhere** — described tags now appear on text excerpts, image-region cards, and in both click-popups in the workspace.
 
 ---
 

@@ -56,6 +56,7 @@ onUpdateProgress: (cb) => ipcRenderer.on('update:progress', (_e, pct) => cb(pct)
     joinSession: (credentials) => ipcRenderer.invoke('lan:joinSession', credentials),
     disconnectSession: () => ipcRenderer.invoke('lan:disconnectSession'),
     sendAction: (payload) => ipcRenderer.invoke('lan:sendAction', payload),
+    setActiveDoc: (docId) => ipcRenderer.invoke('lan:setActiveDoc', docId),
     onHostsUpdated: (cb) => ipcRenderer.on('lan:hostsUpdated', (_e, hosts) => cb(hosts)),
     onSessionState: (cb) => ipcRenderer.on('lan:sessionState', (_e, s) => cb(s)),
     onSyncProgress: (cb) => ipcRenderer.on('lan:syncProgress', (_e, p) => cb(p)),

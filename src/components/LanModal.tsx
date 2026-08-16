@@ -13,12 +13,13 @@ interface Props {
   onStopHost: () => Promise<void>;
   onJoin: (host: LanHostInfo, password: string) => Promise<void>;
   onDisconnect: () => Promise<void>;
+  onKickClient: (clientId: string) => void;
   onClose: () => void;
 }
 
 export default function LanModal({
   session, hosts, sync, joining, myName, initialTab,
-  onMyNameChange, onStartHost, onStopHost, onJoin, onDisconnect, onClose
+  onMyNameChange, onStartHost, onStopHost, onJoin, onDisconnect, onKickClient, onClose
 }: Props) {
   const [tab, setTab] = useState<'host' | 'join'>(initialTab === 'join' ? 'join' : 'host');
   const [requirePassword, setRequirePassword] = useState(true);
@@ -146,6 +147,13 @@ export default function LanModal({
                   {session.coders.map((c, i) => (
                     <span key={i} style={{ display: 'inline-block', backgroundColor: '#bbf7d0', color: '#14532d', borderRadius: 10, padding: '2px 8px', margin: '2px 4px 0 0' }}>
                       {c.source === 'host' ? '🖥️' : '👤'} {c.coderName}
+                      {c.source === 'client' && c.clientId && (
+                        <button
+                          title={`Disconnect ${c.coderName}`}
+                          onClick={() => onKickClient(c.clientId!)}
+                          style={{ border: 'none', background: 'none', color: '#991b1b', cursor: 'pointer', marginLeft: 4, fontSize: 11, padding: 0 }}
+                        >✕</button>
+                      )}
                     </span>
                   ))}
                 </div>

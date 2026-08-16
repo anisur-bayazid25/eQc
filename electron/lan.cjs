@@ -80,12 +80,20 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
       hostName: String(hostName || 'Coder'),
       password: String(password || ''),
       projectId: project.id,
+      // The session is LOCKED to exactly this project id for its whole
+      // life. Everything broadcast into the session must carry this id;
+      // anything else is rejected at the door (see acceptDispatch). It is
+      // captured once here and never re-read from any later project state,
+      // so reopening/renaming a different project can never leak into the
+      // session.
+      sessionProjectId: project.id,
       projectName: project.name,
       currentProject: project,
       seq: 0,
       log: [],
       activeDocId: null,       // doc/image the host renderer is currently viewing
       clients: new Map(),
+      clientSeq: 0,            // per-connection ids so the host can kick one alive client by id
       heartbeatTimer: null,
       server
     };
@@ -99,7 +107,7 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
     return { ok: true, wsPort: WS_PORT, ip: localIPv4() };
   }
 
-  function stopHost() {
+function stopHost() {
     if (state.host && state.host.server) {
       for (const ws of state.host.clients.keys()) { try { ws.close(); } catch {} }
       try { state.host.server.close(); } catch {}
@@ -125,6 +133,22 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
       }
     }
     if (changed) broadcastPresence();
+  }
+
+  function kickClient(clientId) {
+    if (state.role !== 'host' || !state.host) return { ok: false, error: 'Not hosting' };
+    const id = String(clientId || '');
+    for (const [ws, info] of state.host.clients) {
+      if (info.clientId === id) {
+        // Tell the peer it was removed (so its UI can say "host disconnected
+        // you" instead of guessing), then close. The socket's 'close' handler
+        // removes it from the roster and re-broadcasts presence.
+        sendMsg(ws, { type: 'KICKED', reason: 'You were disconnected by the host' });
+        try { ws.close(1000); } catch {}
+        return { ok: true };
+      }
+    }
+    return { ok: false, error: 'Client not found' };
   }
 
   function startBroadcast() {
@@ -176,7 +200,7 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
     if (state.role !== 'host' || !state.host) return;
     const coders = [
       { coderName: state.host.hostName, source: 'host', activeDocId: state.host.activeDocId },
-      ...[...state.host.clients.values()].map(c => ({ coderName: c.coderName, source: 'client', activeDocId: c.activeDocId || null }))
+      ...[...state.host.clients.values()].map(c => ({ coderName: c.coderName, source: 'client', activeDocId: c.activeDocId || null, clientId: c.clientId }))
     ];
     // The host renderer reports itself as the host…
     pushToRenderer('lan:sessionState', {
@@ -239,7 +263,10 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
         }
         authed = true;
         ws.coderName = String(msg.coderName || 'Coder');
-        state.host.clients.set(ws, { coderName: ws.coderName, activeDocId: null });
+        // Unique per-connection id so the host can disconnect exactly this
+        // client later (coderName is not unique — duplicates are legal).
+        const clientId = `c${++state.host.clientSeq}`;
+        state.host.clients.set(ws, { coderName: ws.coderName, activeDocId: null, clientId });
         broadcastPresence();
 
         // Always hand the peer the host's current project: on every (re)join
@@ -249,10 +276,10 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
         if (state.host.currentProject) {
           const json = JSON.stringify(state.host.currentProject);
           const totalChunks = Math.ceil(json.length / CHUNK_SIZE);
-          sendMsg(ws, { type: 'AUTH_SUCCESS', projectId: state.host.projectId, seq, totalChunks, totalSize: json.length });
+          sendMsg(ws, { type: 'AUTH_SUCCESS', projectId: state.host.projectId, sessionProjectId: state.host.sessionProjectId, seq, totalChunks, totalSize: json.length });
           streamChunks(ws, json, totalChunks);
         } else {
-          sendMsg(ws, { type: 'AUTH_SUCCESS', projectId: state.host.projectId, seq, totalChunks: 0, totalSize: 0 });
+          sendMsg(ws, { type: 'AUTH_SUCCESS', projectId: state.host.projectId, sessionProjectId: state.host.sessionProjectId, seq, totalChunks: 0, totalSize: 0 });
         }
       } else if (msg.type === 'ACTION_DISPATCH' && authed && state.host) {
         acceptDispatch({ coderName: ws.coderName, project: msg.project, senderWs: ws, notifyHostRenderer: true });
@@ -285,8 +312,14 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
   function acceptDispatch({ coderName, project, senderWs, notifyHostRenderer }) {
     if (state.role !== 'host' || !state.host) return { ok: false, error: 'Not hosting' };
     if (!project || !project.id) return { ok: false, error: 'Invalid project payload' };
-    if (state.host.projectId && project.id !== state.host.projectId) {
-      return { ok: false, error: 'Project mismatch — only the shared session project can be synced' };
+    // Hard project-id lock: the session was started for exactly ONE project
+    // (state.host.sessionProjectId). A dispatch for any other project is
+    // rejected outright — it is NOT stored, NOT re-broadcast, and does not
+    // touch state.host.currentProject. The single offending sender is told
+    // why so their UI can show a notice instead of silently guessing.
+    if (state.host.sessionProjectId && project.id !== state.host.sessionProjectId) {
+      if (senderWs) sendMsg(senderWs, { type: 'REJECTED', reason: 'project-mismatch' });
+      return { ok: false, error: 'project-mismatch' };
     }
     const seq = ++state.host.seq;
     state.host.currentProject = project;
@@ -404,6 +437,10 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
         lastSeq: (lastSeq === null || lastSeq === undefined) ? null : Number(lastSeq),
         coderName: String(coderName || 'Coder'),
         projectId: String(projectId || ''),
+        // Locked to the shared project id handed back by the host on
+        // AUTH_SUCCESS. Used to discard any dispatch that is not about this
+        // project (buffered, live, or replayed).
+        sessionProjectId: null,
         chunks: [],
         totalChunks: 0,
         buffered: [],
@@ -457,6 +494,7 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
           if (msg.type === 'AUTH_SUCCESS') {
             client.seq = msg.seq;
             client.totalChunks = msg.totalChunks || 0;
+            client.sessionProjectId = String(msg.sessionProjectId || msg.projectId || '');
             client.syncing = client.totalChunks > 0;
             if (!client.syncing) finishJoin(null);
             return;
@@ -480,11 +518,33 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
           }
 
           if (msg.type === 'ACTION_DISPATCH') {
+            // The session is locked to ONE project id. A dispatch about any
+            // other project is dropped here so it can't replace the wrong
+            // screen — and it is not buffered for later replay either.
+            if (client.sessionProjectId && msg.project && msg.project.id !== client.sessionProjectId) {
+              return;
+            }
             if (client.syncing) {
               client.buffered.push(msg); // live edits that raced the (re)sync
             } else {
               pushToRenderer('lan:remoteProject', { seq: msg.seq, coderName: msg.coderName, project: msg.project });
             }
+            return;
+          }
+
+          if (msg.type === 'REJECTED') {
+            // The host refused our last dispatch (e.g. project mismatch).
+            // Surface the reason so the renderer can show a clear notice.
+            pushToRenderer('lan:rejected', { reason: msg.reason || 'project-mismatch' });
+            return;
+          }
+
+          if (msg.type === 'KICKED') {
+            // The host decided to disconnect us. Close the socket ourselves so
+            // the running 'close' handler sees no further work (state.client
+            // is already nulled), then tell the user why the session ended.
+            formalDisconnect(msg.reason || 'You were disconnected by the host');
+            try { ws.close(); } catch {}
             return;
           }
 
@@ -539,12 +599,18 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
 
       function finishJoin(project) {
         client.syncing = false;
+        // Defense in depth on replay: buffered dispatches were already
+        // filtered at buffer time, but re-check the lock here anyway so a
+        // dispatch for the wrong project can never be replayed after sync.
+        const buffered = client.buffered.filter(
+          b => !client.sessionProjectId || !b.project || b.project.id === client.sessionProjectId
+        );
         if (client.resolved) {
           // Reconnect landed: flush any edits that raced the re-sync, then
           // hand the fresh snapshot to the renderer so its in-memory state is
           // always current. Marked `quiet` so it restores state without a
           // "someone updated the project" toast.
-          for (const b of client.buffered) {
+          for (const b of buffered) {
             pushToRenderer('lan:remoteProject', { seq: b.seq, coderName: b.coderName, project: b.project, quiet: true });
           }
           if (project) {
@@ -555,7 +621,7 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
         }
         client.resolved = true;
         state.role = 'client';
-        for (const b of client.buffered) {
+        for (const b of buffered) {
           pushToRenderer('lan:remoteProject', { seq: b.seq, coderName: b.coderName, project: b.project });
         }
         pushProgress({ phase: 'done', percent: project ? 100 : 100, message: project ? 'Project synced' : 'Up to date' });
@@ -589,8 +655,8 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
       return acceptDispatch({ coderName, project, senderWs: null, notifyHostRenderer: false });
     }
     if (state.role === 'client' && state.client && state.client.ws.readyState === 1) {
-      if (state.client.projectId && project && project.id !== state.client.projectId) {
-        return { ok: false, error: 'Project mismatch — only the shared session project can be synced' };
+      if (state.client.sessionProjectId && project && project.id !== state.client.sessionProjectId) {
+        return { ok: false, error: 'project-mismatch' };
       }
       sendMsg(state.client.ws, { type: 'ACTION_DISPATCH', coderName, project });
       return { ok: true };
@@ -606,6 +672,7 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
     }
   });
   ipcMain.handle('lan:stopHost', () => { stopHost(); return { ok: true }; });
+  ipcMain.handle('lan:kickClient', (_e, clientId) => kickClient(clientId));
   ipcMain.handle('lan:startDiscovery', () => startDiscovery());
   ipcMain.handle('lan:stopDiscovery', () => { stopDiscovery(); return true; });
   ipcMain.handle('lan:pingHost', (_e, ip) => pingHost(ip));

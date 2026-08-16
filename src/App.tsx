@@ -417,6 +417,10 @@ useEffect(() => {
   // ---------------------------------------------------------------
   const [lanModalOpen, setLanModalOpen] = useState(false);
   const [lanSession, setLanSession] = useState<LanSessionState | null>(null);
+  // Latest lanSession readable from stable callbacks/effects without
+  // re-subscribing (onRemoteProject and the broadcast effect need the
+  // session's locked project id synchronously).
+  const lanSessionRef = useRef<LanSessionState | null>(null);
   const [lanHosts, setLanHosts] = useState<LanHostInfo[]>([]);
   const [lanSync, setLanSync] = useState<LanSyncProgress | null>(null);
   const [lanJoining, setLanJoining] = useState(false);
@@ -453,31 +457,52 @@ useEffect(() => {
     if (lanSession) localStorage.setItem('qda-lan-name', lanMyName);
   }, [lanSession, lanMyName]);
 
+  // Current LAN session facts, derived per render (ref stays in sync with the
+  // state via the onSessionState handler, so both agree).
+  const isLanActive = !!lanSessionRef.current;
+  const sessionProjectId = isLanActive ? lanSessionRef.current?.projectId : null;
+  // True only while the OPEN project is exactly the session's locked project.
+  const isLanSyncedView = isLanActive && !!project && project.id === sessionProjectId;
+  // LAN clients may freely manage their OTHER local projects, but the
+  // session's shared project stays locked (no rename/delete, it belongs to
+  // the host's live state).
+  const isLanSharedProjectLocked = isLanActive && lanSessionRef.current?.role === 'client' && isLanSyncedView;
+
   const applyLanRemote = useCallback((r: LanRemoteProject) => {
     // While an offline-conflict decision is pending we must NOT overwrite the
     // local (offline-edited) project with live host snapshots — the user still
     // has to pick merge/backup/discard. Reconnect flows re-sync right after.
     if (lanConflictRef.current && lanConflictRef.current.hostProject.id === r.project.id) return;
+    // Security: the session is locked to ONE project id. A snapshot about any
+    // other project is never applied (defense-in-depth behind the same check
+    // in lan.cjs) — logged, not shovelled to disk.
+    const sessionId = lanSessionRef.current?.projectId;
+    if (sessionId && r.project.id !== sessionId) {
+      console.warn('[LAN] Ignored remote snapshot outside the session lock', r.project.id);
+      return;
+    }
     const prev = projectRef.current;
-    lanApplyRemoteRef.current = true;
-    lastLanSeqRef.current = Math.max(lastLanSeqRef.current, r.seq);
     const seqKey = `qda-lan-seq-${r.project.id}`;
     // Every remote apply that we accept IS a sync point: afterwards our local
     // copy equals the session state, so only edits made after this moment can
     // count as "offline edits" on a later join.
     localStorage.setItem(`qda-lan-synced-at-${r.project.id}`, String(r.project.updatedAt ?? Date.now()));
     if (prev && prev.id === r.project.id) {
+      // Viewing the shared project: update the screen and persist as normal.
+      lanApplyRemoteRef.current = true;
       setProject(r.project);
       window.qv.saveProject(r.project).catch(() => {});
       localStorage.setItem(seqKey, String(r.seq));
+      lastLanSeqRef.current = Math.max(lastLanSeqRef.current, r.seq);
       if (!r.quiet) showToast(`[${r.coderName}] ${describeLanDiff(prev, r.project)}`);
     } else {
-      setProject(r.project);
-      setProjects(p => [{ id: r.project.id, name: r.project.name, createdAt: r.project.createdAt }, ...p.filter(x => x.id !== r.project.id)]);
+      // Multitasking on a DIFFERENT local project: never yank the user's
+      // screen away. The LAN updates for the shared project are written
+      // silently to disk in the background, and the delta-tracking seq is
+      // advanced so nothing is mistaken for an "offline edit" later.
       window.qv.saveProject(r.project).catch(() => {});
       localStorage.setItem(seqKey, String(r.seq));
-      setTab('workspace');
-      if (!r.quiet) showToast(`Joined ${r.coderName}'s session`);
+      lastLanSeqRef.current = Math.max(lastLanSeqRef.current, r.seq);
     }
   }, [showToast]);
 
@@ -491,6 +516,7 @@ useEffect(() => {
       // Defensive: a client always sees its own role as 'client', even if
       // the host is still running an older build that reports 'host'.
       const next = s && lanJoinedRef.current ? { ...s, role: 'client' as const } : s;
+      lanSessionRef.current = next;
       setLanSession(next);
       if (next && next.role === 'host' && s) {
         const prior = prevCoders.get(s.projectId) ?? [];
@@ -511,6 +537,14 @@ useEffect(() => {
       if (p.phase === 'error' && p.message) showToast(`LAN: ${p.message}`);
     });
     window.qv.lan.onRemoteProject(r => applyLanRemote(r));
+    window.qv.lan.onRejected(r => {
+      // Defensive fallback only: the broadcast guard + the session lock should
+      // already prevent these; a mismatch here signals an old host or a bug,
+      // so it is logged instead of alarming the user.
+      if (r.reason === 'project-mismatch') {
+        console.warn('[LAN] Host refused a dispatch (project-mismatch)');
+      }
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -520,20 +554,28 @@ useEffect(() => {
   // skips, subsequent local edits broadcast normally).
   useEffect(() => {
     if (!project) return;
-    // Only the project that was shared when this session started may be
-    // broadcast; other local projects must never leak into the session.
-    if (lanSession && lanSession.projectId !== project.id) return;
+    // Consume the suppression flag first — it marks "this change came from a
+    // remote apply", regardless of which project is open.
     const suppressed = lanApplyRemoteRef.current;
     lanApplyRemoteRef.current = false;
+    // Only the project that was shared when this session started may ever be
+    // broadcast into the session. Editing a different local project is fully
+    // allowed — it just stays local (silently, no popup).
+    const sessionId = lanSessionRef.current?.projectId;
+    if (sessionId && sessionId !== project.id) return;
     if (suppressed || !lanRoleRef.current) return;
     const t = setTimeout(() => {
-      window.qv.lan.sendAction({ project, coderName: lanMyName }).then((res: { ok: boolean }) => {
+      window.qv.lan.sendAction({ project, coderName: lanMyName }).then((res: { ok: boolean; error?: string }) => {
         // Our own edit reached the host → this moment is now a sync point.
         // Without this, reconnecting after having edited *while connected*
         // would wrongly trigger the offline-conflict prompt.
         if (res.ok) {
           const syncKey = `qda-lan-synced-at-${project.id}`;
           localStorage.setItem(syncKey, String(project.updatedAt ?? Date.now()));
+          return;
+        }
+        if (res.error === 'project-mismatch') {
+          console.warn('[LAN] Host refused a dispatch (project-mismatch)');
         }
       }).catch(() => {});
     }, 200);
@@ -670,6 +712,13 @@ useEffect(() => {
     await window.qv.lan.disconnectSession();
     window.qv.lan.startDiscovery().catch(() => {});
     showToast('Disconnected from LAN session');
+  }
+
+  // Host-only: remove one specific client from this live session. The
+  // main process tells the peer via KICKED and its UI shows why.
+  async function handleLanKickClient(clientId: string) {
+    const res = await window.qv.lan.kickClient(clientId);
+    if (!res.ok) showToast(res.error || 'Could not disconnect that client');
   }
 
   
@@ -1024,6 +1073,9 @@ useEffect(() => {
 
 function openProjectSettings() {
     if (!project) return;
+    // While joined to a LAN session the SHARED project is locked (the host is
+    // the source of truth) — other local projects stay fully manageable.
+    if (isLanSharedProjectLocked) { showToast('The session-shared project can’t be renamed — switch to a different project to manage it'); return; }
     setProjectNameDraft(project.name);
     setProjectCoderDraft(project.coderName || '');
     setDeleteStep(0);
@@ -1057,6 +1109,7 @@ function openProjectSettings() {
 
   async function confirmDeleteProject() {
     if (!project) return;
+    if (isLanSharedProjectLocked) { showToast('The session-shared project can’t be deleted — switch to a different project to manage it'); setDeleteStep(0); setProjectModalOpen(false); return; }
     await window.qv.deleteProject(project.id);
     setProjectModalOpen(false);
     setDeleteStep(0);
@@ -2126,7 +2179,9 @@ function openDocxCommentImport() {
           </p>
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
             <button onClick={() => setDeleteStep(0)} style={{ backgroundColor: '#16a34a', color: 'white', border: 'none', padding: '4px 12px', borderRadius: '4px' }}>No / Keep</button>
-            <button onClick={confirmDeleteProject} style={{ backgroundColor: '#ef4444', color: 'white', border: 'none', padding: '4px 12px', borderRadius: '4px' }}>Yes, delete forever</button>
+            {isLanSharedProjectLocked
+              ? <button disabled title="The session-shared project can't be deleted" style={{ backgroundColor: '#64748b', color: 'white', border: 'none', padding: '4px 12px', borderRadius: '4px', cursor: 'not-allowed' }}>Locked in LAN session</button>
+              : <button onClick={confirmDeleteProject} style={{ backgroundColor: '#ef4444', color: 'white', border: 'none', padding: '4px 12px', borderRadius: '4px' }}>Yes, delete forever</button>}
           </div>
         </div>
       )}
@@ -2249,12 +2304,14 @@ function openDocxCommentImport() {
           
           <select value={project.id} onChange={e => handleSwitchProject(e.target.value)}>
             {projects.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
+              <option key={p.id} value={p.id}>{lanSession && lanSession.projectId === p.id ? `🟢 ${p.name}` : p.name}</option>
             ))}
           </select>
           
           <button className="icon-btn" title="New project" onClick={handleNewProject}>➕</button>
-          <button className="icon-btn" title="Rename project" onClick={openProjectSettings}>✏️</button>
+          {isLanSharedProjectLocked
+            ? <button className="icon-btn" title="The session-shared project can't be renamed" disabled>✏️</button>
+            : <button className="icon-btn" title="Rename project" onClick={openProjectSettings}>✏️</button>}
           <button className="icon-btn" title="Export backup (.json)" onClick={handleExportBackup}>⬇️ Export</button>
           <button className="icon-btn" title="Import backup (.json)" onClick={handleImportBackup}>⬆️ Import</button>
           <button className="icon-btn" title="Merge project(s) into current" onClick={handleMerge}>🔀 Merge</button>
@@ -2266,6 +2323,19 @@ function openDocxCommentImport() {
           >
             🌐 LAN{lanSession ? (lanSession.role === 'host' ? ' ·Hosting' : ' ·Joined') : ''}
           </button>
+          {lanSession && (
+            <span
+              className="lan-status-chip"
+              style={isLanSyncedView
+                ? { backgroundColor: '#dcfce7', color: '#166534', borderColor: '#86efac' }
+                : { backgroundColor: '#f1f5f9', color: '#475569', borderColor: '#cbd5e1' }}
+              title={isLanSyncedView
+                ? 'This session shares the project you have open — edits sync live'
+                : 'You are viewing an unshared project — its edits stay local and are not synced'}
+            >
+              {isLanSyncedView ? '🟢 Synced' : '⚪ Local only (not synced)'}
+            </span>
+          )}
           
           <span className="header-divider" style={{ margin: '0 8px', borderLeft: '1px solid #ccc', height: '20px' }} />
           
@@ -3341,6 +3411,7 @@ function openDocxCommentImport() {
     onStopHost={handleLanStopHost}
     onJoin={handleLanJoin}
     onDisconnect={handleLanDisconnect}
+    onKickClient={handleLanKickClient}
     onClose={() => setLanModalOpen(false)}
   />
 )}

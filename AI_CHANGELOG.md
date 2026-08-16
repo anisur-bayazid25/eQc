@@ -246,3 +246,83 @@ Three resolutions:
 - Image coordinates in the app are **normalized 0–1**; REFI-QDA uses pixels, so the converter (export and import) must know the real image dimensions (decode via `new Image()`).
 - Offsets for text selections are defined against the document's raw content; keep `Sources/*.txt` identical to `doc.content` or offsets drift.
 - `tsc` gate: `npx tsc -p tsconfig.json --noEmit` (run from `E:\Python tests\eQc`). There is no linter configured.
+
+## Project-mixing bug: one LAN session is locked to exactly one project
+
+**Bug:** while a host or client was in a LAN session, opening a *different* local project (workspace tab) allowed edits to that other project to be broadcast as the session project, and the client could end up applying/saving another project's snapshot over the session project (or replacing the renderer's screen with the wrong project).
+
+**Root cause:** the host forwarded/overwrote whatever `project` arrived in an `ACTION_DISPATCH` to `state.host.currentProject` and re-broadcast it to all peers without verifying it was the project the session was created for; the client buffered/applied every received `ACTION_DISPATCH` without an id check; and the renderer broadcast the currently open `project` on every change while a session was active, without checking the session's project id.
+
+**Design decision: the session carries a locked project id from the very first `AUTH_SUCCESS`, and every path — host accept, client receive/buffer/replay, client send, and the renderer's broadcast/apply — is gated on that id.** Defense in depth: each layer filters independently, and refusals are surfaced to the single offender via a new `REJECTED` push (client <→ host) instead of failing silently.
+
+### `electron/lan.cjs`
+- `startHost()`: new `state.host.sessionProjectId = currentProject.id` snapshot taken at session start. `broadcastPresence()` for the host renderer now emits `sessionProjectId` too, so the host UI knows the lock.
+- `handleClientConnection` / `AUTH_SUCCESS`: responses now include `sessionProjectId` (plus the existing `projectId`) so the client gets the lock at handshake time, before any sync/dispatch.
+- `acceptDispatch()` (host, routed by `applyPublish` for the host and `setupHost` message handler for clients — both now call the SAME `acceptDispatch` so client+host edits funnel through one reject gate):
+  - New hard lock: `if (sessionProjectId && project.id !== sessionProjectId)` → send `REJECTED { reason: 'project-mismatch' }` to the offending sender and return `{ok:false, error:'project-mismatch'}`. It is NOT stored, NOT re-broadcast, NOT applied, NOT sequenced.
+  - When accepted, behaviour is unchanged from before: `state.host.currentProject` is replaced and the dispatch is re-broadcast; disk writes happen in the renderer (`lan:remoteProject` → `applyLanRemote` → `saveProject`). The lock only *rejects*, it never re-routes.
+- Client side:
+  - `client.sessionProjectId` set on `AUTH_SUCCESS`. `.buffered` replay filter re-checks id in `finishJoin()` as defense-in-depth.
+  - `ACTION_DISPATCH` receive: drop + never buffer if `msg.project.id !== sessionProjectId`.
+  - `sendDispatch` (host) stays as-is: the host's own dispatch is by definition the session project.
+  - New `REJECTED` handler pushes `lan:rejected { reason }` to the renderer.
+- `applyPublish` (the invoke for a client's own optimistic publish): rejects with `'project-mismatch'` if `project.id !== client.sessionProjectId`. The host path still routes through `acceptDispatch` (and shows the renderer notification via `notifyHostRenderer`).
+
+### `electron/preload.cjs` + `src/global.d.ts`
+- `LanBridge.onRejected(cb)` added (same three-place convention). New `LanRejectedNotice { reason }` type. `LanSessionState.projectId` carries the locked id to the renderer (the wire `sessionProjectId` is handed to clients at `AUTH_SUCCESS`, both are equal).
+
+### `src/App.tsx`
+- New `lanNotice` state + `lanSessionRef` (ref mirror of `lanSession`, readable synchronously in the [dependencies-less] broadcast effect and `applyLanRemote`).
+- `LanBridge.onSessionState` handler syncs `lanSessionRef` and clears the notice when the session ends.
+- Broadcast effect: computes `sessionId = lanSessionRef.current?.projectId`; if the open `project.id` differs → sets a top-bar notice ("viewing a different project than your LAN session") and does NOT broadcast; clears the notice when the user switches back. The `sendAction` rejection of `'project-mismatch'` also sets the notice.
+- `applyLanRemote`: before applying, ignores any snapshot whose `project.id !== sessionId` (sets the notice) — a stray snapshot can never replace the user's screen.
+- `onRejected` subscriber: maps `reason:'project-mismatch'` to the same explanatory notice.
+- Notice banner JSX rendered near the top of the app shell (dismissible).
+- Host-only project-management while joined (`isLanClient = lanSessionRef.current?.role === 'client'`): `openProjectSettings` rename toasts+returns, `confirmDeleteProject` cancels the modal, header ✏️ rename button is disabled, and the modal's delete-confirm button is replaced by a disabled label.
+
+## Host can disconnect a client from the session
+
+**Goal:** while hosting, the host can remove one specific connected client (not just stop the whole session).
+
+**Design:** every authenticated client connection gets a unique `clientId`; presence (`LanCoder.clientId`) carries it to the host renderer, which renders a small ✕ remove button next to each client chip. Kicking sends a `KICKED` message so the peer's UI can say *why* ("You were disconnected by the host") and then closes the socket with code 1000; the ordinary host-side `close` handler removes the peer and re-broadcasts presence.
+
+### `electron/lan.cjs`
+- `state.host.clientSeq` counter; on `AUTH_REQUEST` each client is stored as `{ coderName, activeDocId, clientId: "c<n>" }` (id not coderName — duplicate names are legal).
+- `broadcastPresence()` includes `clientId` per client.
+- New `kickClient(clientId)`: only when hosting; finds the peer by `clientId`, `sendMsg(KICKED, reason)`, then `ws.close(1000)`. `{ok:false,error}` if not found / not hosting.
+- Client `ws.on('message')` new `KICKED` branch → `formalDisconnect(reason)` (clears session UI, toasts `LAN: You were disconnected by the host`) + `ws.close()`; the running `close` handler is inert because `state.client` is already nulled.
+- IPC: `ipcMain.handle('lan:kickClient', …)`.
+
+### `electron/preload.cjs` + `src/global.d.ts`
+- `LanBridge.kickClient(clientId)` invoke (three-place convention). `LanCoder.clientId?: string`.
+
+### `src/App.tsx` + `src/components/LanModal.tsx`
+- `handleLanKickClient(clientId)` → `window.qv.lan.kickClient`, toasts on failure.
+- Host view: each client chip gains a ✕ button (host's own chip has none) wired to `onKickClient`.
+
+## 2026-08-16 — Unrestricted local editing during LAN sessions (calm UI + background sync)
+
+**Goal (UX change):** LAN sessions are still locked to ONE project id (`sessionProjectId`), but that lock must never *force* anyone to stay on the shared project. Host and clients can now freely open/view/edit ANY local project while the session runs in the background; the previous alarm-style "project mismatch" warning banner is gone.
+
+**Design:** the screen and the sync pipeline are decoupled. Only three threads care about the session lock, and all three were already correct (see "DO NOT TOUCH"): `lan.cjs` reject-on-mismatch in `acceptDispatch`, the client's pre-send check in `applyPublish`, and the renderer's broadcast guard. This change only re-routes what happen to a *received* snapshot and how the status is shown.
+
+### `src/App.tsx` — status indicators (calm, persistent)
+- **Project dropdown:** the `<option>` of the session's locked project is prefixed `🟢 ${p.name}` (emoji inside a native `<select>` is the robust cross-OS way), driven by `lanSession.projectId`. Visible even while a different project is open.
+- **Header status chip** (`lan-status-chip`, new CSS in `styles.css`): a small non-clickable span next to the 🌐 LAN button. `isLanSyncedView` (open project === session project) → green `🟢 Synced`; LAN active but a different project open → neutral `⚪ Local only (not synced)`; no session → nothing rendered.
+- **Banner removed:** the old dismissible `lanNotice` top-banner is deleted; all `setLanNotice(...)` call sites removed. A `REJECTED` `project-mismatch` (from `onRejected`) and a `sendAction` `project-mismatch` failure are now only `console.warn`ed — defensive fallbacks, never UI popups.
+
+### `src/App.tsx` — background syncing in `applyLanRemote`
+- Kept: `lanConflictRef` guard and the session-id lock (`r.project.id !== sessionId` → `console.warn` + drop, defense-in-depth).
+- **Viewing the shared project** (`prev.id === r.project.id`): unchanged — set suppression flag, `setProject(r.project)`, `saveProject`, set seq + sync point, toast the diff.
+- **Viewing ANY other local project:** `setProject` is NOT called (the user's screen is never yanked away). Only `window.qv.saveProject(r.project)` (silent disk write of the shared project's updated row) and `localStorage.setItem(seqKey, seq)` (keeps offline-edit delta tracking accurate) run. No tab change, no toast, no `setProjects` churn.
+- The old `else` branch that used to force `setProject` + `setTab('workspace')` + `setProjects` on a cross-project snapshot is gone — that behaviour is now the background-sync branch.
+
+### `src/App.tsx` — unrestricted switching + precise lock
+- `handleSwitchProject`, `handleNewProject`, project loading: confirmed already unrestricted (no LAN gating) — left untouched.
+- Lock narrowed from "any client session" to **only the session-shared project**: new `isLanSharedProjectLocked` (LAN client AND open project === session project) replaces the old `isLanClient` in all four places (`openProjectSettings`, `confirmDeleteProject`, header ✏️ button, delete-confirm button). A LAN client can now freely rename/delete their *other* local projects.
+
+### NOT changed (security)
+- `sessionProjectId` locking in `startHost`/`AUTH_SUCCESS`/client `sessionProjectId` store — untouched.
+- `acceptDispatch` reject-on-mismatch + `REJECTED` push in `electron/lan.cjs` — untouched.
+- Client `applyPublish` pre-send id check that refuses to broadcast a non-session project — untouched.
+- Renderer broadcast guard (session project only) — the silent `return` remains; only the warning popup was removed.

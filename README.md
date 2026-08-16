@@ -1,8 +1,19 @@
 # eQc — Easy Qual Coding
 
-## Complete User Guide & Documentation (v1.5.3)
+## Complete User Guide & Documentation (v1.5.4)
 
 eQc is a lightweight, **local-first** qualitative data analysis (QDA) desktop application built with Electron, React, and SQLite. All project data — documents, codes, memos, matrices — is stored **locally on your device**. Nothing leaves your computer (except, optionally, the project backups you choose to export or share).
+
+---
+
+## What's New in v1.5.4
+
+- **🧭 Multitask freely during LAN sessions** — you can now open, view, and edit **any** local project while a live session runs in the background. Only the session-shared project syncs over the network; everything else stays local and private.
+- **🟢 / ⚪ Quiet status chip** — the old alarm-style “project mismatch” banner is gone. A small chip next to the 🌐 LAN button now just tells you what's happening: **🟢 Synced** when you're on the shared project, or **⚪ Local only (not synced)** when you're on another one. The shared project also gets a 🟢 dot in the project dropdown so it's always easy to find.
+- **📦 Background syncing** — while you work on another project, incoming edits from teammates are saved silently to the database **without switching your screen**, and are never mistaken for “offline edits” later.
+- **🚪 Kick a member (host)** — each connected coder's chip in the LAN panel now has an ✕ button so you can disconnect that specific person; they see a clear “You were disconnected by the host” message.
+- **🛠️ Manage your other projects freely** — LAN clients can rename/delete their own non-shared projects during a session; only the session-shared project stays locked.
+- **🔒 Hard project-lock fix** — sessions are now locked to exactly one project id at every layer, fixing a bug where switching to a different local project mid-session could leak its edits into the session or mix up saved data.
 
 ---
 

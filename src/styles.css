@@ -643,3 +643,19 @@ input, select, textarea {
 .subtab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
 .subtab-btn:hover { background: rgba(255,255,255,0.05); }
 
+/* LAN session status chip next to the LAN button in the header. Small and
+   persistent; colors are set inline (green when the open project syncs,
+   neutral when the user is viewing an unshared local project). */
+.lan-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  user-select: none;
+}
+

@@ -4,6 +4,16 @@ All notable changes to **eQc - Easy Qual Coding** are documented in this file.
 
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 1.5.5 - 2026-08-16
+
+### Added
+- **🗑️ Bulk delete by coder (Project Settings)** — a new **“Manage Coders (Cleanup)”** section lists every coder that has coded items in the project (sorted; **Unattributed** is excluded on purpose), with their `n seg · n reg` counts and a small 🗑️ button. Clicking it asks you to **type the exact coder name** before anything is removed, so a typo-cloned name (e.g. `bayazid-dev` vs `bayazid_dev`) can be safely wiped. The deletion filters both `codedSegments` and `codedRegions`, stamps the project's `updatedAt` (so LAN offline-edit tracking sees it), persists it, and toasts the removed count.
+- **🔘 Compact Undo / Redo / Save buttons** — these header buttons now show only their icon, sized exactly to the icon (26×26 px), with the label moved into the tooltip.
+
+### Changed
+- **🌗 Codebook sorting dropdown now theme-aware** — the “Sort by” select in the Codebook centre panel used an undefined CSS variable (`--bg-panel`), which made it near-invisible in dark mode. The variable is now defined for **both** light and dark themes, so sorts are readable everywhere.
+- **Project Settings modal scrolls** — added `max-height` + scrolling so the new Cleanup section and the Save/Delete buttons stay reachable on shorter windows.
+
 ## 1.5.4 - 2026-08-16
 
 ### Added

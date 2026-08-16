@@ -326,3 +326,20 @@ Three resolutions:
 - `acceptDispatch` reject-on-mismatch + `REJECTED` push in `electron/lan.cjs` — untouched.
 - Client `applyPublish` pre-send id check that refuses to broadcast a non-session project — untouched.
 - Renderer broadcast guard (session project only) — the silent `return` remains; only the warning popup was removed.
+
+## 1.5.5 — Bulk delete by coder, theme fix, compact header buttons
+
+Three small but distinct changes; all renderer-only (`src/App.tsx` + `src/styles.css`).
+
+### `src/App.tsx` — bulk delete by coder
+- **`activeCoders` memo** (next to `unattributedCount`): unique `coder` stamps across `project.codedSegments` + `project.codedRegions`, filtered to drop `UNATTRIBUTED_CODER` (unattributed legacy data is deliberately not bulk-deletable), sorted `localeCompare`.
+- **`handleDeleteCoderData(targetCoder)`** double confirmation: `customPrompt` (`Type the exact name "…" to permanently delete all their coded segments and regions.`) → `null` (cancel) or trimmed-mismatch ("Name did not match, cancelled") aborts. On exact match it counts `segCount`/`regCount`, builds `next` filtering `coder !== targetCoder` from both arrays, and calls **`persist(next)`** — which stamps `updatedAt: Date.now()` (LAN offline-edit tracking) and saves via `saveToDisk`. Toast: `Removed X segment(s) and Y region(s) for coder: Z`.
+- **Project Settings modal UI**: "Manage Coders (Cleanup)" section under the Coder Name field + Claim Unattributed button; each row is name / `n seg · n reg` / small 🗑️ button. Uses `persist` (not raw `setProject`+`saveProject`) deliberately: one canonical write path, undo-history push, and the updatedAt stamping are all preserved. Deletion syncs to LAN via the existing broadcast effect (it is a normal content edit).
+- **Modal scrollability**: the Project Settings `modal` div gained `maxHeight: 85vh; overflowY: auto; minWidth: 320px` — with the new section, un-scrollable tall content fell off short windows (made the Cleanup section unreachable).
+
+### `src/styles.css` — dark-mode theme fix
+- **Bug**: the Codebook "Sort by" select (and two other controls) used inline `backgroundColor: 'var(--bg-panel)'`, but `--bg-panel` was **never defined** (defined vars are `--bg`, `--panel`, `--panel-alt`, …). An undefined custom property without a fallback makes the declaration invalid-at-computed-value → background became transparent → near-invisible controls in dark mode.
+- **Fix**: defined `--bg-panel` as an alias of `--panel-alt` in BOTH `:root,[data-theme="light"]` and `[data-theme="dark"]` blocks, so all existing inline `var(--bg-panel)` usages (sort select @ App.tsx ~3287, two other controls ~3074/3084) resolve correctly in both themes without touching the JSX.
+
+### `src/App.tsx` + `src/styles.css` — compact Undo/Redo/Save
+- Header buttons `↶ Undo`, `↷ Redo`, `💾 Save` → icons only (`↶`, `↷`, `💾`) with a new `.icon-btn-sm` class: `26×26px`, `padding: 0`, inline-flex centered, `font-size: 14px`. Tooltips (`title`) retain the affordance. `saveStatus` indicator span next to Save is unchanged.

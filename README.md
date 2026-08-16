@@ -1,8 +1,17 @@
 # eQc — Easy Qual Coding
 
-## Complete User Guide & Documentation (v1.5.4)
+## Complete User Guide & Documentation (v1.5.5)
 
 eQc is a lightweight, **local-first** qualitative data analysis (QDA) desktop application built with Electron, React, and SQLite. All project data — documents, codes, memos, matrices — is stored **locally on your device**. Nothing leaves your computer (except, optionally, the project backups you choose to export or share).
+
+---
+
+## What's New in v1.5.5
+
+- **🧹 Clean up duplicate coder names** — Project Settings now has a **“Manage Coders (Cleanup)”** section listing every coder that has coded items, with their segment/region counts and a 🗑️ button. Deleting asks you to **type the exact coder name**, so a typos (like `bayazid-dev` instead of `bayazid_dev`) that duplicated your work can be safely erased in one shot — nothing is ever removed by accident. (Untagged **Unattributed** items are shielded and can't be bulk-deleted this way.)
+- **🔘 Tidy header buttons** — Undo, Redo, and Save are now compact icon-only buttons (label in the tooltip).
+- **🌗 Dark-mode fix** — the Codebook “Sort by” dropdown (and a couple of other controls) were nearly invisible in dark mode; they now follow the light/dark theme correctly.
+- **📏 Cleaner settings modal** — Project Settings scrolls on shorter screens so all controls stay reachable.
 
 ---
 

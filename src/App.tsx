@@ -1107,6 +1107,40 @@ function openProjectSettings() {
     showToast(`Assigned ${unattributedCount} Unattributed item(s) to ${name}`);
   }
 
+  // Double-confirmation bulk cleanup: the user must retype the exact coder
+  // name before every one of that coder's segments and regions is removed.
+  // Guards against wiping data recorded under a typo-cloned name (e.g.
+  // bayazid-dev vs bayazid_dev).
+  async function handleDeleteCoderData(targetCoder: string) {
+    if (!project) return;
+    const input = await customPrompt(
+      `Type the exact name "${targetCoder}" to permanently delete all their coded segments and regions.`,
+      '',
+      'Delete'
+    );
+    if (input == null) return; // cancelled
+    if (input.trim() !== targetCoder) {
+      showToast('Name did not match, cancelled');
+      return;
+    }
+    const segCount = (project.codedSegments ?? []).filter(s => s.coder === targetCoder).length;
+    const regCount = (project.codedRegions ?? []).filter(r => r.coder === targetCoder).length;
+    if (segCount === 0 && regCount === 0) {
+      showToast(`No items found for coder: ${targetCoder}`);
+      return;
+    }
+    const next: Project = {
+      ...project,
+      codedSegments: (project.codedSegments ?? []).filter(s => s.coder !== targetCoder),
+      codedRegions: (project.codedRegions ?? []).filter(r => r.coder !== targetCoder)
+    };
+    // persist stamps updatedAt: Date.now() (so LAN offline-edit tracking
+    // recognizes this deletion as a real local change) and writes the
+    // filtered state to disk.
+    persist(next);
+    showToast(`Removed ${segCount} segment(s) and ${regCount} region(s) for coder: ${targetCoder}`);
+  }
+
   async function confirmDeleteProject() {
     if (!project) return;
     if (isLanSharedProjectLocked) { showToast('The session-shared project can’t be deleted — switch to a different project to manage it'); setDeleteStep(0); setProjectModalOpen(false); return; }
@@ -2010,6 +2044,16 @@ function openDocxCommentImport() {
     [project?.codedSegments, project?.codedRegions]
   );
 
+  // Unique coder names that currently have coded items in this project,
+  // sorted alphabetically. UNATTRIBUTED_CODER is deliberately excluded:
+  // untagged legacy data must never be bulk-deletable via a name match.
+  const activeCoders = useMemo(() => {
+    const names = new Set<string>();
+    for (const s of project?.codedSegments ?? []) { if (s.coder && s.coder !== UNATTRIBUTED_CODER) names.add(s.coder); }
+    for (const r of project?.codedRegions ?? []) { if (r.coder && r.coder !== UNATTRIBUTED_CODER) names.add(r.coder); }
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [project?.codedSegments, project?.codedRegions]);
+
   // The name stamped onto newly created coded segments/regions: the LAN
   // session identity when collaborating live, otherwise the project's own
   // coder identity (if set). Unknown attribution stays unset.
@@ -2126,7 +2170,7 @@ function openDocxCommentImport() {
 {projectModalOpen && (
   <>
     <div style={{ position: 'fixed', inset: 0, zIndex: 99, backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setProjectModalOpen(false)} />
-    <div className="modal" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 100, backgroundColor: theme === 'dark' ? '#1e293b' : '#ffffff', color: theme === 'dark' ? '#f8fafc' : '#0f172a', padding: '24px', borderRadius: '8px', minWidth: '300px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
+    <div className="modal" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 100, backgroundColor: theme === 'dark' ? '#1e293b' : '#ffffff', color: theme === 'dark' ? '#f8fafc' : '#0f172a', padding: '24px', borderRadius: '8px', minWidth: '320px', maxWidth: '92vw', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
       <h3 style={{ marginTop: 0 }}>Project Settings</h3>
       {deleteStep === 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -2157,6 +2201,35 @@ function openDocxCommentImport() {
                   >
                     Assign {unattributedCount} Unattributed item(s) to this coder
                   </button>
+                )}
+                {activeCoders.length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '6px' }}>
+                      Manage Coders (Cleanup)
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {activeCoders.map(c => {
+                        const sCount = (project?.codedSegments ?? []).filter(s => s.coder === c).length;
+                        const rCount = (project?.codedRegions ?? []).filter(r => r.coder === c).length;
+                        return (
+                          <div key={c} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ flex: 1, fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c}</span>
+                            <span style={{ fontSize: '11px', color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>{sCount} seg · {rCount} reg</span>
+                            <button
+                              onClick={() => handleDeleteCoderData(c)}
+                              title={`Delete all of ${c}'s coded segments and regions (requires typing the exact name)`}
+                              style={{ color: '#ef4444', border: '1px solid #fecaca', background: 'rgba(239,68,68,0.06)', cursor: 'pointer', padding: '1px 5px', fontSize: '11px', borderRadius: '4px', lineHeight: '1.4' }}
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '6px' }}>
+                      Deleting requires typing the exact coder name — safe against typos.
+                    </div>
+                  </div>
                 )}
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -2339,8 +2412,8 @@ function openDocxCommentImport() {
           
           <span className="header-divider" style={{ margin: '0 8px', borderLeft: '1px solid #ccc', height: '20px' }} />
           
-          <button className="icon-btn" title="Undo (Ctrl+Z)" disabled={past.length === 0} onClick={undo}>↶ Undo</button>
-          <button className="icon-btn" title="Redo (Ctrl+Shift+Z)" disabled={future.length === 0} onClick={redo}>↷ Redo</button>
+          <button className="icon-btn-sm" title="Undo (Ctrl+Z)" disabled={past.length === 0} onClick={undo}>↶</button>
+          <button className="icon-btn-sm" title="Redo (Ctrl+Shift+Z)" disabled={future.length === 0} onClick={redo}>↷</button>
           <span className="header-divider" style={{ margin: '0 8px', borderLeft: '1px solid #ccc', height: '20px' }} />
           <select
             title="Reading font"
@@ -2365,7 +2438,7 @@ function openDocxCommentImport() {
           
           <span className="header-divider" style={{ margin: '0 8px', borderLeft: '1px solid #ccc', height: '20px' }} />
           
-          <button className="icon-btn" title="Save now" onClick={manualSave}>💾 Save</button>
+          <button className="icon-btn-sm" title="Save now" onClick={manualSave}>💾</button>
           <span className={`save-status save-status-${saveStatus}`} style={{ marginLeft: '8px', fontSize: '0.9em', color: '#666' }}>
             {saveStatus === 'saving' && 'Saving…'}
             {saveStatus === 'saved' && '✓ Saved'}

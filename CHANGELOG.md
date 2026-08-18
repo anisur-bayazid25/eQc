@@ -4,6 +4,25 @@ All notable changes to **eQc - Easy Qual Coding** are documented in this file.
 
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 1.5.8 - 2026-08-18
+
+### Changed
+- **Cleaner document reader** — the left-margin coding stripe (code-name labels and vertical colour bars beside the text) is removed from the Workspace document editor. Coded passages still highlight in the text, the right-edge **Document Portrait** minimap is unchanged, and clicking a passage still opens the code menu.
+
+## 1.5.7 - 2026-08-18
+
+### Added
+- **Complete HTML report** — the Analysis tab's **⬇️ HTML Report** now includes **every** analysis: the Framework Matrix, plus the **Word Frequencies** list and the **KWIC** (keyword-in-context) results you last generated/searched — with the searched keyword and context window noted in the report.
+- **Code Map annotations** — draw free-standing shapes and notes (**rectangle, circle, arrow, text**) on the map canvas, and style edge **width**.
+- **Code Map hidden codes** — ✕ removes a code from the canvas; **➕ Add codes** brings it back.
+
+### Changed
+- **KWIC search** — the keyword input and the actively searched keyword are now distinct states: typing never triggers a search, and a summary line reports **how many matches** were found for the searched term.
+
+### Fixed
+- **Move-Code dropdown mojibake** — the tree arrows in the move-code dropdown and a curly-quote in the empty-tree message no longer render as `â†³`/`â€œ` garbage (escaped Unicode/ASCII used instead).
+- **“➕ Add codes” notice** — when every code is already on the canvas, the hint auto-dismisses after a couple of seconds instead of staying on screen.
+
 ## 1.5.6 - 2026-08-16
 
 ### Added

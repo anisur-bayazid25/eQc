@@ -1,8 +1,24 @@
 # eQc — Easy Qual Coding
 
-## Complete User Guide & Documentation (v1.5.2)
+## Complete User Guide & Documentation (v1.5.8)
 
 eQc is a lightweight, **local-first** qualitative data analysis (QDA) desktop application built with Electron, React, and SQLite. All project data — documents, codes, memos, matrices — is stored **locally on your device**. Nothing leaves your computer (except, optionally, the project backups you choose to export or share).
+
+---
+
+## What's New in v1.5.8
+
+- **🧹 Cleaner document reader** — the left-margin coding stripe (code-name labels and vertical colour bars beside the text) is gone from the Workspace document editor. Coded passages still highlight in the text, the right-edge **Document Portrait** minimap is unchanged, and clicking a passage still opens the code menu.
+
+---
+
+## What's New in v1.5.7
+
+- **📊 Complete HTML report** — the Analysis tab's **⬇️ HTML Report** now includes **every** analysis: the Framework Matrix, plus the **Word Frequencies** list and the **KWIC** (keyword-in-context) results you last generated/searched — with the searched keyword and context window noted in the report.
+- **✏️ Code Map annotations** — draw free-standing shapes and notes (**rectangle, circle, arrow, text**) on the map canvas, and style edge **width**.
+- **🙈 Code Map hidden codes** — **✕** removes a code from the canvas; **➕ Add codes** brings it back.
+- **🔎 KWIC search fix** — the keyword you type and the keyword that actually gets searched are now separate: typing alone never re-runs a search, and the results table shows **how many matches** were found for your term.
+- **⏱️ “Add codes” hint** — when every code is already on the canvas, the notice auto-dismisses after a couple of seconds instead of lingering.
 
 ---
 
@@ -225,7 +241,15 @@ A **case (document) × theme (top-level code)** grid where each cell is a short,
 
 ### 6.5 HTML Report
 
-**⬇️ HTML Report** generates a single, self-contained file covering all of the above — coding frequency, code × document matrix, code co-occurrence matrix, relationship notes, and code memos — for sharing or archiving outside the app.
+**⬇️ HTML Report** generates a single, self-contained file covering **all** of the dashboard — coding frequency, code × document matrix, code co-occurrence matrix, relationship notes, the framework matrix, your latest **word frequency** list, and your latest **KWIC** results (with the searched keyword and context window noted) — for sharing or archiving outside the app.
+
+### 6.6 Word Frequencies
+
+Lists the most frequent words across all documents. Edit the comma-separated **stop words** (a sensible default is pre-filled, including common Bangla words) then click **Generate List** to see the top 100 words by count. The list is what the HTML report includes — generate it *before* exporting the report.
+
+### 6.7 KWIC (Keyword in Context)
+
+Type a **keyword**, set a **context window** (1–20 words on either side), and press Enter (or click **Search**) to find every occurrence. The table shows the surrounding words left and right so you can judge each use in context; a summary line reports **how many matches** were found for your term. The last-run search is included in the HTML report.
 
 ---
 

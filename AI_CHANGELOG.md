@@ -455,3 +455,15 @@ Work-in-progress session vs. the milestone "overview + drill-down code map"; thr
 - `src/components/CodeMap.tsx` — the `➕ Add codes` button's `onClick` now checks `hiddenMapCodeIds.length` first: if `0`, it closes the panel and fires `onShowToast('All codes are on the canvas.', 2500)` instead of opening the persistent dropdown. Only when there are actually hidden codes does it toggle the panel.
 - `src/App.tsx` — `showToast(msg, durationMs?)` now accepts an optional duration (defaults to the previous 3500ms), so callers can request a shorter auto-dismiss. `CodeMap`'s `onShowToast` prop type updated to `(msg, durationMs?) => void`.
 
+## 2026-08-18 — Remove left-margin coding stripes (gutter) from the document editor
+
+**Decision:** the Workspace document editor's left-margin strip (code-name labels + vertical 3px color bars per line) was visual clutter. Removed completely; text still highlights, right-side `DocumentPortrait` unchanged, click-to-menu still works.
+
+### `src/components/DocEditor.tsx`
+- Deleted `GUTTER_W` constant, the `lineInfo` memo (line boundaries + per-line marker set), the `gutterOn` flag, the `lineH` state, and the `useLayoutEffect` that measured line height.
+- Removed the absolutely-positioned gutter `<div>` (left:0, width 168px, border-right) and its per-line marker rendering.
+- Removed `position: relative` and `paddingLeft: gutterOn ? GUTTER_W : undefined` from the container style, so the text reclaims the full width — no empty left margin.
+- Import cleanup: dropped now-unused `useState` and `useLayoutEffect`.
+- **Untouched:** `buildChunks` / `<mark>`-style `<span className="coded-segment">` wrapping (background tint, `coded-segment`/`multi-coded`/`search-match-highlight` classes), segment `onClick` popup menu, drag/drop, selection tracking, scroll-to-segment / search-match jump effects.
+- **Untouched (right side):** `DocumentPortrait` and its flex wrapper.
+

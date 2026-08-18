@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useEffect, useLayoutEffect, useState } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import { CodedSegment, Code, ID, SourceDoc } from '../domain';
 import { getSelectionOffsets, SelectionOffsets } from '../lib/textOffsets';
 
@@ -22,10 +22,6 @@ interface Chunk {
   segIds: string[];
   isSearchMatch?: boolean;
 }
-
-// Persistent gutter column width: room for one clipped code-name label per
-// line, sitting next to the 3px marker bar.
-const GUTTER_W = 168;
 
 // Builds non-overlapping render chunks from (possibly overlapping) coded
 // segments so the plain content string can be rendered with highlighted
@@ -68,52 +64,6 @@ export default function DocEditor({
   const containerRef = useRef<HTMLDivElement>(null);
   const chunks = useMemo(() => buildChunks(doc.content, segments, highlightRange), [doc.content, segments, highlightRange]);
   const segById = useMemo(() => new Map(segments.map(s => [s.id, s])), [segments]);
-
-  // Line structure of the plain content: each code line's char offset, plus
-  // the marker set for that line (one marker per code present on the line,
-  // deduped). Drives the persistent gutter — a rendered static strip next
-  // to the text, implemented like the search-match highlight: purely
-  // derived, scrolls with the content, no interaction state.
-  const lineInfo = useMemo(() => {
-    const starts = [0];
-    let idx = doc.content.indexOf('\n');
-    while (idx !== -1) {
-      starts.push(idx + 1);
-      idx = doc.content.indexOf('\n', idx + 1);
-    }
-    const lineOf = (offset: number) => {
-      let lo = 0;
-      let hi = starts.length - 1;
-      while (lo < hi) {
-        const mid = (lo + hi + 1) >> 1;
-        if (starts[mid] <= offset) lo = mid;
-        else hi = mid - 1;
-      }
-      return lo;
-    };
-    const perLine = new Map<number, { codeId: ID; name: string; color: string }[]>();
-    for (const s of segments) {
-      if (doc.content.length === 0) break;
-      const line = lineOf(Math.min(s.start, doc.content.length - 1));
-      const code = codesById.get(s.codeId);
-      const marks = perLine.get(line) || [];
-      if (!marks.some(m => m.codeId === s.codeId)) {
-        marks.push({ codeId: s.codeId, name: code?.name || '?', color: code?.color || '#94a3b8' });
-        perLine.set(line, marks);
-      }
-    }
-    return { starts, perLine };
-  }, [doc.content, segments, codesById]);
-
-  const gutterOn = segments.length > 0;
-  const [lineH, setLineH] = useState(0);
-  // Average visual line height: measured from the rendered block so wrapped
-  // lines and font changes stay aligned. Runs before paint — no flicker.
-  useLayoutEffect(() => {
-    const el = containerRef.current;
-    if (!el || !gutterOn) return;
-    setLineH(el.scrollHeight / lineInfo.starts.length);
-  }, [gutterOn, lineInfo, fontSize, fontFamily]);
 
   // Track the selection via `selectionchange` rather than mouseup inside the
   // container: a drag that ends over the code search box still counted —
@@ -189,61 +139,10 @@ export default function DocEditor({
       onDragOver={handleDragOver}
       onDrop={handleDrop}
       style={{
-        position: 'relative',
-        paddingLeft: gutterOn ? GUTTER_W : undefined,
         fontSize: fontSize ? `${fontSize}px` : undefined,
         fontFamily: fontFamily || undefined
       }}
     >
-      {gutterOn && (
-        <div
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: GUTTER_W,
-            overflow: 'hidden',
-            borderRight: '1px solid #e2e8f0',
-            pointerEvents: 'none'
-          }}
-        >
-          {Array.from(lineInfo.perLine.entries()).map(([line, marks]) => (
-            <div
-              key={line}
-              style={{
-                position: 'absolute',
-                left: 0,
-                right: 0,
-                top: line * (lineH || (fontSize || 14) * 1.7),
-                height: lineH || (fontSize || 14) * 1.7,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '0 8px 0 0',
-                boxSizing: 'border-box'
-              }}
-            >
-              <span
-                style={{ width: 3, flexShrink: 0, alignSelf: 'stretch', backgroundColor: marks[0].color, borderRadius: 2 }}
-              />
-              <span
-                style={{
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: '#1e293b',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  minWidth: 0
-                }}
-              >
-                {marks.map(m => m.name).join(' · ')}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
       {chunks.map((chunk, i) => {
         if (chunk.segIds.length === 0) {
           return (

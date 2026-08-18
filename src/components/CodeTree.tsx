@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Code, childCodes, descendantCodeIds, ID } from '../domain';
 
 interface Props {
@@ -15,6 +15,7 @@ interface Props {
     newSortIndex: number,
     siblingUpdates: Array<{ id: ID; sortIndex: number }>
   ) => void;
+  onCopyChildCodings?: (codeId: ID) => void;
 }
 
 function CodeNode({
@@ -27,7 +28,8 @@ function CodeNode({
   onDeleteCode,
   applyHint,
   onMoveCode,
-  onReorderCode
+  onReorderCode,
+  onCopyChildCodings
 }: {
   code: Code;
   codes: Code[];
@@ -44,6 +46,7 @@ function CodeNode({
     newSortIndex: number,
     siblingUpdates: Array<{ id: ID; sortIndex: number }>
   ) => void;
+  onCopyChildCodings?: (codeId: ID) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
   const children = childCodes(codes, code.id);
@@ -146,6 +149,15 @@ function CodeNode({
             >
               +
             </button>
+            {onCopyChildCodings && children.length > 0 && (
+              <button
+                className="mini-btn"
+                title="Copy subcodes' coded segments and regions into this code"
+                onClick={e => { e.stopPropagation(); onCopyChildCodings(code.id); }}
+              >
+                ⚡
+              </button>
+            )}
             {onDeleteCode && (
               <button
                 className="mini-btn"
@@ -185,13 +197,13 @@ function CodeNode({
                   }
                 }}
               >
-                <option value="" disabled>↱</option>
+                <option value="" disabled>{'\u21B3 '}</option>
                 <option value="root" style={{ background: '#ffffff', color: '#000000' }}>
                   [Root Level]
                 </option>
                 {eligibleParents.map(p => (
                   <option key={p.id} value={p.id} style={{ background: '#ffffff', color: '#000000' }}>
-                    ↳ {p.name}
+                    {'\u21B3 '}{p.name}
                   </option>
                 ))}
               </select>
@@ -214,6 +226,7 @@ function CodeNode({
             applyHint={applyHint}
             onMoveCode={onMoveCode}
             onReorderCode={onReorderCode}
+            onCopyChildCodings={onCopyChildCodings}
           />
         ))}
     </div>
@@ -228,7 +241,8 @@ export default function CodeTree({
   onDeleteCode,
   applyHint,
   onMoveCode,
-  onReorderCode
+  onReorderCode,
+  onCopyChildCodings
 }: Props) {
   const roots = childCodes(codes, null);
 
@@ -245,7 +259,7 @@ export default function CodeTree({
   }
 
   if (roots.length === 0) {
-    return <div className="empty-hint">No codes yet. Use “+ Root Code” to start your codebook.</div>;
+    return <div className="empty-hint">No codes yet. Use "+ Root Code" to start your codebook.</div>;
   }
 
   return (
@@ -267,8 +281,10 @@ export default function CodeTree({
           applyHint={applyHint}
           onMoveCode={onMoveCode}
           onReorderCode={onReorderCode}
+          onCopyChildCodings={onCopyChildCodings}
         />
       ))}
     </div>
   );
 }
+

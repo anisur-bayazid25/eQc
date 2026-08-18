@@ -1,11 +1,22 @@
-import { Project } from '../domain';
+import { Project, childCodes } from '../domain';
 import { codingFrequency, codeDocumentMatrix, codeCooccurrenceMatrix } from './analysis';
 
 function esc(s: string): string {
   return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 }
 
-export function buildReportHtml(project: Project): string {
+// Live analysis state held by the Analysis tab: the word-frequency list the
+// user last generated and the KWIC search they last ran. Passed straight into
+// the report so it mirrors exactly what is on screen.
+export interface ReportExtras {
+  wordFrequencies?: Array<{ word: string; count: number }> | null;
+  stopWordsText?: string;
+  kwicKeyword?: string;
+  kwicWindow?: number;
+  kwicResults?: Array<{ docName: string; before: string[]; keyword: string; after: string[] }>;
+}
+
+export function buildReportHtml(project: Project, extras?: ReportExtras): string {
   const freq = codingFrequency(project);
   const matrix = codeDocumentMatrix(project);
   const maxCount = Math.max(1, ...freq.map(f => f.count));
@@ -66,6 +77,35 @@ export function buildReportHtml(project: Project): string {
     .map(c => `<div class="memo"><h4>${esc(c.name)}</h4><p>${esc(c.summary).replace(/\n/g, '<br/>')}</p></div>`)
     .join('\n');
 
+  // Framework matrix — top-level (theme) codes as rows, documents as columns.
+  const fwCells = new Map((project.frameworkCells || []).map(c => [`${c.docId}::${c.codeId}`, c.text] as const));
+  const fwRows = childCodes(project.codes, null);
+  const fwCols = project.docs;
+  const fwHeader = fwCols.map(d => `<th>${esc(d.name)}</th>`).join('');
+  const fwRowsHtml = fwRows
+    .map(code => {
+      const cells = fwCols
+        .map(d => `<td>${esc(fwCells.get(`${d.id}::${code.id}`) || '') || '<span class="muted">—</span>'}</td>`)
+        .join('');
+      return `<tr><td>${esc(code.name)}</td>${cells}</tr>`;
+    })
+    .join('\n');
+
+  // Word frequencies — the list last generated in the Analysis tab.
+  const wordRows = (extras?.wordFrequencies || [])
+    .map((w, i) => `<tr><td class="muted">${i + 1}</td><td>${esc(w.word)}</td><td>${w.count}</td></tr>`)
+    .join('\n');
+
+  // KWIC — the search last run in the Analysis tab.
+  const kwicRows = (extras?.kwicResults || [])
+    .map(r => `<tr>
+      <td>${esc(r.docName)}</td>
+      <td class="kwic-context">&hellip; ${esc(r.before.join(' '))}</td>
+      <td class="kwic-keyword">${esc(r.keyword)}</td>
+      <td class="kwic-context">${esc(r.after.join(' '))} &hellip;</td>
+    </tr>`)
+    .join('\n');
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -86,6 +126,10 @@ export function buildReportHtml(project: Project): string {
   .stat .num { font-size: 24px; font-weight: 700; }
   .memo { margin-top: 16px; padding: 12px; background: #f8fafc; border-radius: 8px; }
   .memo h4 { margin: 0 0 6px 0; }
+  .note { color: #64748b; font-size: 13px; margin-top: 8px; }
+  .muted { color: #94a3b8; }
+  .kwic-context { font-style: italic; color: #64748b; }
+  .kwic-keyword { text-align: center; font-weight: 700; color: #1d4ed8; }
   footer { margin-top: 60px; font-size: 12px; color: #94a3b8; }
 </style>
 </head>
@@ -126,6 +170,32 @@ export function buildReportHtml(project: Project): string {
     <tbody>${relationRows}</tbody>
   </table>`
     : '<p>No relationship memos written yet.</p>'}
+
+  <h2>Framework Matrix</h2>
+  ${fwRows.length > 0
+    ? `<table>
+    <thead><tr><th>Theme</th>${fwHeader}</tr></thead>
+    <tbody>${fwRowsHtml}</tbody>
+  </table>`
+    : '<p>No top-level (theme) codes yet — add a root code to use the framework matrix.</p>'}
+
+  <h2>Word Frequencies</h2>
+  ${extras?.wordFrequencies && extras.wordFrequencies.length > 0
+    ? `<p class="note">Last generated with stop words: ${esc(extras.stopWordsText || '')}</p>
+    <table>
+    <thead><tr><th>#</th><th>Word</th><th>Count</th></tr></thead>
+    <tbody>${wordRows}</tbody>
+  </table>`
+    : '<p>No word-frequency list generated yet. Open the Word Frequencies tab and click "Generate List", then export the report again.</p>'}
+
+  <h2>KWIC (Keyword in Context)</h2>
+  ${extras?.kwicResults && extras.kwicResults.length > 0
+    ? `<p class="note">Keyword "${esc(extras.kwicKeyword || '')}" with a context window of ${extras.kwicWindow ?? 5} word(s) on either side.</p>
+    <table>
+    <thead><tr><th>Document Name</th><th>Pre-Context</th><th>Keyword</th><th>Post-Context</th></tr></thead>
+    <tbody>${kwicRows}</tbody>
+  </table>`
+    : '<p>No KWIC search run yet. Open the KWIC tab and run a search, then export the report again.</p>'}
 
   <h2>Code Summaries / Memos</h2>
   ${memoBlocks || '<p>No code summaries have been written yet.</p>'}

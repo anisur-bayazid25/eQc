@@ -3,7 +3,7 @@ import {
   Project, ProjectSummary, Folder, SourceDoc, Code, CodedSegment, FrameworkCell, CodeRelationNote,
   ID, uid, newProject, colorForNewCode, childCodes, descendantCodeIds,
   CodedRegion, UNATTRIBUTED_CODER,
-  MapEdgeStyle, ImageSource
+  MapEdgeStyle, MapAnnotation, ImageSource
 } from './domain';
 import CodeTree from './components/CodeTree';
 import CodeSearch from './components/CodeSearch';
@@ -17,7 +17,7 @@ import { buildQdpxExport, buildQdpxCodebookExport } from './lib/qdpxExport';
 import { importDocxComments } from './lib/docxCommentImport';
 import { mergeProjectInto } from './lib/merge';
 import { codingFrequency, codeDocumentMatrix, codeCooccurrenceMatrix } from './lib/analysis';
-import { buildReportHtml } from './lib/report';
+import { buildReportHtml, ReportExtras } from './lib/report';
 import { AUTO_CODE_LANGUAGES, CaptureBoundary, AutoCodeMatchMode, runAutoCode } from './lib/autoCode';
 import { extractBengaliTextFromPDF } from './lib/pdfExtractor';
 import { buildScopedExport, buildCodebookOutline, ExportScope, SCOPE_LABELS } from './lib/exportBuilders';
@@ -438,9 +438,9 @@ useEffect(() => {
     setPromptConfig({ isOpen: false, message: '', buttonText: '', resolve: null });
   };
 
-  const showToast = useCallback((msg: string) => {
+  const showToast = useCallback((msg: string, durationMs?: number) => {
     setToast(msg);
-    setTimeout(() => setToast(t => (t === msg ? null : t)), 3500);
+    setTimeout(() => setToast(t => (t === msg ? null : t)), durationMs ?? 3500);
   }, []);
 
   // ---------------------------------------------------------------
@@ -1683,6 +1683,20 @@ async function handleExportDocx() {
     persist({ ...project, mapEdgeStyles: (project.mapEdgeStyles || []).filter(e => e.id !== edgeId) });
   }
 
+  // Free-standing map annotations: one batched persist per user action
+  // (draw, style change, delete) — never a per-shape loop.
+  function updateMapAnnotations(next: MapAnnotation[]) {
+    if (!project) return;
+    persist({ ...project, mapAnnotations: next });
+  }
+
+  // Codes hidden from / re-added to the Code Map canvas: one batched persist
+  // per action (a single add or remove click).
+  function updateHiddenMapCodes(next: ID[]) {
+    if (!project) return;
+    persist({ ...project, hiddenMapCodeIds: next });
+  }
+
   function deleteCode(code: Code) {
     if (!project) return;
     const idsToRemove = descendantCodeIds(project.codes, code.id);
@@ -1780,6 +1794,38 @@ function moveDoc(docId: ID, targetFolderId: ID | null) {
     }
     const merged = parent.summary ? `${parent.summary}\n\n${additions}` : additions;
     updateCode(codeId, { summary: merged });
+  }
+
+  // COPY (never move) coded segments and regions from every descendant code
+  // into this code (NVivo-style aggregation, non-destructive): the originals
+  // stay put under their own codes, duplicates are created stamped with this
+  // code's id. The lightning icon in the tree. One persist() per action.
+  function copyChildCodings(codeId: ID) {
+    if (!project) return;
+    const descendants = descendantCodeIds(project.codes, codeId);
+    descendants.delete(codeId);
+    if (descendants.size === 0) {
+      showToast('This code has no subcodes to copy from.');
+      return;
+    }
+    const parent = project.codes.find(c => c.id === codeId);
+    if (!parent) return;
+    const sourceSegs = project.codedSegments.filter(s => descendants.has(s.codeId));
+    const sourceRegs = (project.codedRegions || []).filter(r => descendants.has(r.codeId));
+    if (sourceSegs.length + sourceRegs.length === 0) {
+      showToast(`No coded segments or regions found in subcodes of "${parent.name}".`);
+      return;
+    }
+    const copiedSegs = sourceSegs.map(s => ({ ...s, id: uid('seg'), codeId }));
+    const copiedRegs = sourceRegs.map(r => ({ ...r, id: uid('reg'), codeId }));
+    persist({
+      ...project,
+      codedSegments: [...project.codedSegments, ...copiedSegs],
+      codedRegions: project.codedRegions
+        ? [...project.codedRegions, ...copiedRegs]
+        : copiedRegs.length > 0 ? copiedRegs : undefined
+    });
+    showToast(`Copied ${copiedSegs.length} segment(s) and ${copiedRegs.length} region(s) into "${parent.name}".`);
   }
 
   // =================================================================
@@ -2223,9 +2269,9 @@ function openDocxCommentImport() {
   // =================================================================
   // Analysis / report
   // =================================================================
-  async function handleExportReport() {
+  async function handleExportReport(extras?: ReportExtras) {
     if (!project) return;
-    const html = buildReportHtml(project);
+    const html = buildReportHtml(project, extras);
     const path = await window.qv.exportReport(project, html);
     if (path) showToast(`Report exported to ${path}`);
   }
@@ -3076,6 +3122,7 @@ function openDocxCommentImport() {
                 onDeleteCode={deleteCode}
                 onMoveCode={moveCode}
                 onReorderCode={reorderCode}
+                onCopyChildCodings={copyChildCodings}
               />
             )}
             </aside>
@@ -3303,7 +3350,7 @@ function openDocxCommentImport() {
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                 <label style={{ fontSize: '11px', fontWeight: 'bold' }}>Summary / memo</label>
-                <button className="mini-btn" style={{ fontSize: '10px', padding: '2px 4px', color: '#eab308' }} onClick={() => pullChildSummaries(codebookCode.id)}>⚡ Pull Child Summaries</button>
+                <button className="mini-btn" style={{ fontSize: '10px', padding: '2px 4px', color: '#eab308' }} onClick={() => pullChildSummaries(codebookCode.id)}>⚡ Pull Subcode Summaries</button>
               </div>
               <DebouncedCodeText
                 value={codebookCode.summary}
@@ -3631,6 +3678,7 @@ function openDocxCommentImport() {
             onDeleteCode={deleteCode}
             onMoveCode={moveCode}
             onReorderCode={reorderCode}
+            onCopyChildCodings={copyChildCodings}
           />
         )}
 
@@ -3725,23 +3773,33 @@ function openDocxCommentImport() {
   <AnalysisTab project={project} onExportReport={handleExportReport} onSaveCell={updateFrameworkCell} onSaveRelationNote={updateRelationNote} showToast={showToast} />
 )}
 
-{tab === 'codemap' && (
-  <div className="panel codemap-panel" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+<div
+  className="panel codemap-panel"
+  style={{
+    display: tab === 'codemap' ? 'flex' : 'none',
+    flexDirection: 'column',
+    height: '100%',
+    minHeight: 0
+  }}
+>
     <h2>Code Map</h2>
     <CodeMap
+      projectId={project.id}
       codes={project.codes}
       codedSegments={project.codedSegments}
       mapEdgeStyles={project.mapEdgeStyles || []}
+      annotations={project.mapAnnotations || []}
+      hiddenMapCodeIds={project.hiddenMapCodeIds || []}
       onUpdateCode={updateCode}
       onUpdateCodesBatch={updateCodesBatch}
       onUpdateEdgeStyle={updateMapEdgeStyle}
       onAddEdgeStyle={addMapEdgeStyle}
       onDeleteEdgeStyle={deleteMapEdgeStyle}
-      onSelectCode={code => { setTab('codebook'); setCodebookSelectedCodeId(code.id); }}
+      onUpdateAnnotations={updateMapAnnotations}
+      onUpdateHiddenMapCodes={updateHiddenMapCodes}
       onShowToast={showToast}
     />
-  </div>
-)}
+</div>
 
 {tab === 'about' && (
   <main 
@@ -3905,23 +3963,32 @@ function AnalysisExportButtons({
   );
 }
 
-function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, showToast }: { project: Project; onExportReport: () => void; onSaveCell: (docId: ID, codeId: ID, text: string) => void; onSaveRelationNote: (codeAId: ID, codeBId: ID, note: string) => void; showToast: (msg: string) => void }) {
+function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, showToast }: { project: Project; onExportReport: (extras?: ReportExtras) => void; onSaveCell: (docId: ID, codeId: ID, text: string) => void; onSaveRelationNote: (codeAId: ID, codeBId: ID, note: string) => void; showToast: (msg: string) => void }) {
   const [subTab, setSubTab] = useState<'frequency' | 'docMatrix' | 'coMatrix' | 'framework' | 'words' | 'kwic'>('frequency');
   const codesByIdLocal = useMemo(() => new Map(project.codes.map(c => [c.id, c])), [project.codes]);
 
-  const [kwicKeyword, setKwicKeyword] = useState('');
+  // The text the user is typing (`inputValue`, drives only the input field)
+  // versus the keyword actually searched (`activeSearch`, set only by the
+  // Search button or Enter key). Keeping them separate means typing in the
+  // field never triggers a search.
+  const [inputValue, setInputValue] = useState('');
+  const [activeSearch, setActiveSearch] = useState('');
   const [kwicWindow, setKwicWindow] = useState(5);
   const [kwicResults, setKwicResults] = useState<Array<{ docName: string; before: string[]; keyword: string; after: string[] }>>([]);
 
-  function runKwicSearch() {
-    const kw = kwicKeyword.trim().toLowerCase();
-    if (!kw) return;
+  // The actual search logic runs ONLY when `activeSearch` changes — i.e. when
+  // a search is explicitly executed — never while the user is still typing.
+  useEffect(() => {
+    if (!activeSearch) {
+      setKwicResults([]);
+      return;
+    }
     const windowN = Math.max(1, Math.min(20, kwicWindow || 5));
     const results: Array<{ docName: string; before: string[]; keyword: string; after: string[] }> = [];
     for (const doc of project.docs) {
       const words = (doc.content || '').toLowerCase().split(/[\s\.,!\?:"';\(\)\[\]\{\}\-\–\—\‘\’\“\”\n\r\t]+/).filter(w => w.length > 0);
       for (let i = 0; i < words.length; i++) {
-        if (words[i] !== kw) continue;
+        if (words[i] !== activeSearch) continue;
         results.push({
           docName: doc.name,
           before: words.slice(Math.max(0, i - windowN), i),
@@ -3931,6 +3998,10 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
       }
     }
     setKwicResults(results);
+  }, [activeSearch, kwicWindow, project]);
+
+  function runKwicSearch() {
+    setActiveSearch(inputValue.trim().toLowerCase());
   }
 
   const STOP_WORDS_DEFAULT = 'the, is, at, which, and, a, an, in, on, of, to, for, with, it, this, that, এবং, ও, আর, কি, যে, এই, সেই, হয়, না, থেকে, কে, করে, এর, তে';
@@ -4024,7 +4095,13 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
     <div className="analysis-panel panel">
       <div className="analysis-header">
         <h2>Analysis Dashboard</h2>
-        <button onClick={onExportReport}>⬇️ HTML Report</button>
+        <button onClick={() => onExportReport({
+          wordFrequencies: wordFreqs,
+          stopWordsText,
+          kwicKeyword: activeSearch,
+          kwicWindow,
+          kwicResults
+        })}>⬇️ HTML Report</button>
       </div>
 
       <nav className="subtabs">
@@ -4359,8 +4436,8 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
               <label style={{ marginBottom: 0 }}>Keyword</label>
               <input
                 type="text"
-                value={kwicKeyword}
-                onChange={e => setKwicKeyword(e.target.value)}
+                value={inputValue}
+                onChange={e => setInputValue(e.target.value)}
                 placeholder="e.g. education"
                 style={{ padding: '4px 8px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text)' }}
                 onKeyDown={e => { if (e.key === 'Enter') runKwicSearch(); }}
@@ -4381,31 +4458,36 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
           </div>
 
           {kwicResults.length > 0 && (
-            <div className="matrix-wrap" style={{ marginTop: '12px' }}>
-              <table className="matrix-table kwic-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '160px' }}>Document Name</th>
-                    <th>Pre-Context</th>
-                    <th style={{ width: '140px' }}>Keyword</th>
-                    <th>Post-Context</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {kwicResults.map((r, i) => (
-                    <tr key={i}>
-                      <td style={{ color: 'var(--text-dim)', fontSize: '12px' }}>{r.docName}</td>
-                      <td style={{ textAlign: 'right', fontStyle: 'italic', color: 'var(--text-dim)' }}>… {r.before.join(' ')}</td>
-                      <td style={{ textAlign: 'center', fontWeight: 'bold', color: 'var(--accent)' }}>{r.keyword}</td>
-                      <td style={{ textAlign: 'left', fontStyle: 'italic', color: 'var(--text-dim)' }}>{r.after.join(' ')} …</td>
+            <>
+              <div className="section-hint" style={{ marginTop: '12px' }}>
+                <strong>Found {kwicResults.length} match(es) for "{activeSearch}"</strong>
+              </div>
+              <div className="matrix-wrap" style={{ marginTop: '8px' }}>
+                <table className="matrix-table kwic-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '160px' }}>Document Name</th>
+                      <th>Pre-Context</th>
+                      <th style={{ width: '140px' }}>Keyword</th>
+                      <th>Post-Context</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {kwicResults.map((r, i) => (
+                      <tr key={i}>
+                        <td style={{ color: 'var(--text-dim)', fontSize: '12px' }}>{r.docName}</td>
+                        <td style={{ textAlign: 'right', fontStyle: 'italic', color: 'var(--text-dim)' }}>… {r.before.join(' ')}</td>
+                        <td style={{ textAlign: 'center', fontWeight: 'bold', color: 'var(--accent)' }}>{r.keyword}</td>
+                        <td style={{ textAlign: 'left', fontStyle: 'italic', color: 'var(--text-dim)' }}>{r.after.join(' ')} …</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
-          {kwicResults.length === 0 && kwicKeyword.trim() && (
-            <div className="empty-hint" style={{ marginTop: '12px' }}>No matches found for "{kwicKeyword}".</div>
+          {kwicResults.length === 0 && activeSearch && (
+            <div className="empty-hint" style={{ marginTop: '12px' }}>No matches found for "{activeSearch}".</div>
           )}
         </section>
       )}

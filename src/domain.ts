@@ -45,7 +45,22 @@ export interface MapEdgeStyle {
   curve: 'straight' | 'curved';
   arrow: 'none' | 'end' | 'both';
   color?: string;      // overrides the default per-kind color if set
+  width?: number;      // overrides the computed line width (1-8) if set
   label?: string;       // optional user-added text on the edge
+}
+
+// A free-standing diagram mark on the Code Map canvas — deliberately NOT tied
+// to any code: annotation layer shapes (rect/circle bounding boxes, arrows,
+// text notes) drawn by the user for interpretation notes, labels, callouts.
+export interface MapAnnotation {
+  id: ID;
+  kind: 'rect' | 'circle' | 'arrow' | 'text';
+  x: number; y: number;      // top-left or center depending on kind
+  width?: number; height?: number; // for rect/circle
+  x2?: number; y2?: number;  // for arrow (end point)
+  text?: string;             // for text kind, or an optional label on any kind
+  color: string;
+  lineStyle: 'solid' | 'dashed' | 'dotted';
 }
 
 export interface CodedSegment {
@@ -116,6 +131,8 @@ export interface Project {
   images?: ImageSource[];
   codedRegions?: CodedRegion[];
   mapEdgeStyles?: MapEdgeStyle[]; // manual styling overrides / custom edges for the Code Map
+  mapAnnotations?: MapAnnotation[]; // free-standing annotation shapes on the Code Map (not tied to codes)
+  hiddenMapCodeIds?: ID[];  // codes deliberately removed from the Code Map canvas (still in the codebook)
   coderName?: string;   // this project's coder identity, stamped onto segments when merged into another project
 }
 

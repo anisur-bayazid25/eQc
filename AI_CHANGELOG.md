@@ -343,3 +343,115 @@ Three small but distinct changes; all renderer-only (`src/App.tsx` + `src/styles
 
 ### `src/App.tsx` + `src/styles.css` — compact Undo/Redo/Save
 - Header buttons `↶ Undo`, `↷ Redo`, `💾 Save` → icons only (`↶`, `↷`, `💾`) with a new `.icon-btn-sm` class: `26×26px`, `padding: 0`, inline-flex centered, `font-size: 14px`. Tooltips (`title`) retain the affordance. `saveStatus` indicator span next to Save is unchanged.
+
+## 2026-08-17 — CodeMap folding: root visibility + rolled-up semantics, persistent doc gutter
+
+Work-in-progress session vs. the milestone "overview + drill-down code map"; three parts landed:
+
+### Part A — shrunken-root force directives (semantics only)
+- Backdrop `onDoubleClick` in a free area → **replace-mode force toggle** (`forceRootSearch = { keyword, mode }`). `detail` 1 → fixate shrunken root; `detail` 2 → re-run the search; `onContextMenu` (`detail` 2 on trackpads) → toggle-off ("restore"). No helper text added.
+- Banner (`forceBanner` state) shows `Keyword: latest` / `Shrunken: first`, stickier when first set, rendered in the header row next to fold/clear buttons.
+- All branches (main search, shrunken tags, `LegendPicker`, force banner ×2, clear, emit of new results) funnel into ONE `emitSearchForces()`/`forEachSearchCodeLeaf` pass, so every activation path keeps multiple droppable targets alive in sync.
+
+### Part B — rolled-up (whole-subtree) semantics for folding
+- `rolledUpCounts` + `maxRolledCount`: every code's total coded segments anywhere under it (via `descendantCodeIds`). `radiusFor(codeId, useRollup)` — folded root radii = subtree activity (a busy-grandchild root stays significant); expanded individuals keep their direct count.
+- `rolledUpScores` + `rolledUpIntersection(childId)`: per-code sum of pair weights touching its whole subtree. The `visibleCodes` walk now ranks children by rolled-up intersection (tiebreak rolled-up count), filters out roots with zero coding anywhere, and the `childrenPerRoot` cap no longer applies to the root level (every non-empty root always renders).
+- Fold badge redesigned: folded nodes show `+N subcodes · M coded` (caption under the label, clickable, doubles as expand affordance); expanded nodes keep `− N total · M shown` in the same caption style. The old +N circle pill is gone.
+
+### Part C — persistent gutter markers
+- `DocEditor` (the doc surface) gains a persistent gutter strip beside the code text, implemented like the search-match highlight: purely derived from `segments`, no interaction state, `pointerEvents: none`.
+- `lineInfo` memo splits `doc.content` into line starts (binary-search `lineOf`), maps each coded segment to its start line, dedupes one marker per code per line. Average line height is measured post-layout (`useLayoutEffect` on `scrollHeight / line count`) so wraps/font changes stay aligned — no flicker (runs before paint).
+- Marker = 3px vertical bar in the code's color + the code name clipped to a single bold line (`nowrap` + `ellipsis` inside a fixed 168px gutter, `minWidth: 0` flex). Multi-code lines join names with ` · `. Gutter anchors to the container via `position: relative` + `paddingLeft` on the text.
+
+## 2026-08-17 — CodeMap fixes round 3 (8 scoped items)
+
+### 1. Shrunken-root force-directive code — confirmed already gone
+- Grep-verified: `forceRootSearch`/`forceBanner`/`emitSearchForces`/`forEachSearchCodeLeaf` and the backdrop force toggle do not exist in `CodeMap.tsx` (only unrelated force-directed *layout* comments remain). Nothing to remove; fold expand/collapse was actually broken by the click handler routing (see 2), not by the force code.
+
+### 2. Expand/collapse on folded root nodes (the actual fix)
+- `handleNodeClick` (`CodeMap.tsx`): a folded node with hidden descendants (`descendantsCache.get(id) > 0`) now toggles `expandedRoots` (click = add, click again = remove) and returns early — `onSelectCode` navigation only happens for leaf nodes. `movedRef` drag-vs-click distinction unchanged (drag never toggles).
+- Node-level `onDoubleClick` toggle removed: with click toggling in place, a double-click would toggle twice and appear broken. Badge caption click (`toggleExpand` with `stopPropagation`) still works as the second affordance. Help text updated to describe click-to-expand.
+
+### 3. Bulk Pull Child Summaries — verified already implemented, untouched
+- `pullChildSummariesBulk(rootCodeIds)` in `App.tsx` (single `persist()` call, `additionsById` map; "No subcode summaries…" / "Pulled…" toasts) and `CodeTree.tsx`'s `onPullChildSummaries` prop + `⚡` button (only when `children.length > 0`) were both present and correct. The Codebook sidebar "▸ Bulk Pull Summaries" section (checkbox list of root codes, select-all/none, "⚡ Pull for selected") existed too. The single-code `pullChildSummaries` used by the Code Details ⚡ button was NOT modified.
+
+### 4. Canvas orientation toggle
+- New `rotateCanvas()` in `CodeMap.tsx`: swaps `canvas.w`/`canvas.h`, always through `rescalePositionsFor(newW, newH)` first (existing rescale+persist path — no shortcut that could crop nodes), then `setCustomMode(true)` + `setCustomW/H`. Toolbar button next to the canvas-size selector reads `⬜ Landscape` when `canvas.w > canvas.h`, else `▯ Portrait`.
+
+### 5. Code Map tab stays mounted (state persists across tab switches)
+- `App.tsx`: replaced `{tab === 'codemap' && (<div …>)}` with the workspace-grid pattern — the `.codemap-panel` div is always mounted, `style={{ display: tab === 'codemap' ? 'flex' : 'none', … }}`. Zoom/canvas/expanded-roots state now survives tab switches (enables 7's Escape handling off-tab too). Other tabs untouched.
+
+### 6. Legend visibility fix + drag + kind filtering
+- Root cause confirmed: the legend was `position: absolute` INSIDE the scroll container (which also had `position: relative`), so it anchored to the *scrollable content* — it rode the scroll/zoom and vanished at any non-default zoom or scroll.
+- Restructured: an outer `position: relative` wrapper now owns (a) the legend as a sibling at `top/left: 12px` with `zIndex: 10` — fixed regardless of zoom/scroll — and (b) the scroll container (`position: absolute; inset: 0`). Legend also gained drag-to-reposition (`legendPos`/`legendDrag` state + window-listener effect, same pattern as node drag, purely local) and only shows rows for edge kinds currently present (`presentKinds` memo over `edges`; strength scale only when co-occurrence edges are on screen).
+
+### 7. Fullscreen overlay (pure CSS, Electron-safe)
+- `isFullscreen` state; when set, the panel's outer div gets `position: fixed; inset: 0; zIndex: 1000; background: var(--bg)` (+ padding). Toolbar button toggles `⛶ Fullscreen` ↔ `✕ Exit fullscreen`; a `keydown` listener (added/removed via the standard effect-cleanup pattern, active only while `isFullscreen`) exits on `Escape`. No native Fullscreen API.
+
+### 8. Free-standing annotation layer
+- `domain.ts`: new `MapAnnotation` interface (`rect | circle | arrow | text`, bounds/endpoint/label, `color`, `lineStyle`) + optional `Project.mapAnnotations?: MapAnnotation[]` (additive, no migration).
+- `CodeMap.tsx`: `✏️ Annotate` toolbar toggle + shape sub-picker (rect/circle/arrow/text). Drag on empty canvas (`e.target === e.currentTarget` on the svg — never over nodes/edges) draws the shape via a window-listener drag effect with a live semi-transparent preview; release persists with ONE `onUpdateAnnotations([...annotations, anno])` call. `text` kind single-click opens a fixed-position inline input (`textPrompt`, ref-guarded Enter/blur commit, Escape cancels).
+- Rendering: annotations layer sits between `</defs>` and the edges — below edges and nodes in z-order. Selecting a shape (click) opens a style bar (line style select + `COLOR_PALETTE` swatches + 🗑 Delete) mirroring the edge panel; edge/annotation selection are mutually exclusive. An `annoClickGuardRef` suppresses the svg-click selection-clear for the click that immediately follows an annotation drag, so a freshly drawn shape stays selected.
+- `App.tsx`: `updateMapAnnotations(next)` — one `persist()` per user action (draw, style, delete), mirroring `updateMapEdgeStyle`/`addMapEdgeStyle`; wired as `annotations={project.mapAnnotations || []}` + `onUpdateAnnotations`.
+- Export: annotations are plain SVG children of the cloned tree, so `serializeSvg()` and the SVG/PNG/JPEG export paths include them automatically (no export code changes needed).
+
+## 2026-08-17 — Pull split (codings vs summaries), CodeMap stays put, code add/remove, export legend + 300 DPI
+
+### Pull: coded segments/regions vs summaries — two distinct actions
+- **⚡ lightning icon = pull CODED SEGMENTS + REGIONS** into the parent (`App.tsx` `pullChildCodings(codeId)`): every `codedSegment`/`codedRegion` whose `codeId` is a descendant of the code is remapped to the code itself (NVivo-style aggregation, full subtree via `descendantCodeIds`, self excluded). One `persist()` call for the whole remap, toasts show pulled counts. Wire-up: `CodeTree.tsx` prop renamed `onPullChildSummaries` → `onPullChildCodings` (title "Pull subcodes' coded segments and regions into this code"), passed to both `<CodeTree>` usages; the Code Details ⚡ is now "⚡ Pull Subcode Codings".
+- **Pull CODE SUMMARIES** lives in the Codebook left panel ("▸ Pull Code Summaries", collapsed by default): root codes listed, per-code ⚡ calling the existing single-code `pullChildSummaries(codeId)` (untouched).
+- **Bulk removed**: `pullChildSummariesBulk`, the bulk checkbox section, and the `bulkPullOpen`/`bulkSelectedCodes`/`bulkRootCodes`/`bulkDescCounts` states deleted entirely.
+
+### Code Map: no more codebook navigation, add/remove codes from canvas
+- `onSelectCode` prop removed from `CodeMap` (and its App wiring). Clicking a node no longer jumps to the Codebook. Leaf-node click now SELECTS on the canvas (`selectedMapCodeId`, blue ring highlight); folded nodes still toggle expand/collapse.
+- New persisted project field `hiddenMapCodeIds?: ID[]` (`domain.ts`). CodeMap filters it up-front into `shownCodes` — every downstream computation (positions sync, visibility/fold walk, rolled-up counts/scores, descendants cache, edges, fold threshold) uses only the on-canvas set.
+- Toolbar: `✕ Remove from map` (appears while a node is selected → adds to hidden set, one persist), `➕ Add codes` (popover listing hidden codes with per-row Add → removes from set, one persist each), both via App's `updateHiddenMapCodes` single-`persist` handler. Re-added codes get auto-placed by the existing auto-layout effect (missing positions check).
+
+### Export: legend option + 300 DPI raster
+- `serializeSvg(scale = 1)` accepts a pixel scale (width/height set to `canvas × scale`); when the new `Export legend` toolbar checkbox is on, it bakes the legend into the clone as plain SVG elements (line swatches + labels + weak→strong scale, white box, no CSS/foreignObject) so it rasterizes identically in every path.
+- `exportRaster('png'|'jpeg')` now rasterizes at `scale = 300/96` (≥300 DPI at CSS 96dpi) — the SVG re-renders at the larger target size rather than being stretch-blurred. SVG export stays vector (scale 1).
+
+## 2026-08-17 — lightning = COPY codings; summaries again in Code Details; left-panel "Pull Code Summaries" removed
+
+- **⚡ lightning (tree rows) is now COPY, not move**: `copyChildCodings(codeId)` (`App.tsx`) duplicates every `codedSegment`/`codedRegion` belonging to a descendant of the code (new ids via `uid`, same codeId = the parent), leaving the originals in place — non-destructive aggregation. One `persist()` per action; toast reports copied counts. `CodeTree` prop renamed `onCopyChildCodings`, tooltip "Copy subcodes' coded segments and regions into this code".
+- **Code Details Summary/memo button** (next to the textarea) now pulls subcode **summaries/memos**: label changed to `⚡ Pull Subcode Summaries`, calling the existing single-code `pullChildSummaries(codebookCode.id)`.
+- **Left-panel "▸ Pull Code Summaries" section removed** (plus its `pullSummariesOpen`/`pullSummaryRoots` state) — that action lives only in Code Details now.
+
+## 2026-08-18 — HTML Analysis report now includes ALL analyses (Framework Matrix, Word Frequencies, KWIC)
+
+**Goal:** the "⬇️ HTML Report" button on the Analysis tab was missing several of the tab's analyses (no Framework Matrix at all, and no Word Frequencies / KWIC). Now the report mirrors everything on screen.
+
+### `src/lib/report.ts`
+- `buildReportHtml(project: Project, extras?: ReportExtras)` — new optional second arg.
+- `export interface ReportExtras` — carries the Analysis tab's live state: `wordFrequencies?: Array<{word,count}>`, `stopWordsText?`, `kwicKeyword?`, `kwicWindow?`, `kwicResults?: Array<{docName, before[], keyword, after[]}>`.
+- New sections (between Relationship Notes and Code Summaries):
+  - **Framework Matrix**: root/theme codes as rows (`childCodes(project.codes, null)`), docs as columns, cells from `project.frameworkCells` (`docId::codeId` key), empty cells render a muted `—`.
+  - **Word Frequencies**: numbered Word/Count table from `extras.wordFrequencies`, notes the stop-words text used; friendly hint if the user hasn't generated a list yet.
+  - **KWIC**: Document / Pre-Context / Keyword / Post-Context table from `extras.kwicResults`, header states the searched keyword + context window; friendly hint if no search has been run.
+- New CSS: `.note`, `.muted`, `.kwic-context`, `.kwic-keyword`. All dynamic text passed through `esc()`.
+
+### `src/App.tsx`
+- `handleExportReport(extras?: ReportExtras)` (`App.tsx`) passes extras through to `buildReportHtml`.
+- `AnalysisTab`'s `onExportReport` prop typed `(extras?: ReportExtras) => void`; the `⬇️ HTML Report` button now calls `onExportReport({ wordFrequencies: wordFreqs, stopWordsText, kwicKeyword, kwicWindow, kwicResults })` — so the report includes the **last generated** word-frequency list and the **last run** KWIC search.
+
+**Note:** Word Frequencies requires the user to click "Generate List" first (the list is held in AnalysisTab state, not derivable from the project), and KWIC requires running a search — the report falls back to a hint when either is empty.
+
+## 2026-08-18 — KWIC: fix input/search state split + match count summary
+
+**Bug:** the KWIC tool's keyword input was also the value the search logic read, so the search state was coupled to every keystroke. Now the text field state and the "actively searched" keyword are distinct, and the search only runs on explicit execution.
+
+### `src/App.tsx` (`AnalysisTab`)
+- State split: `kwicKeyword` → `inputValue` (the text field; `onChange` only calls `setInputValue`) and `activeSearch` (the keyword actually searched, set only by `runKwicSearch()`).
+- `runKwicSearch()` no longer computes results inline — it just does `setActiveSearch(inputValue.trim().toLowerCase())`. The Search button `onClick` and the input's Enter `onKeyDown` both call it.
+- The document-filtering logic moved into a `useEffect` keyed on `[activeSearch, kwicWindow, project]`: it runs **only** when a search is explicitly executed (or the window/project changes), never while typing. An empty `activeSearch` clears `kwicResults`.
+- Results table: a summary line `Found {kwicResults.length} match(es) for "{activeSearch}"` now renders **above** the table (when `kwicResults.length > 0`).
+- "No matches found for ..." now only shows when `activeSearch` is non-empty **and** `kwicResults.length === 0`.
+- HTML report extras still map to `ReportExtras` via `kwicKeyword: activeSearch` (report.ts field name unchanged).
+
+## 2026-08-18 — CodeMap "+ Add codes": no persistent panel when nothing to add
+
+**Bug:** clicking `➕ Add codes` with every code already on the canvas opened the "Add codes to canvas / All codes are on the canvas." panel, which stayed on screen until toggled closed — looked like a permanent toast.
+
+- `src/components/CodeMap.tsx` — the `➕ Add codes` button's `onClick` now checks `hiddenMapCodeIds.length` first: if `0`, it closes the panel and fires `onShowToast('All codes are on the canvas.', 2500)` instead of opening the persistent dropdown. Only when there are actually hidden codes does it toggle the panel.
+- `src/App.tsx` — `showToast(msg, durationMs?)` now accepts an optional duration (defaults to the previous 3500ms), so callers can request a shorter auto-dismiss. `CodeMap`'s `onShowToast` prop type updated to `(msg, durationMs?) => void`.
+

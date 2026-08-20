@@ -89,8 +89,8 @@ input, select, textarea {
 }
 
 .loading-logo {
-  width: 64px;
-  height: 64px;
+  width: auto;
+  height: 220px;
   object-fit: contain;
   animation: loading-pulse 1.8s ease-in-out infinite;
 }

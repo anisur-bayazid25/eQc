@@ -216,7 +216,18 @@ export default function CodeMap({
   const [annotateShape, setAnnotateShape] = useState<'rect' | 'circle' | 'arrow' | 'text'>('rect');
   const [annoDrag, setAnnoDrag] = useState<{ x0: number; y0: number; shape: 'rect' | 'circle' | 'arrow' } | null>(null);
   const [annoPreview, setAnnoPreview] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
-  const [selectedAnnoId, setSelectedAnnoId] = useState<string | null>(null);
+    const [selectedAnnoId, setSelectedAnnoId] = useState<string | null>(null);
+  // Drag-to-move for an already-placed annotation (separate from annoDrag,
+  // which is only for drawing a brand-new shape).
+  const [annoDragMove, setAnnoDragMove] = useState<{ id: string; startX: number; startY: number; orig: MapAnnotation } | null>(null);
+  const [annoLiveOffset, setAnnoLiveOffset] = useState<({ id: string } & Partial<MapAnnotation>) | null>(null);
+  const liveAnnoPatchRef = useRef<Partial<MapAnnotation> | null>(null);
+  const annoMovedRef = useRef(false);
+  // Editing an existing text annotation's content reuses the same textPrompt
+  // UI used to create one — this tracks which mode we're in.
+  const [editingAnnoId, setEditingAnnoId] = useState<string | null>(null);
+  // Edge label drag-to-move (offset from the edge midpoint).
+  const [labelDragMove, setLabelDragMove] = useState<{ key: string; edge: EdgeRef; startX: number; startY: number; origDx: number; origDy: number } | null>(null);
   // On-canvas code selection (click a leaf node) + the add/remove-from-canvas
   // machinery: hidden ids live in the project (persisted), this local UI just
   // holds the chosen node and the add-codes popover flag.
@@ -781,6 +792,70 @@ export default function CodeMap({
     };
   }, [annoDrag, onUpdateAnnotations, annotations]);
 
+  
+  // Drag an already-placed annotation. Live position is tracked locally
+  // (annoLiveOffset) so nothing persists until mouseup — one
+  // onUpdateAnnotations call per drag, same as everywhere else in this file.
+  useEffect(() => {
+    if (!annoDragMove) return;
+    const active = annoDragMove;
+    function onMove(e: MouseEvent) {
+      const dx = (e.clientX - active.startX) / zoomRef.current;
+      const dy = (e.clientY - active.startY) / zoomRef.current;
+      if (Math.abs(dx) + Math.abs(dy) > 3) annoMovedRef.current = true;
+      const { w, h } = canvasRef.current;
+      const clampX = (v: number) => Math.max(0, Math.min(w, v));
+      const clampY = (v: number) => Math.max(0, Math.min(h, v));
+      let patch: Partial<MapAnnotation>;
+      if (active.orig.kind === 'arrow') {
+        patch = {
+          x: clampX(active.orig.x + dx),
+          y: clampY(active.orig.y + dy),
+          x2: clampX((active.orig.x2 ?? active.orig.x) + dx),
+          y2: clampY((active.orig.y2 ?? active.orig.y) + dy)
+        };
+      } else {
+        patch = { x: clampX(active.orig.x + dx), y: clampY(active.orig.y + dy) };
+      }
+      liveAnnoPatchRef.current = patch;
+      setAnnoLiveOffset({ id: active.id, ...patch });
+    }
+    function onUp() {
+      const patch = liveAnnoPatchRef.current;
+      if (patch) {
+        onUpdateAnnotations(annotations.map(a => (a.id === active.id ? { ...a, ...patch } : a)));
+      }
+      liveAnnoPatchRef.current = null;
+      setAnnoLiveOffset(null);
+      setAnnoDragMove(null);
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [annoDragMove, onUpdateAnnotations, annotations]);
+
+  useEffect(() => {
+    if (!labelDragMove) return;
+    const active = labelDragMove;
+    function onMove(e: MouseEvent) {
+      const dx = (e.clientX - active.startX) / zoomRef.current;
+      const dy = (e.clientY - active.startY) / zoomRef.current;
+      commitStyle(active.edge, { labelDx: active.origDx + dx, labelDy: active.origDy + dy });
+    }
+    function onUp() {
+      setLabelDragMove(null);
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [labelDragMove]);
+
   function openTextPrompt(sx: number, sy: number, tx: number, ty: number) {
     textPromptRef.current = { sx, sy, tx, ty };
     setTextPrompt({ sx, sy, tx, ty });
@@ -788,16 +863,24 @@ export default function CodeMap({
   function closeTextPrompt() {
     textPromptRef.current = null;
     setTextPrompt(null);
+    setEditingAnnoId(null);
   }
   // Enter/blur commits the label, Escape cancels. Ref-guarded so a blur
-  // racing the Enter-commit can never double-persist.
+  // racing the Enter-commit can never double-persist. When editingAnnoId is
+  // set, this updates that annotation's text instead of creating a new one.
   function commitTextPrompt() {
     const t = textPromptRef.current;
     if (!t) return;
     const text = (annoTextRef.current?.value || '').trim();
+    const editId = editingAnnoId;
     textPromptRef.current = null;
     setTextPrompt(null);
+    setEditingAnnoId(null);
     if (!text) return;
+    if (editId) {
+      onUpdateAnnotations(annotations.map(a => (a.id === editId ? { ...a, text } : a)));
+      return;
+    }
     onUpdateAnnotations([
       ...annotations,
       { id: uid('anno'), kind: 'text', x: t.sx, y: t.sy, text, color: DEFAULT_COLORS.custom, lineStyle: 'solid' }
@@ -1386,6 +1469,36 @@ export default function CodeMap({
             style={{ fontSize: '12px', padding: '2px 6px', width: '130px' }}
           />
 
+          {selectedEdge.style?.label && (
+            <>
+              <select
+                value={selectedEdge.style?.labelFontSize || 12}
+                onChange={e => commitStyle(selectedEdge, { labelFontSize: Number(e.target.value) })}
+                style={{ fontSize: '12px', padding: '2px 4px' }}
+                title="Label font size"
+              >
+                {[10, 12, 14, 16, 20, 24].map(sz => (
+                  <option key={sz} value={sz}>{sz}px</option>
+                ))}
+              </select>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                {COLOR_PALETTE.map(col => (
+                  <button
+                    key={col}
+                    className="mini-btn"
+                    style={{
+                      width: '14px', height: '14px', padding: 0, borderRadius: '50%',
+                      backgroundColor: col,
+                      border: selectedEdge.style?.labelColor === col ? '2px solid var(--accent)' : '1px solid var(--border)'
+                    }}
+                    onClick={() => commitStyle(selectedEdge, { labelColor: col })}
+                    title={`Label color: ${col}`}
+                  />
+                ))}
+              </span>
+            </>
+          )}
+
           {selectedEdge.style && selectedEdge.kind === 'custom' && (
             <button
               className="mini-btn"
@@ -1413,15 +1526,57 @@ export default function CodeMap({
             Annotation · {selectedAnno.kind}
           </span>
 
-          <select
-            value={selectedAnno.lineStyle}
-            onChange={e => updateSelectedAnno({ lineStyle: e.target.value as MapAnnotation['lineStyle'] })}
-            style={{ fontSize: '12px', padding: '2px 4px' }}
-          >
-            <option value="solid">Solid</option>
-            <option value="dashed">Dashed</option>
-            <option value="dotted">Dotted</option>
-          </select>
+          {selectedAnno.kind !== 'text' && (
+            <select
+              value={selectedAnno.lineStyle}
+              onChange={e => updateSelectedAnno({ lineStyle: e.target.value as MapAnnotation['lineStyle'] })}
+              style={{ fontSize: '12px', padding: '2px 4px' }}
+            >
+              <option value="solid">Solid</option>
+              <option value="dashed">Dashed</option>
+              <option value="dotted">Dotted</option>
+            </select>
+          )}
+
+          {selectedAnno.kind === 'text' && (
+            <>
+              <button
+                className="mini-btn"
+                onClick={() => {
+                  setEditingAnnoId(selectedAnno.id);
+                  openTextPrompt(selectedAnno.x, selectedAnno.y, window.innerWidth / 2 - 90, 140);
+                }}
+              >
+                ✏️ Edit text
+              </button>
+              <select
+                value={selectedAnno.fontSize ?? 14}
+                onChange={e => updateSelectedAnno({ fontSize: Number(e.target.value) })}
+                style={{ fontSize: '12px', padding: '2px 4px' }}
+                title="Font size"
+              >
+                {[10, 12, 14, 16, 20, 24, 32].map(sz => (
+                  <option key={sz} value={sz}>{sz}px</option>
+                ))}
+              </select>
+              <button
+                className="mini-btn"
+                style={{ fontWeight: 700, ...(selectedAnno.bold !== false ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}) }}
+                onClick={() => updateSelectedAnno({ bold: selectedAnno.bold === false })}
+                title="Bold"
+              >
+                B
+              </button>
+              <button
+                className="mini-btn"
+                style={{ fontStyle: 'italic', ...(selectedAnno.italic ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}) }}
+                onClick={() => updateSelectedAnno({ italic: !selectedAnno.italic })}
+                title="Italic"
+              >
+                I
+              </button>
+            </>
+          )}
 
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
             {COLOR_PALETTE.map(col => (
@@ -1456,6 +1611,7 @@ export default function CodeMap({
         <input
           ref={annoTextRef}
           autoFocus
+          defaultValue={editingAnnoId ? (annotations.find(a => a.id === editingAnnoId)?.text || '') : ''}
           placeholder="Annotation label…"
           style={{
             position: 'fixed',
@@ -1550,6 +1706,7 @@ export default function CodeMap({
             annoClickGuardRef.current = true;
             const pt = toViewBox(e);
             if (annotateShape === 'text') {
+              setEditingAnnoId(null); // always a fresh create here, never an edit
               openTextPrompt(pt.x, pt.y, e.clientX, e.clientY);
               return;
             }
@@ -1583,36 +1740,68 @@ export default function CodeMap({
             const selected = selectedAnnoId === a.id;
             const dash = a.lineStyle === 'dashed' ? '8 5' : a.lineStyle === 'dotted' ? '2 5' : undefined;
             const sw = selected ? 3 : 2;
-            const select = (ev: React.MouseEvent) => { ev.stopPropagation(); setSelectedKey(null); setSelectedAnnoId(a.id); };
+            // Apply the in-progress drag offset (if this is the annotation
+            // currently being dragged) so it visually follows the pointer;
+            // nothing persists until mouseup.
+            const live = annoLiveOffset?.id === a.id ? annoLiveOffset : null;
+            const ax = live?.x ?? a.x;
+            const ay = live?.y ?? a.y;
+            const ax2 = live?.x2 ?? a.x2;
+            const ay2 = live?.y2 ?? a.y2;
+            const select = (ev: React.MouseEvent) => {
+              ev.stopPropagation();
+              if (annoMovedRef.current) { annoMovedRef.current = false; return; }
+              setSelectedKey(null);
+              setSelectedAnnoId(a.id);
+            };
+            const startMove = (ev: React.MouseEvent) => {
+              if (ev.button !== 0 || annotateMode) return;
+              ev.stopPropagation();
+              annoMovedRef.current = false;
+              setAnnoDragMove({ id: a.id, startX: ev.clientX, startY: ev.clientY, orig: a });
+            };
             return (
-              <g key={a.id} onClick={select} style={{ cursor: 'pointer' }}>
+              <g
+                key={a.id}
+                onMouseDown={startMove}
+                onClick={select}
+                style={{ cursor: annoDragMove?.id === a.id ? 'grabbing' : 'grab' }}
+              >
                 {a.kind === 'rect' && (
                   <rect
-                    x={a.x} y={a.y} width={a.width || 0} height={a.height || 0}
+                    x={ax} y={ay} width={a.width || 0} height={a.height || 0}
                     fill="none" stroke={a.color} strokeWidth={sw} strokeDasharray={dash}
                   />
                 )}
                 {a.kind === 'circle' && (
                   <ellipse
-                    cx={a.x + (a.width || 0) / 2} cy={a.y + (a.height || 0) / 2}
+                    cx={ax + (a.width || 0) / 2} cy={ay + (a.height || 0) / 2}
                     rx={(a.width || 0) / 2} ry={(a.height || 0) / 2}
                     fill="none" stroke={a.color} strokeWidth={sw} strokeDasharray={dash}
                   />
                 )}
                 {a.kind === 'arrow' && (
                   <path
-                    d={`M ${a.x} ${a.y} L ${a.x2 ?? a.x} ${a.y2 ?? a.y}`}
+                    d={`M ${ax} ${ay} L ${ax2 ?? ax} ${ay2 ?? ay}`}
                     fill="none" stroke={a.color} strokeWidth={sw} strokeDasharray={dash}
                     markerEnd="url(#arrow-end)"
                   />
                 )}
                 {a.kind === 'text' && (
-                  <text x={a.x} y={a.y} fontSize={14} fontWeight={600} fill={a.color}>{a.text || ''}</text>
+                  <text
+                    x={ax} y={ay}
+                    fontSize={a.fontSize ?? 14}
+                    fontWeight={a.bold === false ? 400 : 600}
+                    fontStyle={a.italic ? 'italic' : 'normal'}
+                    fill={a.color}
+                  >
+                    {a.text || ''}
+                  </text>
                 )}
                 {a.text && a.kind !== 'text' && (
                   <text
-                    x={a.kind === 'arrow' ? (a.x + (a.x2 ?? a.x)) / 2 : a.x + (a.width || 0) / 2}
-                    y={a.kind === 'arrow' ? (a.y + (a.y2 ?? a.y)) / 2 - 6 : a.y - 6}
+                    x={a.kind === 'arrow' ? (ax + (ax2 ?? ax)) / 2 : ax + (a.width || 0) / 2}
+                    y={a.kind === 'arrow' ? (ay + (ay2 ?? ay)) / 2 - 6 : ay - 6}
                     textAnchor="middle" fontSize={12} fontWeight={600} fill={a.color}
                   >
                     {a.text}
@@ -1664,7 +1853,10 @@ export default function CodeMap({
               ? style.width
               : isCooc ? weightFor(pairKey) : e.kind === 'custom' ? 2.5 : 2;
             const opacity = isSelected ? 1 : (isCooc && style?.width == null ? opacityFor(pairKey) : 0.9);
-            const labelPos = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 - 6 };
+            const labelPos = {
+              x: (from.x + to.x) / 2 + (style?.labelDx || 0),
+              y: (from.y + to.y) / 2 - 6 + (style?.labelDy || 0)
+            };
             return (
               <g key={e.key}>
                 {isCooc && (
@@ -1695,13 +1887,22 @@ export default function CodeMap({
                     x={labelPos.x}
                     y={labelPos.y}
                     textAnchor="middle"
-                    fontSize={12}
+                    fontSize={style?.labelFontSize || 12}
                     fontWeight={600}
-                    fill="#334155"
+                    fill={style?.labelColor || '#334155'}
                     stroke="#f8fafc"
                     strokeWidth={3}
                     paintOrder="stroke"
-                    pointerEvents="none"
+                    cursor="move"
+                    onMouseDown={ev => {
+                      if (ev.button !== 0) return;
+                      ev.stopPropagation();
+                      setLabelDragMove({
+                        key: e.key, edge: e,
+                        startX: ev.clientX, startY: ev.clientY,
+                        origDx: style?.labelDx || 0, origDy: style?.labelDy || 0
+                      });
+                    }}
                   >
                     {style.label}
                   </text>

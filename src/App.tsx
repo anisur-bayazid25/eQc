@@ -773,6 +773,13 @@ useEffect(() => {
     })();
   }, []);
 
+const [minLoadingElapsed, setMinLoadingElapsed] = useState(false);
+
+useEffect(() => {
+  const t = setTimeout(() => setMinLoadingElapsed(true), 3000);
+  return () => clearTimeout(t);
+}, []);
+
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const saveToDisk = useCallback((p: Project) => {
@@ -2365,7 +2372,7 @@ function openDocxCommentImport() {
     }
   }, [project?.codes, sortOrder, codeCodedCounts]);
 
-  if (!project) {
+  if (!project || !minLoadingElapsed) {
     return (
       <div className="loading-screen">
         <img src="./eqc-logo.png" alt="eQc" className="loading-logo" />
@@ -2620,9 +2627,8 @@ function openDocxCommentImport() {
             <img 
               src="./eqc-logo.png" 
               alt="EQC Logo" 
-              style={{ width: '30px', height: '30px', objectFit: 'contain' }} 
+              style={{ width: 'auto', height: '40px', objectFit: 'contain' }} 
             />
-            <span style={{ fontWeight: 'bold' }}>eQc</span>
           </div>
 
           {/* Navigation Tabs */}
@@ -3820,7 +3826,7 @@ function openDocxCommentImport() {
     <img 
       src="./eqc-logo.png" 
       alt="EQC Logo" 
-      style={{ width: '120px', height: '120px', marginBottom: '20px' }} 
+      style={{ width: '220px', height: 'auto', marginBottom: '20px' }} 
     />
     <h2 style={{ margin: '0 0 10px 0', fontSize: '24px', color: 'var(--text)' }}>EQC - Easy Qual Coding</h2>
     <p style={{ fontWeight: 'bold', color: '#fb923c', marginBottom: '20px' }}>Version {pkg.version}</p>

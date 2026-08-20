@@ -4,6 +4,8 @@
 
 eQc is a lightweight, **local-first** qualitative data analysis (QDA) desktop application built with Electron, React, and SQLite. All project data — documents, codes, memos, matrices — is stored **locally on your device**. Nothing leaves your computer (except, optionally, the project backups you choose to export or share).
 
+📘 **Full step-by-step manual:** see **[USER_GUIDE_v1.5.8.md](USER_GUIDE_v1.5.8.md)** — covers everything from your first project, to the Code Map, LAN team sessions, and every analysis mode.
+
 ---
 
 ## What's New in v1.5.8

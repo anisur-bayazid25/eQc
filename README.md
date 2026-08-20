@@ -1,4 +1,10 @@
+<img width="1831" height="692" alt="eqc-logo" src="https://github.com/user-attachments/assets/19529f94-981d-4cca-8ffe-77da3bd66f91" />
+
 # eQc — Easy Qual Coding
+## What's New in v1.5.9
+
+- Logo has been changed
+- Some minor improvements of Codemap Option
 
 ## Complete User Guide & Documentation (v1.5.8)
 

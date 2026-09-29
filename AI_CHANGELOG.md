@@ -467,3 +467,21 @@ Work-in-progress session vs. the milestone "overview + drill-down code map"; thr
 - **Untouched:** `buildChunks` / `<mark>`-style `<span className="coded-segment">` wrapping (background tint, `coded-segment`/`multi-coded`/`search-match-highlight` classes), segment `onClick` popup menu, drag/drop, selection tracking, scroll-to-segment / search-match jump effects.
 - **Untouched (right side):** `DocumentPortrait` and its flex wrapper.
 
+## 2026-09-29 — Inter-coder reliability (ICR) / inter-coder agreement (new, additive)
+
+**Scope constraint:** purely additive — no existing logic refactored or altered. Only a new lib module plus insertions in `AnalysisTab` (import, subTab value, nav button, panel section, memoized state).
+
+### New file: `src/lib/icr.ts` (pure, no React/persistence)
+- **Unit of analysis** — standard "code occurrence" agreement: one item = one (source × code) pair, where a source is a text document or an image. A coder marks an item present by applying that code at least once to that source (`codedSegments` for docs, `codedRegions` for images).
+- `listIcrCoders(project)` — distinct coders with segment/region counts; unstamped items count as `UNATTRIBUTED_CODER` so nothing is hidden.
+- `computePairwiseIcr(project, coderA, coderB)` — overall + per-code 2×2 contingencies (`bothYes/aOnly/bOnly/bothNo`), percent agreement, Cohen's κ; per-code rows sorted most-disagreed-first.
+- `computeFleissIcr(project, coders)` — Fleiss' κ over all coders with binary present/absent categories (every coder rates every item, absent counts as a rating), plus % full agreement, overall + per-code.
+- `cohenKappa(t)` returns `null` when undefined (no items, or Pe = 1); `kappaInterpretation` uses Landis & Koch (1977) labels; `formatKappa` renders `—` for null.
+- **Verified:** κ math checked against hand-computed cases via the compiled module (pairwise κ = −1/3 on a bothYes=2/aOnly=1/bOnly=1/bothNo=0 table; Fleiss' κ = 0.25 on a known 3-rater case).
+
+### `src/App.tsx` (`AnalysisTab` only, additive)
+- `subTab` union gains `'icr'`; nav gains an "Inter-Coder Reliability" button.
+- New memoized state: `icrCoders`, `icrCoderA/B` picks with fallback to the first two coders with data (`icrEffA/B`), `icrPair`, `icrFleiss` (computed only when ≥3 coders).
+- Panel: Coder A/B dropdowns with item counts, pairwise summary (items = sources × codes, % agreement, Cohen's κ + interpretation), 2×2 contingency table, per-code table, CSV/DOCX export of per-code rows via existing `AnalysisExportButtons`, and a Fleiss' κ section (overall + per-code) when applicable. Empty states for <2 coders and same-coder picks.
+- **Untouched:** report builder (`report.ts`), all other sub-tabs, `showToast`, persistence, domain types.
+

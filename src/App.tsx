@@ -17,6 +17,7 @@ import { buildQdpxExport, buildQdpxCodebookExport } from './lib/qdpxExport';
 import { importDocxComments } from './lib/docxCommentImport';
 import { mergeProjectInto } from './lib/merge';
 import { codingFrequency, codeDocumentMatrix, codeCooccurrenceMatrix } from './lib/analysis';
+import { listIcrCoders, computePairwiseIcr, computeFleissIcr, formatKappa, kappaInterpretation } from './lib/icr';
 import { buildReportHtml, ReportExtras } from './lib/report';
 import { AUTO_CODE_LANGUAGES, CaptureBoundary, AutoCodeMatchMode, runAutoCode } from './lib/autoCode';
 import { extractBengaliTextFromPDF } from './lib/pdfExtractor';
@@ -3970,7 +3971,7 @@ function AnalysisExportButtons({
 }
 
 function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, showToast }: { project: Project; onExportReport: (extras?: ReportExtras) => void; onSaveCell: (docId: ID, codeId: ID, text: string) => void; onSaveRelationNote: (codeAId: ID, codeBId: ID, note: string) => void; showToast: (msg: string) => void }) {
-  const [subTab, setSubTab] = useState<'frequency' | 'docMatrix' | 'coMatrix' | 'framework' | 'words' | 'kwic'>('frequency');
+  const [subTab, setSubTab] = useState<'frequency' | 'docMatrix' | 'coMatrix' | 'framework' | 'words' | 'kwic' | 'icr'>('frequency');
   const codesByIdLocal = useMemo(() => new Map(project.codes.map(c => [c.id, c])), [project.codes]);
 
   // The text the user is typing (`inputValue`, drives only the input field)
@@ -4009,6 +4010,23 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
   function runKwicSearch() {
     setActiveSearch(inputValue.trim().toLowerCase());
   }
+
+  // Inter-coder reliability (additive panel): which two coders to compare.
+  // Empty picks fall back to the first two coders with data so the panel
+  // shows a result immediately. Results are memoized pure computations.
+  const icrCoders = useMemo(() => listIcrCoders(project), [project]);
+  const [icrCoderA, setIcrCoderA] = useState('');
+  const [icrCoderB, setIcrCoderB] = useState('');
+  const icrEffA = icrCoderA || icrCoders[0]?.name || '';
+  const icrEffB = icrCoderB || icrCoders[1]?.name || '';
+  const icrPair = useMemo(
+    () => (icrEffA && icrEffB && icrEffA !== icrEffB ? computePairwiseIcr(project, icrEffA, icrEffB) : null),
+    [project, icrEffA, icrEffB]
+  );
+  const icrFleiss = useMemo(
+    () => (icrCoders.length >= 3 ? computeFleissIcr(project, icrCoders.map(c => c.name)) : null),
+    [project, icrCoders]
+  );
 
   const STOP_WORDS_DEFAULT = 'the, is, at, which, and, a, an, in, on, of, to, for, with, it, this, that, এবং, ও, আর, কি, যে, এই, সেই, হয়, না, থেকে, কে, করে, এর, তে';
   const [stopWordsText, setStopWordsText] = useState(STOP_WORDS_DEFAULT);
@@ -4128,6 +4146,9 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
         </button>
         <button className={`subtab-btn ${subTab === 'kwic' ? 'active' : ''}`} onClick={() => setSubTab('kwic')}>
           KWIC
+        </button>
+        <button className={`subtab-btn ${subTab === 'icr' ? 'active' : ''}`} onClick={() => setSubTab('icr')}>
+          Inter-Coder Reliability
         </button>
       </nav>
 
@@ -4494,6 +4515,155 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
           )}
           {kwicResults.length === 0 && activeSearch && (
             <div className="empty-hint" style={{ marginTop: '12px' }}>No matches found for "{activeSearch}".</div>
+          )}
+        </section>
+      )}
+
+      {subTab === 'icr' && (
+        <section>
+          <div className="section-hint" style={{ marginBottom: '8px' }}>
+            Agreement over code occurrence: one item = one code applied (or not) to one document or image.
+            Compare two coders with percent agreement and Cohen's κ; with 3+ coders Fleiss' κ is computed over all of them.
+          </div>
+          {icrCoders.length < 2 ? (
+            <div className="empty-hint">Need at least two coders with coded passages or regions. Merge another coder's project, or check coder names in Project Settings.</div>
+          ) : (
+            <>
+              <div className="sort-row" style={{ flexDirection: 'row', alignItems: 'flex-end', gap: '8px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <label style={{ marginBottom: 0 }}>Coder A</label>
+                  <select
+                    value={icrEffA}
+                    onChange={e => setIcrCoderA(e.target.value)}
+                    style={{ padding: '4px 8px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text)' }}
+                  >
+                    {icrCoders.map(c => (
+                      <option key={c.name} value={c.name}>{c.name} ({c.segments + c.regions})</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <label style={{ marginBottom: 0 }}>Coder B</label>
+                  <select
+                    value={icrEffB}
+                    onChange={e => setIcrCoderB(e.target.value)}
+                    style={{ padding: '4px 8px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text)' }}
+                  >
+                    {icrCoders.map(c => (
+                      <option key={c.name} value={c.name}>{c.name} ({c.segments + c.regions})</option>
+                    ))}
+                  </select>
+                </div>
+                {icrPair && (
+                  <AnalysisExportButtons
+                    title={`${project.name} — Inter-Coder Reliability (${icrPair.coderA} vs ${icrPair.coderB})`}
+                    filenameBase={`${project.name.replace(/[^\w\- ]/g, '_')}_icr_pairwise`}
+                    headers={['Code', 'Both coded', `${icrPair.coderA} only`, `${icrPair.coderB} only`, 'Neither', '% agreement', "Cohen's kappa"]}
+                    rows={icrPair.perCode.map(r => [r.codeName, r.bothYes, r.aOnly, r.bOnly, r.bothNo, r.percent.toFixed(1), formatKappa(r.kappa)])}
+                    showToast={showToast}
+                  />
+                )}
+              </div>
+
+              {!icrPair ? (
+                <div className="empty-hint" style={{ marginTop: '12px' }}>Pick two different coders to compare.</div>
+              ) : (
+                <>
+                  <div className="section-hint" style={{ marginTop: '12px' }}>
+                    <strong>{icrPair.coderA} vs {icrPair.coderB}</strong>
+                    {' '}— {icrPair.items} items ({icrPair.sources} sources × {icrPair.codes} codes):{' '}
+                    <strong>{icrPair.percent.toFixed(1)}% agreement</strong>, Cohen's κ ={' '}
+                    <strong>{formatKappa(icrPair.kappa)}</strong> ({kappaInterpretation(icrPair.kappa)})
+                  </div>
+                  <div className="matrix-wrap" style={{ marginTop: '8px' }}>
+                    <table className="matrix-table">
+                      <thead>
+                        <tr>
+                          <th></th>
+                          <th>{icrPair.coderB}: coded</th>
+                          <th>{icrPair.coderB}: not coded</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td>{icrPair.coderA}: coded</td>
+                          <td>{icrPair.contingency.bothYes}</td>
+                          <td>{icrPair.contingency.aOnly}</td>
+                        </tr>
+                        <tr>
+                          <td>{icrPair.coderA}: not coded</td>
+                          <td>{icrPair.contingency.bOnly}</td>
+                          <td>{icrPair.contingency.bothNo}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="matrix-wrap" style={{ marginTop: '12px' }}>
+                    <table className="matrix-table">
+                      <thead>
+                        <tr>
+                          <th>Code</th>
+                          <th>Both</th>
+                          <th>{icrPair.coderA} only</th>
+                          <th>{icrPair.coderB} only</th>
+                          <th>Neither</th>
+                          <th>% agree</th>
+                          <th>Cohen's κ</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {icrPair.perCode.map(r => (
+                          <tr key={r.codeId}>
+                            <td>{r.codeName}</td>
+                            <td>{r.bothYes}</td>
+                            <td>{r.aOnly}</td>
+                            <td>{r.bOnly}</td>
+                            <td>{r.bothNo}</td>
+                            <td>{r.percent.toFixed(1)}%</td>
+                            <td>{formatKappa(r.kappa)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {icrPair.perCode.length === 0 && <div className="empty-hint">No codes yet.</div>}
+                  </div>
+                </>
+              )}
+
+              {icrFleiss && (
+                <>
+                  <div className="section-hint" style={{ marginTop: '16px' }}>
+                    <strong>All {icrFleiss.coders.length} coders</strong>
+                    {' '}({icrFleiss.coders.join(', ')}) — {icrFleiss.items} items:{' '}
+                    <strong>{icrFleiss.percentFull.toFixed(1)}% full agreement</strong>, Fleiss' κ ={' '}
+                    <strong>{formatKappa(icrFleiss.kappa)}</strong> ({kappaInterpretation(icrFleiss.kappa)})
+                  </div>
+                  <div className="matrix-wrap" style={{ marginTop: '8px' }}>
+                    <table className="matrix-table">
+                      <thead>
+                        <tr>
+                          <th>Code</th>
+                          <th>Full agreement</th>
+                          <th>% full</th>
+                          <th>Fleiss' κ</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {icrFleiss.perCode.map(r => (
+                          <tr key={r.codeId}>
+                            <td>{r.codeName}</td>
+                            <td>{r.fullAgreement}/{r.items}</td>
+                            <td>{r.percentFull.toFixed(1)}%</td>
+                            <td>{formatKappa(r.kappa)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {icrFleiss.perCode.length === 0 && <div className="empty-hint">No codes yet.</div>}
+                  </div>
+                </>
+              )}
+            </>
           )}
         </section>
       )}

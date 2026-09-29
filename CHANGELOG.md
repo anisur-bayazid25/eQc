@@ -4,7 +4,7 @@ All notable changes to **eQc - Easy Qual Coding** are documented in this file.
 
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## 1.6.0 - 2026-09-29
 
 ### Added
 - **Inter-coder reliability (ICR)** — new Analysis dashboard sub-tab measuring code-occurrence agreement: one item = one code applied (or not) to one document or image. Compare any two coders with **percent agreement** and **Cohen's κ** (overall, per-code breakdown, and the 2×2 table, exportable to CSV/DOCX); with 3+ coders **Fleiss' κ** is computed over all of them automatically.

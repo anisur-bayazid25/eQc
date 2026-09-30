@@ -27,7 +27,8 @@ export interface Code {
   name: string;
   color: string;
   parentId: ID | null;
-  summary: string;       // memo / definition text
+  summary: string;       // memo / analytic note text
+  definition?: string;   // coding definition: what counts as an instance of this code (codebook rule)
   mapPosition?: { x: number; y: number };  // cached node position for the Code Map view
   mapShape?: 'circle' | 'square' | 'diamond';  // node shape on the Code Map (defaults to circle)
   sortIndex?: number;    // explicit sibling order within the same parent (Code Map tree reorder)

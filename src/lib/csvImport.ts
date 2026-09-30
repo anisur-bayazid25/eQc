@@ -67,6 +67,29 @@ function matchSummaryTarget(
   return parentCode; // generic "Summary" column defaults to the parent code
 }
 
+// Same level-routing as summaries, but a definition is a single codebook
+// rule rather than an accreting memo: first non-empty value wins, later
+// rows leave an existing definition untouched.
+function applyDefinition(code: Code, text: string) {
+  const clean = text.trim();
+  if (!clean) return;
+  if (code.definition && code.definition.trim()) return;
+  code.definition = clean;
+}
+
+function matchDefinitionTarget(
+  fieldName: string,
+  parentCode: Code,
+  child1Code: Code | null,
+  child2Code: Code | null
+): Code | null {
+  const n = normalize(fieldName);
+  if (n.includes('child 2') || n.includes('child node 2')) return child2Code;
+  if (n.includes('child 1') || n.includes('child node 1')) return child1Code;
+  if (n.includes('parent')) return parentCode;
+  return parentCode; // generic "Definition" column defaults to the parent code
+}
+
 // Mirrors the manual-coding limitation already noted for this app: the
 // first occurrence of the quote text in the document is used. Improve to
 // track exact positions if the same quote occurs more than once.
@@ -123,6 +146,15 @@ export function importCsvDataset(project: Project, csv: CsvParseResult): CsvImpo
       if (!text || !text.trim() || !parentCode) continue;
       const target = matchSummaryTarget(field, parentCode, child1Code, child2Code);
       if (target) appendSummary(target, text);
+    }
+
+    // Coding definitions ride the same codebook-only path as summaries, so
+    // a codes + definition-columns CSV populates code definitions.
+    for (const field of csv.definitionFields || []) {
+      const text = row[field];
+      if (!text || !text.trim() || !parentCode) continue;
+      const target = matchDefinitionTarget(field, parentCode, child1Code, child2Code);
+      if (target) applyDefinition(target, text);
     }
 
     // Everything below only runs if the file actually has source/quote

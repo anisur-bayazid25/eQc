@@ -30,6 +30,27 @@ function codeLevelColumns(codes: Code[], code: Code): [string, string, string] {
   ];
 }
 
+// Same 3-column shape for coding definitions: each level's own definition.
+// Deeper than 3 levels, the Child 2 slot carries the deepest code's
+// definition. Header names mirror the importer's definition routing, so a
+// codebook export re-imports its definitions losslessly.
+function codeLevelDefinitions(codes: Code[], code: Code): [string, string, string] {
+  const pathNames = [...codeAncestorPath(codes, code), code.name];
+  let parentId: string | null = null;
+  const pathCodes: (Code | undefined)[] = pathNames.map(name => {
+    const found = codes.find(c => c.parentId === parentId && c.name === name);
+    parentId = found ? found.id : null;
+    return found;
+  });
+  return [
+    pathCodes[0]?.definition || '',
+    pathCodes[1]?.definition || '',
+    pathCodes.length > 3
+      ? pathCodes[pathCodes.length - 1]?.definition || ''
+      : (pathCodes[2]?.definition || '')
+  ];
+}
+
 export interface ScopedExport {
   headers: string[];
   rows: string[][];
@@ -40,8 +61,8 @@ export function buildScopedExport(project: Project, scope: ExportScope): ScopedE
   const docsById = new Map(project.docs.map(d => [d.id, d]));
 
   if (scope === 'codesOnly') {
-    const headers = ['Parent Node', 'Child Node 1', 'Child Node 2'];
-    const rows = project.codes.map(c => codeLevelColumns(project.codes, c));
+    const headers = ['Parent Node', 'Child Node 1', 'Child Node 2', 'Definition of Parent', 'Definition of Child 1', 'Definition of Child 2'];
+    const rows = project.codes.map(c => [...codeLevelColumns(project.codes, c), ...codeLevelDefinitions(project.codes, c)]);
     return { headers, rows, csv: rowsToCsv(headers, rows) };
   }
 
@@ -50,7 +71,7 @@ export function buildScopedExport(project: Project, scope: ExportScope): ScopedE
   const headers = [
     ...(includeDocument ? ['Document'] : []),
     'Parent Node', 'Child Node 1', 'Child Node 2', 'Quote', 'Coder',
-    ...(includeSummary ? ['Code Summary'] : [])
+    ...(includeSummary ? ['Code Summary', 'Code Definition'] : [])
   ];
 
   let segs = [...project.codedSegments];
@@ -70,7 +91,7 @@ export function buildScopedExport(project: Project, scope: ExportScope): ScopedE
     const row: string[] = [];
     if (includeDocument) row.push(docsById.get(seg.docId)?.name || 'Unknown source');
     row.push(parent, child1, child2, seg.text, seg.coder || UNATTRIBUTED_CODER);
-    if (includeSummary) row.push(code.summary || '');
+    if (includeSummary) row.push(code.summary || '', code.definition || '');
     rows.push(row);
   }
   return { headers, rows, csv: rowsToCsv(headers, rows) };

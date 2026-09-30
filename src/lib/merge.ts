@@ -112,6 +112,9 @@ export function mergeProjectInto(target: Project, source: Project): MergeSummary
         if (sc.summary && !match.summary.includes(sc.summary)) {
           match.summary = match.summary ? `${match.summary}\n\n${sc.summary}` : sc.summary;
         }
+        if (sc.definition && !(match.definition && match.definition.trim())) {
+          match.definition = sc.definition;
+        }
       } else {
         // Root codes arriving from a coder-tagged project get that coder's
         // color; subcodes inherit the parent's color (colorForNewCode),
@@ -124,6 +127,7 @@ export function mergeProjectInto(target: Project, source: Project): MergeSummary
             : colorForNewCode(target.codes, targetParentId, target.codes.length),
           parentId: targetParentId,
           summary: sc.summary,
+          definition: sc.definition,
           createdAt: Date.now()
         };
         target.codes.push(match);

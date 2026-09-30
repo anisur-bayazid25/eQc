@@ -32,6 +32,7 @@ export interface CsvParseResult {
   fileName: string;
   columns: CsvColumns;
   summaryFields: string[];
+  definitionFields: string[];
   rows: Record<string, string>[];
   errors: unknown[];
 }

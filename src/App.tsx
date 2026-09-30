@@ -17,7 +17,7 @@ import { buildQdpxExport, buildQdpxCodebookExport } from './lib/qdpxExport';
 import { importDocxComments } from './lib/docxCommentImport';
 import { mergeProjectInto } from './lib/merge';
 import { codingFrequency, codeDocumentMatrix, codeCooccurrenceMatrix } from './lib/analysis';
-import { listIcrCoders, computePairwiseIcr, computeFleissIcr, formatKappa, kappaInterpretation } from './lib/icr';
+import { listIcrCoders, computePairwiseIcr, computeFleissIcr, computeBinaryAlpha, computeCuAlpha, buildCodingUnits, formatKappa, kappaInterpretation } from './lib/icr';
 import { buildReportHtml, ReportExtras } from './lib/report';
 import { AUTO_CODE_LANGUAGES, CaptureBoundary, AutoCodeMatchMode, runAutoCode } from './lib/autoCode';
 import { extractBengaliTextFromPDF } from './lib/pdfExtractor';
@@ -1878,6 +1878,14 @@ function moveDoc(docId: ID, targetFolderId: ID | null) {
     setSegmentPopup(null);
   }
 
+  // Consensus adjudication (Analysis tab): delete a batch of segments by id.
+  // Same persist path as the inspector's Remove, so undo works identically.
+  function deleteSegmentsByIds(ids: ID[]) {
+    if (!project || ids.length === 0) return;
+    const drop = new Set(ids);
+    persist({ ...project, codedSegments: project.codedSegments.filter(s => !drop.has(s.id)) });
+  }
+
 function updateSegmentNote(segId: ID, note: string) {
     if (!project) return;
     persist({
@@ -3356,6 +3364,17 @@ function openDocxCommentImport() {
 
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>Definition</label>
+              </div>
+              <DebouncedCodeText
+                value={codebookCode.definition || ''}
+                onCommit={val => updateCode(codebookCode.id, { definition: val })}
+                multiline
+              />
+            </div>
+
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                 <label style={{ fontSize: '11px', fontWeight: 'bold' }}>Summary / memo</label>
                 <button className="mini-btn" style={{ fontSize: '10px', padding: '2px 4px', color: '#eab308' }} onClick={() => pullChildSummaries(codebookCode.id)}>⚡ Pull Subcode Summaries</button>
               </div>
@@ -3777,7 +3796,7 @@ function openDocxCommentImport() {
 )}
 
 {tab === 'analysis' && (
-  <AnalysisTab project={project} onExportReport={handleExportReport} onSaveCell={updateFrameworkCell} onSaveRelationNote={updateRelationNote} showToast={showToast} />
+  <AnalysisTab project={project} onExportReport={handleExportReport} onSaveCell={updateFrameworkCell} onSaveRelationNote={updateRelationNote} onDeleteSegments={deleteSegmentsByIds} showToast={showToast} />
 )}
 
 <div
@@ -3970,8 +3989,8 @@ function AnalysisExportButtons({
   );
 }
 
-function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, showToast }: { project: Project; onExportReport: (extras?: ReportExtras) => void; onSaveCell: (docId: ID, codeId: ID, text: string) => void; onSaveRelationNote: (codeAId: ID, codeBId: ID, note: string) => void; showToast: (msg: string) => void }) {
-  const [subTab, setSubTab] = useState<'frequency' | 'docMatrix' | 'coMatrix' | 'framework' | 'words' | 'kwic' | 'icr'>('frequency');
+function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, onDeleteSegments, showToast }: { project: Project; onExportReport: (extras?: ReportExtras) => void; onSaveCell: (docId: ID, codeId: ID, text: string) => void; onSaveRelationNote: (codeAId: ID, codeBId: ID, note: string) => void; onDeleteSegments: (ids: ID[]) => void; showToast: (msg: string) => void }) {
+  const [subTab, setSubTab] = useState<'frequency' | 'docMatrix' | 'coMatrix' | 'framework' | 'words' | 'kwic' | 'icr' | 'consensus'>('frequency');
   const codesByIdLocal = useMemo(() => new Map(project.codes.map(c => [c.id, c])), [project.codes]);
 
   // The text the user is typing (`inputValue`, drives only the input field)
@@ -4011,22 +4030,129 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
     setActiveSearch(inputValue.trim().toLowerCase());
   }
 
-  // Inter-coder reliability (additive panel): which two coders to compare.
-  // Empty picks fall back to the first two coders with data so the panel
-  // shows a result immediately. Results are memoized pure computations.
+  // Inter-coder reliability + consensus (additive panels): shared scope =
+  // which coders and documents count. Null = all (tracks merges/imports,
+  // so newly appearing coders/docs join the scope automatically).
+  // Pairwise A/B picks fall back to the first two scoped coders.
   const icrCoders = useMemo(() => listIcrCoders(project), [project]);
+  const [icrScopeCoders, setIcrScopeCoders] = useState<string[] | null>(null);
+  const [icrScopeDocs, setIcrScopeDocs] = useState<string[] | null>(null);
+  const [icrIncludeImages, setIcrIncludeImages] = useState(true);
+  const icrSelCoders = useMemo(
+    () => (icrScopeCoders ?? icrCoders.map(c => c.name)).filter(n => icrCoders.some(c => c.name === n)),
+    [icrScopeCoders, icrCoders]
+  );
+  const icrScope = useMemo(
+    () => ({
+      docIds: (icrScopeDocs ?? project.docs.map(d => d.id)).filter(id => project.docs.some(d => d.id === id)),
+      includeImages: icrIncludeImages
+    }),
+    [icrScopeDocs, project.docs, icrIncludeImages]
+  );
   const [icrCoderA, setIcrCoderA] = useState('');
   const [icrCoderB, setIcrCoderB] = useState('');
-  const icrEffA = icrCoderA || icrCoders[0]?.name || '';
-  const icrEffB = icrCoderB || icrCoders[1]?.name || '';
+  const icrEffA = (icrCoderA && icrSelCoders.includes(icrCoderA) ? icrCoderA : icrSelCoders[0]) || '';
+  const icrEffB = (icrCoderB && icrSelCoders.includes(icrCoderB) ? icrCoderB : (icrSelCoders[1] ?? icrSelCoders[0])) || '';
   const icrPair = useMemo(
-    () => (icrEffA && icrEffB && icrEffA !== icrEffB ? computePairwiseIcr(project, icrEffA, icrEffB) : null),
-    [project, icrEffA, icrEffB]
+    () => (icrEffA && icrEffB && icrEffA !== icrEffB ? computePairwiseIcr(project, icrEffA, icrEffB, icrScope) : null),
+    [project, icrEffA, icrEffB, icrScope]
   );
   const icrFleiss = useMemo(
-    () => (icrCoders.length >= 3 ? computeFleissIcr(project, icrCoders.map(c => c.name)) : null),
-    [project, icrCoders]
+    () => (icrSelCoders.length >= 3 ? computeFleissIcr(project, icrSelCoders, icrScope) : null),
+    [project, icrSelCoders, icrScope]
   );
+  const icrBinary = useMemo(
+    () => (icrSelCoders.length >= 2 ? computeBinaryAlpha(project, icrSelCoders, icrScope) : null),
+    [project, icrSelCoders, icrScope]
+  );
+  const icrCu = useMemo(
+    () => (icrSelCoders.length >= 2 && icrScope.docIds.length > 0 ? computeCuAlpha(project, icrSelCoders, icrScope.docIds) : null),
+    [project, icrSelCoders, icrScope]
+  );
+  const consensusSegById = useMemo(() => new Map(project.codedSegments.map(s => [s.id, s])), [project.codedSegments]);
+  const consensusUnits = useMemo(
+    () => (icrSelCoders.length >= 2 && icrScope.docIds.length > 0 ? buildCodingUnits(project, icrSelCoders, icrScope.docIds) : []),
+    [project, icrSelCoders, icrScope]
+  );
+  const [consensusFilter, setConsensusFilter] = useState<'all' | 'agree' | 'disagree'>('all');
+
+  function toggleInList(list: string[] | null, all: string[], v: string): string[] | null {
+    const cur = list ?? [...all];
+    return cur.includes(v) ? cur.filter(x => x !== v) : [...cur, v];
+  }
+
+  // Shared scope picker for the ICR + Consensus tabs (plain JSX helper, not
+  // a component, so it never remounts while typing/clicking elsewhere).
+  function renderIcrScopePicker() {
+    const allDocIds = project.docs.map(d => d.id);
+    const selDocs = icrScope.docIds;
+    const imageCount = (project.images || []).length;
+    return (
+      <div className="sort-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '6px', border: '1px solid var(--border)', borderRadius: '6px', padding: '8px', marginBottom: '8px' }}>
+        <div>
+          <label style={{ marginBottom: 4, display: 'block' }}>Coders in scope ({icrSelCoders.length}/{icrCoders.length})</label>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            {icrCoders.map(c => (
+              <label key={c.name} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}>
+                <input
+                  type="checkbox"
+                  checked={icrSelCoders.includes(c.name)}
+                  onChange={() => setIcrScopeCoders(toggleInList(icrScopeCoders, icrCoders.map(x => x.name), c.name))}
+                />
+                {c.name} <span className="section-hint">({c.segments + c.regions})</span>
+              </label>
+            ))}
+            {icrCoders.length === 0 && <span className="section-hint">No coded passages or regions yet.</span>}
+          </div>
+        </div>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: 4 }}>
+            <label style={{ marginBottom: 0 }}>Documents in scope ({selDocs.length}/{allDocIds.length})</label>
+            <button className="mini-btn" onClick={() => setIcrScopeDocs(null)}>All</button>
+            <button className="mini-btn" onClick={() => setIcrScopeDocs([])}>None</button>
+          </div>
+          <div style={{ maxHeight: '110px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '4px', padding: '6px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            {project.docs.map(d => (
+              <label key={d.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}>
+                <input
+                  type="checkbox"
+                  checked={selDocs.includes(d.id)}
+                  onChange={() => setIcrScopeDocs(toggleInList(icrScopeDocs, allDocIds, d.id))}
+                />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.name}</span>
+              </label>
+            ))}
+            {project.docs.length === 0 && <span className="section-hint">No documents yet.</span>}
+          </div>
+        </div>
+        {imageCount > 0 && (
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}>
+            <input type="checkbox" checked={icrIncludeImages} onChange={e => setIcrIncludeImages(e.target.checked)} />
+            Include images ({imageCount})
+          </label>
+        )}
+      </div>
+    );
+  }
+
+  // Consensus adjudication: keep one coder's coding in a unit (delete the
+  // rest), or delete the whole unit. Same persistence path as the
+  // Workspace inspector's Remove, so Ctrl+Z undo works identically.
+  function adjudicateUnit(unitKey: string, keepCoder: string | null) {
+    const unit = consensusUnits.find(u => u.key === unitKey);
+    if (!unit) return;
+    const ids = keepCoder === null
+      ? [...unit.segmentIds]
+      : unit.perCoder.filter(p => p.coder !== keepCoder).flatMap(p => p.segmentIds);
+    if (ids.length === 0) {
+      showToast('Nothing to remove — that coder holds the only coding here.');
+      return;
+    }
+    onDeleteSegments(ids);
+    showToast(keepCoder === null
+      ? `Removed ${ids.length} coded passage(s).`
+      : `Kept ${keepCoder}; removed ${ids.length} other coded passage(s).`);
+  }
 
   const STOP_WORDS_DEFAULT = 'the, is, at, which, and, a, an, in, on, of, to, for, with, it, this, that, এবং, ও, আর, কি, যে, এই, সেই, হয়, না, থেকে, কে, করে, এর, তে';
   const [stopWordsText, setStopWordsText] = useState(STOP_WORDS_DEFAULT);
@@ -4149,6 +4275,9 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
         </button>
         <button className={`subtab-btn ${subTab === 'icr' ? 'active' : ''}`} onClick={() => setSubTab('icr')}>
           Inter-Coder Reliability
+        </button>
+        <button className={`subtab-btn ${subTab === 'consensus' ? 'active' : ''}`} onClick={() => setSubTab('consensus')}>
+          Consensus
         </button>
       </nav>
 
@@ -4523,10 +4652,14 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
         <section>
           <div className="section-hint" style={{ marginBottom: '8px' }}>
             Agreement over code occurrence: one item = one code applied (or not) to one document or image.
-            Compare two coders with percent agreement and Cohen's κ; with 3+ coders Fleiss' κ is computed over all of them.
+            Pick the coders and documents in scope below. Pairwise: percent agreement, Holsti's index and Cohen's κ.
+            With 3+ coders: Fleiss' κ. Krippendorff's c-Alpha-binary (per code) and Cu-Alpha (ATLAS.ti style) cover the same scope.
           </div>
-          {icrCoders.length < 2 ? (
-            <div className="empty-hint">Need at least two coders with coded passages or regions. Merge another coder's project, or check coder names in Project Settings.</div>
+          {renderIcrScopePicker()}
+          {icrSelCoders.length < 2 ? (
+            <div className="empty-hint">Select at least two coders in scope above. Need a second coder? Merge another coder's project, or check coder names in Project Settings.</div>
+          ) : icrScope.docIds.length === 0 && !icrScope.includeImages ? (
+            <div className="empty-hint">Select at least one document (or include images) in scope above.</div>
           ) : (
             <>
               <div className="sort-row" style={{ flexDirection: 'row', alignItems: 'flex-end', gap: '8px', flexWrap: 'wrap' }}>
@@ -4537,9 +4670,10 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
                     onChange={e => setIcrCoderA(e.target.value)}
                     style={{ padding: '4px 8px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text)' }}
                   >
-                    {icrCoders.map(c => (
-                      <option key={c.name} value={c.name}>{c.name} ({c.segments + c.regions})</option>
-                    ))}
+                    {icrSelCoders.map(n => {
+                      const info = icrCoders.find(c => c.name === n);
+                      return <option key={n} value={n}>{n} ({(info?.segments || 0) + (info?.regions || 0)})</option>;
+                    })}
                   </select>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
@@ -4549,17 +4683,18 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
                     onChange={e => setIcrCoderB(e.target.value)}
                     style={{ padding: '4px 8px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text)' }}
                   >
-                    {icrCoders.map(c => (
-                      <option key={c.name} value={c.name}>{c.name} ({c.segments + c.regions})</option>
-                    ))}
+                    {icrSelCoders.map(n => {
+                      const info = icrCoders.find(c => c.name === n);
+                      return <option key={n} value={n}>{n} ({(info?.segments || 0) + (info?.regions || 0)})</option>;
+                    })}
                   </select>
                 </div>
                 {icrPair && (
                   <AnalysisExportButtons
                     title={`${project.name} — Inter-Coder Reliability (${icrPair.coderA} vs ${icrPair.coderB})`}
                     filenameBase={`${project.name.replace(/[^\w\- ]/g, '_')}_icr_pairwise`}
-                    headers={['Code', 'Both coded', `${icrPair.coderA} only`, `${icrPair.coderB} only`, 'Neither', '% agreement', "Cohen's kappa"]}
-                    rows={icrPair.perCode.map(r => [r.codeName, r.bothYes, r.aOnly, r.bOnly, r.bothNo, r.percent.toFixed(1), formatKappa(r.kappa)])}
+                    headers={['Code', 'Both coded', `${icrPair.coderA} only`, `${icrPair.coderB} only`, 'Neither', '% agreement', "Cohen's kappa", 'Holsti']}
+                    rows={icrPair.perCode.map(r => [r.codeName, r.bothYes, r.aOnly, r.bOnly, r.bothNo, r.percent.toFixed(1), formatKappa(r.kappa), formatKappa(r.holsti)])}
                     showToast={showToast}
                   />
                 )}
@@ -4572,7 +4707,8 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
                   <div className="section-hint" style={{ marginTop: '12px' }}>
                     <strong>{icrPair.coderA} vs {icrPair.coderB}</strong>
                     {' '}— {icrPair.items} items ({icrPair.sources} sources × {icrPair.codes} codes):{' '}
-                    <strong>{icrPair.percent.toFixed(1)}% agreement</strong>, Cohen's κ ={' '}
+                    <strong>{icrPair.percent.toFixed(1)}% agreement</strong>, Holsti ={' '}
+                    <strong>{formatKappa(icrPair.holsti)}</strong>, Cohen's κ ={' '}
                     <strong>{formatKappa(icrPair.kappa)}</strong> ({kappaInterpretation(icrPair.kappa)})
                   </div>
                   <div className="matrix-wrap" style={{ marginTop: '8px' }}>
@@ -4609,6 +4745,7 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
                           <th>Neither</th>
                           <th>% agree</th>
                           <th>Cohen's κ</th>
+                          <th>Holsti</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -4621,6 +4758,7 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
                             <td>{r.bothNo}</td>
                             <td>{r.percent.toFixed(1)}%</td>
                             <td>{formatKappa(r.kappa)}</td>
+                            <td>{formatKappa(r.holsti)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -4633,7 +4771,7 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
               {icrFleiss && (
                 <>
                   <div className="section-hint" style={{ marginTop: '16px' }}>
-                    <strong>All {icrFleiss.coders.length} coders</strong>
+                    <strong>Scoped {icrFleiss.coders.length} coders</strong>
                     {' '}({icrFleiss.coders.join(', ')}) — {icrFleiss.items} items:{' '}
                     <strong>{icrFleiss.percentFull.toFixed(1)}% full agreement</strong>, Fleiss' κ ={' '}
                     <strong>{formatKappa(icrFleiss.kappa)}</strong> ({kappaInterpretation(icrFleiss.kappa)})
@@ -4663,6 +4801,148 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
                   </div>
                 </>
               )}
+
+              {icrBinary && (
+                <>
+                  <div className="section-hint" style={{ marginTop: '16px' }}>
+                    <strong>Krippendorff's c-Alpha-binary</strong> (ATLAS.ti style) — per-code agreement over
+                    present/absent ratings ({icrBinary.coders.join(', ')}; {icrBinary.items} items):{' '}
+                    overall α = <strong>{formatKappa(icrBinary.alpha)}</strong> ({kappaInterpretation(icrBinary.alpha)})
+                  </div>
+                  <div className="sort-row" style={{ marginTop: '4px' }}>
+                    <AnalysisExportButtons
+                      title={`${project.name} — Krippendorff c-Alpha-binary`}
+                      filenameBase={`${project.name.replace(/[^\w\- ]/g, '_')}_icr_calpha_binary`}
+                      headers={['Code', 'Items', 'c-Alpha-binary']}
+                      rows={icrBinary.perCode.map(r => [r.codeName, r.items, formatKappa(r.alpha)])}
+                      showToast={showToast}
+                    />
+                  </div>
+                  <div className="matrix-wrap" style={{ marginTop: '8px' }}>
+                    <table className="matrix-table">
+                      <thead>
+                        <tr>
+                          <th>Code</th>
+                          <th>Items</th>
+                          <th>c-Alpha-binary</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {icrBinary.perCode.map(r => (
+                          <tr key={r.codeId}>
+                            <td>{r.codeName}</td>
+                            <td>{r.items}</td>
+                            <td>{formatKappa(r.alpha)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {icrBinary.perCode.length === 0 && <div className="empty-hint">No codes yet.</div>}
+                  </div>
+                </>
+              )}
+
+              {icrCu && (
+                <div className="section-hint" style={{ marginTop: '16px' }}>
+                  <strong>Krippendorff's Cu-Alpha</strong> (ATLAS.ti style) — agreement on <em>which</em> code was
+                  assigned to each jointly-considered quote ({icrCu.units} quote-units across the scoped documents;
+                  a quote left uncoded by a coder counts as a disagreement):{' '}
+                  Cu-α = <strong>{formatKappa(icrCu.alpha)}</strong> ({kappaInterpretation(icrCu.alpha)}),{' '}
+                  full agreement on {icrCu.fullAgreement}/{icrCu.units} units ({icrCu.percentFull.toFixed(1)}%).
+                  {' '}Review every unit quote-by-quote in the <strong>Consensus</strong> tab.
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      )}
+
+      {subTab === 'consensus' && (
+        <section>
+          <div className="section-hint" style={{ marginBottom: '8px' }}>
+            Adjudication: overlapping quotes coded by the scoped coders are grouped so you can compare them side by
+            side and keep the winner. Removing here is the same as the Workspace inspector's Remove (undo with Ctrl+Z).
+            Image regions are not part of this review — see them in the Codebook excerpts.
+          </div>
+          {renderIcrScopePicker()}
+          {icrSelCoders.length < 2 ? (
+            <div className="empty-hint">Select at least two coders in scope above to review agreements and disagreements.</div>
+          ) : consensusUnits.length === 0 ? (
+            <div className="empty-hint">No jointly-coded quotes in scope yet — the scoped coders have not coded overlapping passages in the scoped documents.</div>
+          ) : (
+            <>
+              <div className="sort-row" style={{ gap: '6px', flexWrap: 'wrap' }}>
+                {(['all', 'agree', 'disagree'] as const).map(f => {
+                  const n = f === 'all'
+                    ? consensusUnits.length
+                    : consensusUnits.filter(u => (f === 'agree') === u.agreed).length;
+                  return (
+                    <button
+                      key={f}
+                      className="mini-btn"
+                      style={consensusFilter === f ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
+                      onClick={() => setConsensusFilter(f)}
+                    >
+                      {f === 'all' ? `All (${n})` : f === 'agree' ? `Agreements (${n})` : `Disagreements (${n})`}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+                {consensusUnits
+                  .filter(u => consensusFilter === 'all' || (consensusFilter === 'agree') === u.agreed)
+                  .sort((a, b) => Number(a.agreed) - Number(b.agreed))
+                  .map(u => (
+                    <div key={u.key} className="excerpt-card" style={{ borderLeft: `3px solid ${u.agreed ? '#22c55e' : '#f59e0b'}` }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <strong style={{ fontSize: '12px' }}>{u.docName}</strong>
+                        <span className="section-hint">chars {u.start}–{u.end}</span>
+                        <span className="section-hint" style={{ fontWeight: 700, color: u.agreed ? '#16a34a' : '#b45309' }}>
+                          {u.agreed ? 'Agreement' : 'Disagreement'}
+                        </span>
+                        <span style={{ flex: 1 }} />
+                        <button className="mini-btn" style={{ color: '#ef4444' }} onClick={() => adjudicateUnit(u.key, null)} title="Delete every coding in this quote">
+                          Delete all
+                        </button>
+                      </div>
+                      <div style={{ fontStyle: 'italic', fontSize: '12px', margin: '6px 0', whiteSpace: 'pre-wrap' }}>"{u.text}"</div>
+                      {u.perCoder.map(p => {
+                        const sole = u.perCoder.length === 1;
+                        return (
+                          <div key={p.coder} style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 600, minWidth: '90px' }}>{p.coder}</span>
+                            {p.codeIds.map(cid => (
+                              <span key={cid} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', border: '1px solid var(--border)', borderRadius: '10px', padding: '1px 8px' }}>
+                                <span className="code-swatch" style={{ background: codesByIdLocal.get(cid)?.color, width: 10, height: 10, borderRadius: 2 }} />
+                                {codesByIdLocal.get(cid)?.name || 'Unknown code'}
+                              </span>
+                            ))}
+                            <button
+                              className="mini-btn"
+                              disabled={sole}
+                              title={sole ? 'Only coding here — nothing to remove' : `Keep ${p.coder}'s coding, remove the other(s)`}
+                              onClick={() => adjudicateUnit(u.key, p.coder)}
+                            >
+                              Keep {p.coder}
+                            </button>
+                          </div>
+                        );
+                      })}
+                      <div style={{ marginTop: '4px' }}>
+                        {u.segmentIds.map(id => {
+                          const s = consensusSegById.get(id);
+                          if (!s) return null;
+                          return (
+                            <div key={id} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text-dim)' }}>
+                              <span>• {s.coder?.trim() || UNATTRIBUTED_CODER} — {codesByIdLocal.get(s.codeId)?.name || '?'} — "{s.text.slice(0, 60)}{s.text.length > 60 ? '…' : ''}"</span>
+                              <button className="mini-btn" style={{ fontSize: '10px', padding: '0 4px' }} title="Remove just this coding" onClick={() => onDeleteSegments([id])}>✕</button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+              </div>
             </>
           )}
         </section>

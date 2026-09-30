@@ -747,10 +747,19 @@ ipcMain.handle('csv:pickAndParse', async () => {
     f => f.norm.startsWith('summary of') || f.norm.endsWith('summary')
   );
 
+  // Definition columns (coding definitions for the codebook): a bare
+  // "definition" / "code definition" / "coding definition" header, anything
+  // starting with "definition of", or anything ending "definition".
+  const definitionFields = fields.filter(
+    f => f.norm === 'definition' || f.norm === 'code definition' || f.norm === 'coding definition' ||
+      f.norm.startsWith('definition of') || f.norm.endsWith('definition')
+  );
+
   return {
     fileName: path.basename(filePaths[0]),
     columns,
     summaryFields: summaryFields.map(f => f.raw),
+    definitionFields: definitionFields.map(f => f.raw),
     rows: parsed.data,
     errors: parsed.errors
   };

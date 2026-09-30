@@ -4,6 +4,16 @@ All notable changes to **eQc - Easy Qual Coding** are documented in this file.
 
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 1.6.1 - 2026-09-30
+
+### Added
+- **ICR scope selection** — the Inter-Coder Reliability tab now lets you pick exactly which coders and documents count (plus an images toggle). Every metric recomputes over the scope.
+- **Holsti's index** — pairwise `2M/(N1+N2)` agreement over positive coding decisions, shown overall and per code.
+- **Krippendorff's c-Alpha-binary** (ATLAS.ti style) — chance-corrected agreement per code over present/absent ratings, with CSV/DOCX export.
+- **Krippendorff's Cu-Alpha** (ATLAS.ti style) — agreement on *which* code each jointly-considered quote received; quotes a coder left uncoded count as disagreements.
+- **Consensus sub-tab** — side-by-side adjudication of overlapping quotes with Agreement/Disagreement badges and filters; keep one coder's coding, delete all, or remove single passages (undo with Ctrl+Z).
+- **Coding definitions** — each code now has a dedicated Definition field (Code Details), importable from codebook CSVs (`Definition`, `Definition of Parent/Child 1/Child 2`, …), exported back out for lossless round-trips, and preserved across project merges.
+
 ## 1.6.0 - 2026-09-29
 
 ### Added

@@ -485,3 +485,29 @@ Work-in-progress session vs. the milestone "overview + drill-down code map"; thr
 - Panel: Coder A/B dropdowns with item counts, pairwise summary (items = sources × codes, % agreement, Cohen's κ + interpretation), 2×2 contingency table, per-code table, CSV/DOCX export of per-code rows via existing `AnalysisExportButtons`, and a Fleiss' κ section (overall + per-code) when applicable. Empty states for <2 coders and same-coder picks.
 - **Untouched:** report builder (`report.ts`), all other sub-tabs, `showToast`, persistence, domain types.
 
+## 2026-09-30 — ICR scope + Holsti + Krippendorff (c-α / Cu-α) + Consensus adjudication + Code.definition
+
+Follow-up to the 2026-09-29 ICR drop, same additive-only constraint (no existing behavior refactored).
+
+### `src/lib/icr.ts` (extended, still pure)
+- **Scope:** `IcrScope { docIds, includeImages }` + `defaultIcrScope(project)` (all docs + images = old behavior). `computePairwiseIcr` / `computeFleissIcr` take an optional scope; new `computeBinaryAlpha` / `computeCuAlpha` / `buildCodingUnits` take explicit coder/doc arrays.
+- **Holsti:** `holstiIndex(t)` = `2·bothYes / (2·bothYes + aOnly + bOnly)` (joint absences excluded by design); `null` when nobody coded. Added to `IcrPairResult` + per-code rows.
+- **Krippendorff core:** `krippendorffAlphaNominal(items)` — general coincidence-matrix nominal α = 1 − Do/De, nulls = missing ratings, `null` when undefined (<2 categories, no pairs, De = 0).
+- **c-Alpha-binary:** `computeBinaryAlpha(project, coders, scope)` — per-code present/absent α + flattened overall α.
+- **Overlap units:** `buildCodingUnits(project, coders, docIds)` — maximal overlapping-segment runs per doc (touching boundaries do NOT merge, same rule as co-occurrence). `CodingUnit { key, docId, docName, start, end, text, segmentIds, perCoder, agreed }`; agreed = every scoped coder coded the unit AND one shared code id.
+- **Cu-Alpha:** `computeCuAlpha(project, coders, docIds)` — nominal α over primary-code-per-unit (`ICR_UNCODED` sentinel for partial coverage; multi-code units resolve to largest overlap, tie: earliest start, then code id). Returns units/alpha/full-agreement counts.
+- **Verified:** 12 compiled-module checks pass — Holsti 2/3, binary α = 0.42424 on a bothYes=4/aOnly=1/bOnly=2/bothNo=0 table, Cu-α = 0.4444 on a 2-agree/1-disagree fixture, touching spans stay separate, partial coverage disagrees.
+
+### `src/App.tsx` (`AnalysisTab` only, additive)
+- Shared scope state (`icrScopeCoders/Docs: string[] | null` = all, `icrIncludeImages`) + `renderIcrScopePicker()` JSX helper (not a component, no remounts) used by both ICR and Consensus tabs. Pairwise A/B fall back to first two scoped coders.
+- ICR panel: scope picker, pairwise (+Holsti summary/column/export), scoped Fleiss', c-Alpha-binary table + export, Cu-Alpha summary pointing at Consensus.
+- **Consensus sub-tab** (`'consensus'`): All/Agreements/Disagreements filter with counts (disagreements first), per-unit cards (`excerpt-card` + green/amber border) with doc, char range, quote, per-coder code chips, `Keep {coder}` (disabled when sole coder), `Delete all`, per-segment ✕. `adjudicateUnit` → new `onDeleteSegments(ids)` prop.
+- Code Details: **Definition** textarea above Summary/memo via existing `updateCode(id, { definition })` partial.
+- New `deleteSegmentsByIds` (same persist path as inspector Remove → Ctrl+Z works), passed as `onDeleteSegments`.
+
+### Definitions round-trip (`domain`, `csvImport`, `exportBuilders`, `main.cjs`, `global.d.ts`, `merge.ts`)
+- `Code.definition?: string` (optional → old projects unaffected).
+- `main.cjs` detects `definitionFields` (`definition` / `code definition` / `coding definition` / `definition of …` / `… definition`); `CsvParseResult.definitionFields`; `csvImport` routes them like summaries but first-wins (`applyDefinition`).
+- `exportBuilders`: `codesOnly` gains `Definition of Parent/Child 1/Child 2` (per-level defs via `codeLevelDefinitions`); summary scopes gain `Code Definition`. Re-imports losslessly.
+- `merge.ts`: reused codes fill empty definitions; new codes carry `sc.definition`.
+

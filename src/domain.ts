@@ -48,10 +48,10 @@ export interface MapEdgeStyle {
   color?: string;      // overrides the default per-kind color if set
   width?: number;      // overrides the computed line width (1-8) if set
   label?: string;       // optional user-added text on the edge
-  labelDx?: number;       // ADD — offset from edge midpoint, viewBox px
-  labelDy?: number;       // ADD
-  labelFontSize?: number; // ADD — default 12 if unset
-  labelColor?: string;    // ADD — default '#334155' if unset
+  labelDx?: number;       // label offset from the edge midpoint, viewBox px (drag-to-move)
+  labelDy?: number;       // label offset from the edge midpoint, viewBox px
+  labelFontSize?: number; // label size — defaults to 12 if unset
+  labelColor?: string;    // label color — defaults to '#334155' if unset
 }
 
 // A free-standing diagram mark on the Code Map canvas — deliberately NOT tied
@@ -66,9 +66,9 @@ export interface MapAnnotation {
   text?: string;             // for text kind, or an optional label on any kind
   color: string;
   lineStyle: 'solid' | 'dashed' | 'dotted';
-    fontSize?: number;   // ADD — text annotations only, default 14 if unset
-  bold?: boolean;      // ADD — default true if unset
-  italic?: boolean;    // ADD — default false if unset
+    fontSize?: number;   // text annotations only — defaults to 14 if unset
+  bold?: boolean;      // defaults to true if unset
+  italic?: boolean;    // defaults to false if unset
 }
 
 export interface CodedSegment {

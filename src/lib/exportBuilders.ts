@@ -1,4 +1,4 @@
-import { Project, Code, codeAncestorPath, childCodes, UNATTRIBUTED_CODER } from '../domain';
+import { Project, Code, ID, codeAncestorPath, childCodes, UNATTRIBUTED_CODER } from '../domain';
 
 export type ExportScope = 'codesOnly' | 'codesExcerpts' | 'codesExcerptsSummaries' | 'full';
 
@@ -31,23 +31,30 @@ function codeLevelColumns(codes: Code[], code: Code): [string, string, string] {
 }
 
 // Same 3-column shape for coding definitions: each level's own definition.
-// Deeper than 3 levels, the Child 2 slot carries the deepest code's
-// definition. Header names mirror the importer's definition routing, so a
-// codebook export re-imports its definitions losslessly.
+// Resolved by walking the real parentId chain upward from the code (root-first)
+// rather than re-matching the path by name — two sibling codes may share a
+// name, and name matching would then pick the wrong one. The `seen` guard
+// stops a corrupted cyclic parentId from spinning forever.
+// Depth limit: only 3 columns exist, so for paths deeper than 3 levels the
+// deepest code's definition lands in the "Child 2" slot and intermediate
+// levels' definitions are not carried (the same 3-level ceiling the name
+// columns have always had).
 function codeLevelDefinitions(codes: Code[], code: Code): [string, string, string] {
-  const pathNames = [...codeAncestorPath(codes, code), code.name];
-  let parentId: string | null = null;
-  const pathCodes: (Code | undefined)[] = pathNames.map(name => {
-    const found = codes.find(c => c.parentId === parentId && c.name === name);
-    parentId = found ? found.id : null;
-    return found;
-  });
+  const chain: Code[] = [];
+  const seen = new Set<string>();
+  let cur: Code | undefined = code;
+  while (cur && !seen.has(cur.id)) {
+    seen.add(cur.id);
+    chain.unshift(cur);
+    const parentId: ID | null = cur.parentId;
+    cur = parentId ? codes.find(c => c.id === parentId) : undefined;
+  }
   return [
-    pathCodes[0]?.definition || '',
-    pathCodes[1]?.definition || '',
-    pathCodes.length > 3
-      ? pathCodes[pathCodes.length - 1]?.definition || ''
-      : (pathCodes[2]?.definition || '')
+    chain[0]?.definition || '',
+    chain[1]?.definition || '',
+    chain.length > 3
+      ? chain[chain.length - 1]?.definition || ''
+      : (chain[2]?.definition || '')
   ];
 }
 
@@ -99,11 +106,18 @@ export function buildScopedExport(project: Project, scope: ExportScope): ScopedE
 
 // For the "codesOnly" DOCX export — an indented outline instead of a flat
 // table, since that reads much better for a codebook's hierarchy.
-export function buildCodebookOutline(project: Project): { depth: number; name: string; summary?: string }[] {
-  const out: { depth: number; name: string; summary?: string }[] = [];
+// Carries both the summary/memo and the coding definition, so a codebook
+// exported to Word is self-contained.
+export function buildCodebookOutline(project: Project): { depth: number; name: string; summary?: string; definition?: string }[] {
+  const out: { depth: number; name: string; summary?: string; definition?: string }[] = [];
   function walk(parentId: string | null, depth: number) {
     for (const c of childCodes(project.codes, parentId)) {
-      out.push({ depth, name: c.name, summary: c.summary || undefined });
+      out.push({
+        depth,
+        name: c.name,
+        summary: c.summary || undefined,
+        definition: c.definition || undefined
+      });
       walk(c.id, depth + 1);
     }
   }

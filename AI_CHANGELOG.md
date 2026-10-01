@@ -556,3 +556,29 @@ Now also prunes `frameworkCells` (by `codeId`), `relationNotes` (by either endpo
 ### Verification
 `tsc --noEmit` + `npm run build` clean. Compiled-module harnesses: 24 ICR assertions (incl. 5 regression pins for previously verified Holsti/κ/α/Cu-α), 21 exportBuilders assertions (cyclic-parent termination, same-name siblings, deep chains, scope gating), 24 Unattributed assertions (incl. empty-coder-list safety), 36 merge assertions (full idempotency, conflict-append, unmappable-reference skipping), 24 report/outline assertions, 33 qdpx assertions (round-trip, no-leak both directions, legacy-file compatibility, escaping). Encoding audit: no BOM/mojibake in any touched file — after an early PowerShell round-trip corrupted App.tsx's em-dashes, that file was reverted and all edits redone with the edit tool.
 
+## 2026-09-30 — Consensus adjudication: agreement detection + solo-quote filtering
+
+Two user-reported bugs in the Consensus sub-tab, both in the overlap-unit grouping. Reproduced in a compiled-module test before touching code.
+
+### Bug 1 — agreement was almost never detected (`icr.ts`, `makeCodingUnit`)
+`agreed` required `perCoder.length === coderOrder.length`, i.e. unanimity across **every coder in the scope**. With 3 coders, Ann and Bob agreeing on a quote Carol never touched was scored as a *disagreement*, so the Agreements filter was effectively always empty — the reported symptom.
+```ts
+// before: unanimity across the whole scope
+agreed = rated.length > 0 && perCoder.length === rated.length && allCodeIds.size === 1;
+// after: judged only over coders who actually coded this quote
+const voters = perCoder.filter(p => p.coder !== UNATTRIBUTED_CODER && p.segmentIds.length > 0);
+agreed = voters.length >= 2 &&
+  voters.every(p => p.codeIds.length === 1) &&
+  new Set(voters.map(p => p.codeIds[0])).size === 1;
+```
+A coder who never touched the quote now counts neither for nor against. A coder who assigned two codes to one quote can never be "agreed".
+
+### Bug 2 — single-coder quotes listed as adjudication items (`icr.ts`, `App.tsx`)
+`buildCodingUnits` returns every maximal overlapping run, including runs made of one coder's segments only — which then displayed as "Disagreement" via Bug 1. A solo coding is not an adjudication item (there is no competing version to keep or discard).
+- `CodingUnit` gains `distinctCoders`.
+- New `buildConsensusUnits()` filters to `distinctCoders >= 2`. `buildCodingUnits` is deliberately left unfiltered: Cu-Alpha needs solo units in its pool, since a quote a coder left uncoded is a disagreement there.
+- `App.tsx`: `consensusUnits` filters on `distinctCoders >= 2`; `consensusSoloCount` is disclosed in the toolbar and in the empty state; each card shows its coder count.
+
+### Verification
+`tsc --noEmit` + build clean. 28 assertions: reported scenario reproduced (Ann+Bob differ, Carol absent), agreement detected for 2- and 3-coder cases, 2-agree+1-differs stays a disagreement with all three chips shown, multi-code coder not agreed, solo quotes excluded from Consensus but retained for Cu-Alpha (Cu-Alpha values byte-identical), Unattributed never a voter, solo-only project yields 0 items without crashing.
+

@@ -4146,10 +4146,18 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
     [project, icrSelCoders, icrScope]
   );
   const consensusSegById = useMemo(() => new Map(project.codedSegments.map(s => [s.id, s])), [project.codedSegments]);
-  const consensusUnits = useMemo(
+  // Consensus review: only quotes at least two scoped coders coded. A quote one
+  // coder marked alone has nobody to disagree with, so it is not an
+  // adjudication item and is counted separately for disclosure.
+  const consensusAllUnits = useMemo(
     () => (icrSelCoders.length >= 2 && icrScope.docIds.length > 0 ? buildCodingUnits(project, icrSelCoders, icrScope.docIds) : []),
     [project, icrSelCoders, icrScope]
   );
+  const consensusUnits = useMemo(
+    () => consensusAllUnits.filter(u => u.distinctCoders >= 2),
+    [consensusAllUnits]
+  );
+  const consensusSoloCount = consensusAllUnits.length - consensusUnits.length;
   const [consensusFilter, setConsensusFilter] = useState<'all' | 'agree' | 'disagree'>('all');
 
   function toggleInList(list: string[] | null, all: string[], v: string): string[] | null {
@@ -4941,15 +4949,20 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
       {subTab === 'consensus' && (
         <section>
           <div className="section-hint" style={{ marginBottom: '8px' }}>
-            Adjudication: overlapping quotes coded by the scoped coders are grouped so you can compare them side by
-            side and keep the winner. Removing here is the same as the Workspace inspector's Remove (undo with Ctrl+Z).
-            Image regions are not part of this review — see them in the Codebook excerpts.
+            Adjudication: quotes that at least two of the scoped coders coded are grouped so you can compare them side
+            by side and keep the winner. <strong>Agreement</strong> means every coder who coded a quote gave it the
+            same single code; a coder who never touched that quote is not counted either way. Removing here is the
+            same as the Workspace inspector's Remove (undo with Ctrl+Z). Image regions are not part of this
+            review — see them in the Codebook excerpts.
           </div>
           {renderIcrScopePicker()}
           {icrSelCoders.length < 2 ? (
             <div className="empty-hint">Select at least two coders in scope above to review agreements and disagreements.</div>
           ) : consensusUnits.length === 0 ? (
-            <div className="empty-hint">No jointly-coded quotes in scope yet — the scoped coders have not coded overlapping passages in the scoped documents.</div>
+            <div className="empty-hint">
+              No jointly-coded quotes in scope yet — no two of the scoped coders coded the same passage in the scoped documents.
+              {consensusSoloCount > 0 && ` ${consensusSoloCount} quote(s) were coded by only one coder and are not adjudication items.`}
+            </div>
           ) : (
             <>
               <div className="sort-row" style={{ gap: '6px', flexWrap: 'wrap' }}>
@@ -4968,6 +4981,11 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
                     </button>
                   );
                 })}
+                {consensusSoloCount > 0 && (
+                  <span className="section-hint">
+                    {consensusSoloCount} single-coder quote(s) hidden — nothing to adjudicate
+                  </span>
+                )}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
                 {consensusUnits
@@ -4978,6 +4996,7 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                         <strong style={{ fontSize: '12px' }}>{u.docName}</strong>
                         <span className="section-hint">chars {u.start}–{u.end}</span>
+                        <span className="section-hint">{u.distinctCoders} coder{u.distinctCoders === 1 ? '' : 's'}</span>
                         <span className="section-hint" style={{ fontWeight: 700, color: u.agreed ? '#16a34a' : '#b45309' }}>
                           {u.agreed ? 'Agreement' : 'Disagreement'}
                         </span>

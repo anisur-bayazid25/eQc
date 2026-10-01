@@ -4,6 +4,12 @@ All notable changes to **eQc - Easy Qual Coding** are documented in this file.
 
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 1.6.3 - 2026-09-30
+
+### Fixed
+- **Consensus review now shows agreements** — an agreement is judged by the coders who actually coded a quote, so two coders agreeing on a passage is no longer reported as a disagreement just because a third coder (in scope) never touched that passage. This left the Agreements list empty in most multi-coder projects.
+- **Consensus review no longer lists single-coder quotes** — a passage only one coder marked has nobody to disagree with, so it is no longer offered as an adjudication item. The number of such quotes is disclosed instead of silently hidden.
+
 ## 1.6.2 - 2026-09-30
 
 ### Fixed

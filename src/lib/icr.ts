@@ -114,6 +114,12 @@ export interface CodingUnit {
   text: string;
   segmentIds: string[];
   perCoder: CodingUnitCoder[];
+  // How many distinct coders actually coded this quote. 1 means the quote was
+  // coded by a single coder and is therefore NOT a consensus item.
+  distinctCoders: number;
+  // True when the coders who coded this quote ALL assigned it the same single
+  // code. Judged only over the coders who touched the quote — a third coder
+  // who never coded it must not turn an agreement into a disagreement.
   agreed: boolean;
 }
 
@@ -571,17 +577,18 @@ function makeCodingUnit(
       codeIds: Array.from(new Set(byCoder.get(c)!.map(s => s.codeId))),
       segmentIds: byCoder.get(c)!.map(s => s.id)
     }));
-  const allCodeIds = new Set(segs.map(s => s.codeId));
-  // Agreement requires EVERY named rater to have coded this unit on the same
-  // single code. Defensive: the "Unattributed" bucket is never a valid rater,
-  // so it can never be the thing that satisfies (or blocks) this check.
-  const rated = coderOrder.filter(c => c !== UNATTRIBUTED_CODER);
+  // Only coders who actually coded this quote get a vote. The "Unattributed"
+  // bucket is never a valid voter (see buildCodingUnits).
+  //
+  // Agreement is judged over those voters ALONE. Requiring unanimity across
+  // every coder in the scope was wrong: with three coders, two agreeing on a
+  // quote the third never touched was reported as a disagreement, which left
+  // the Agreements list permanently empty.
+  const voters = perCoder.filter(p => p.coder !== UNATTRIBUTED_CODER && p.segmentIds.length > 0);
   const agreed =
-    rated.length > 0 &&
-    perCoder.every(p => p.coder !== UNATTRIBUTED_CODER) &&
-    perCoder.length === rated.length &&
-    perCoder.every(p => p.segmentIds.length > 0) &&
-    allCodeIds.size === 1;
+    voters.length >= 2 &&
+    voters.every(p => p.codeIds.length === 1) &&
+    new Set(voters.map(p => p.codeIds[0])).size === 1;
   return {
     key: `${docId}:${start}-${end}`,
     docId,
@@ -591,8 +598,20 @@ function makeCodingUnit(
     text,
     segmentIds: segs.map(s => s.id),
     perCoder,
+    distinctCoders: voters.length,
     agreed
   };
+}
+
+// Consensus/adjudication units: only quotes that AT LEAST TWO scoped coders
+// coded. A passage a single coder marked on their own is not a disagreement —
+// there is nobody to disagree with — so it is not an adjudication item.
+//
+// buildCodingUnits deliberately still returns every unit, because Cu-Alpha
+// treats a quote a coder left uncoded as a disagreement and therefore needs the
+// solo-coded ones in its unit pool.
+export function buildConsensusUnits(project: Project, coders: string[], docIds: string[]): CodingUnit[] {
+  return buildCodingUnits(project, coders, docIds).filter(u => u.distinctCoders >= 2);
 }
 
 // Krippendorff's Cu-Alpha: nominal alpha over *which* code

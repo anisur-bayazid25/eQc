@@ -63,15 +63,46 @@ function getImageSize(dataUrl: string): Promise<{ w: number; h: number }> {
   });
 }
 
+// A memo destined for the project's <Notes> section, referenced from an
+// element via <NoteRef targetGUID="..."/>. REFI-QDA-2 treats <Description> as
+// the element's short descriptive text, so eQc's coding definition lives there
+// and the longer analytic memo lives in a proper Memo object — no custom
+// markers, just the standard two slots.
+interface QdpxMemo {
+  guid: string;
+  text: string;
+}
+
+function buildNotesXml(memos: QdpxMemo[]): string {
+  if (memos.length === 0) return '';
+  const notes = memos
+    .map(m => `<Note guid="${m.guid}"><PlainTextContent>${esc(m.text)}</PlainTextContent></Note>`)
+    .join('');
+  return `<Notes>${notes}</Notes>`;
+}
+
+// Records the memo and returns the <NoteRef> to embed, or '' when there is
+// nothing to say. `memos` accumulates across the whole export.
+function noteRefFor(memos: QdpxMemo[], text: string): string {
+  const clean = (text || '').trim();
+  if (!clean) return '';
+  const guid = uuid();
+  memos.push({ guid, text: clean });
+  return `<NoteRef targetGUID="${guid}"/>`;
+}
+
 // --- REFI-QDA-2 builders ---------------------------------------------------
 
-function buildCodebook(project: Project, codeGuids: Map<string, string>): string {
-  const render = (code: { id: string; name: string; color: string; summary: string }): string => {
+function buildCodebook(project: Project, codeGuids: Map<string, string>, memos: QdpxMemo[]): string {
+  const render = (code: { id: string; name: string; color: string; summary: string; definition?: string }): string => {
     const guid = codeGuids.get(code.id)!;
     const children = project.codes.filter(c => c.parentId === code.id);
-    const summary = (code.summary || '').trim();
+    // <Description> carries the coding definition; the memo goes to <Notes>.
+    const definition = (code.definition || '').trim();
+    const memoRef = noteRefFor(memos, code.summary);
     const inner =
-      (summary ? `<Description>${esc(summary)}</Description>` : '') +
+      (definition ? `<Description>${esc(definition)}</Description>` : '') +
+      memoRef +
       (children.length > 0 ? `<SubCodes>${children.map(render).join('')}</SubCodes>` : '');
     const colorAttr = code.color ? ` color="${esc(code.color)}"` : '';
     return `<Code guid="${guid}" name="${esc(code.name)}" isCodable="true"${colorAttr}>${inner}</Code>`;
@@ -167,8 +198,9 @@ export async function buildQdpxExport(project: Project): Promise<QdpxExportPaylo
 
   const files: Record<string, string> = {};
   const bytes: Record<string, string> = {};
+  const memos: QdpxMemo[] = [];
 
-  const codebook = buildCodebook(project, codeGuids);
+  const codebook = buildCodebook(project, codeGuids, memos);
   const textSources = project.docs
     .map(doc => buildTextSource(project, doc, codeGuids, files))
     .join('');
@@ -188,6 +220,7 @@ export async function buildQdpxExport(project: Project): Promise<QdpxExportPaylo
     `<Users><User guid="${uuid()}" id="1" name="${esc(project.coderName || 'User')}"/></Users>` +
     codebook +
     `<Sources>${textSources}${pictureSources}</Sources>` +
+    buildNotesXml(memos) +
     `</Project>`;
 
   return {
@@ -203,6 +236,7 @@ export async function buildQdpxExport(project: Project): Promise<QdpxExportPaylo
 export function buildQdpxCodebookExport(project: Project): QdpxExportPayload {
   const codeGuids = new Map<string, string>();
   for (const c of project.codes) codeGuids.set(c.id, uuid());
+  const memos: QdpxMemo[] = [];
 
   const nowIso = new Date().toISOString();
   const qdeXml =
@@ -210,8 +244,9 @@ export function buildQdpxCodebookExport(project: Project): QdpxExportPayload {
     `<Project xmlns="${NS}" xmlns:xsi="${XSI}" xsi:schemaLocation="${NS} project.xsd" ` +
     `guid="${uuid()}" name="${esc(project.name)}" creationDateTime="${nowIso}">` +
     `<Users><User guid="${uuid()}" id="1" name="${esc(project.coderName || 'User')}"/></Users>` +
-    buildCodebook(project, codeGuids) +
+    buildCodebook(project, codeGuids, memos) +
     `<Sources></Sources>` +
+    buildNotesXml(memos) +
     `</Project>`;
 
   return {

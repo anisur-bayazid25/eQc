@@ -4,13 +4,27 @@ All notable changes to **eQc - Easy Qual Coding** are documented in this file.
 
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 1.6.2 - 2026-09-30
+
+### Fixed
+- **Deleting a code no longer leaves dangling data** — framework-matrix cells, relationship notes, and hidden-map entries are now removed along with the code and its subcodes. Previously the matrix and notes kept rendering against a deleted code, and a stale hidden entry could make the “➕ Add codes” panel open empty.
+- **"Unattributed" is no longer counted as a coder** in the reliability statistics. Unstamped passages have no human behind them, so scoring them against a real coder produced a figure that read like agreement but was not. They are now excluded and disclosed in a notice, with a pointer to the Project Settings action that attributes them.
+- **Code Map edge labels** — dragging a label now saves once when you let go, instead of writing to the project on every mouse movement; dragging an unstyled edge for the first time no longer freezes its line style, curvature, and arrowheads.
+- **Code Map annotations** — after dragging one annotation, the next click on any other annotation is no longer ignored.
+- **Definitions now survive REFI-QDA round-trips** — the coding definition is written to the code's `<Description>` and the memo to a proper `<Note>` in the `<Notes>` section, so both fields return to their own places on import. Definitions also appear in the codebook DOCX export, the Notes & Memos CSV, and the HTML report. (Manuscripts skeletons are unchanged: still memo-driven.)
+
+### Changed
+- **Merging another coder's project now carries the analysis** — image sources, image coded regions, framework-matrix cells, relationship notes, and manual Code Map edge styles are merged with their references remapped, instead of being silently dropped. Where two coders wrote different text for the same case or code pair, both are kept. Merging the same file twice still changes nothing.
+- **CSV definition import reports skipped rows** — an existing coding rule is never silently overwritten; the import summary now says how many incoming definitions were skipped.
+- Agreement figures are labelled by what they are: chance-corrected coefficients (κ, α) carry a strength band, while Holsti's index is marked as an uncorrected ratio.
+
 ## 1.6.1 - 2026-09-30
 
 ### Added
 - **ICR scope selection** — the Inter-Coder Reliability tab now lets you pick exactly which coders and documents count (plus an images toggle). Every metric recomputes over the scope.
 - **Holsti's index** — pairwise `2M/(N1+N2)` agreement over positive coding decisions, shown overall and per code.
-- **Krippendorff's c-Alpha-binary** (ATLAS.ti style) — chance-corrected agreement per code over present/absent ratings, with CSV/DOCX export.
-- **Krippendorff's Cu-Alpha** (ATLAS.ti style) — agreement on *which* code each jointly-considered quote received; quotes a coder left uncoded count as disagreements.
+- **Krippendorff's c-Alpha-binary** — chance-corrected agreement per code over present/absent ratings, with CSV/DOCX export.
+- **Krippendorff's Cu-Alpha** — agreement on *which* code each jointly-considered quote received; quotes a coder left uncoded count as disagreements.
 - **Consensus sub-tab** — side-by-side adjudication of overlapping quotes with Agreement/Disagreement badges and filters; keep one coder's coding, delete all, or remove single passages (undo with Ctrl+Z).
 - **Coding definitions** — each code now has a dedicated Definition field (Code Details), importable from codebook CSVs (`Definition`, `Definition of Parent/Child 1/Child 2`, …), exported back out for lossless round-trips, and preserved across project merges.
 

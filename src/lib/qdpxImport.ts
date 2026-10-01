@@ -95,7 +95,7 @@ function findOrCreateCode(
   return created;
 }
 
-function appendMemo(target: { summary?: string; notes?: string; note?: string }, field: 'summary' | 'notes' | 'note', text: string) {
+function appendMemo(target: { summary?: string; definition?: string; notes?: string; note?: string }, field: 'summary' | 'definition' | 'notes' | 'note', text: string) {
   const clean = (text || '').trim();
   if (!clean) return;
   const current = (target as any)[field] || '';
@@ -146,6 +146,23 @@ function resolveMemoText(el: Element, noteMap: Map<string, string>): string {
   return parts.join('\n\n');
 }
 
+// Codes split the two REFI-QDA slots: <Description> is the coding definition
+// (our own export writes it there), while the analytic memo arrives via
+// <NoteRef> into <Notes>. Other elements (sources, selections) keep using
+// <Description> as their memo, so they use resolveMemoText instead.
+function resolveDefinition(el: Element): string {
+  return textOf(directChild(el, 'Description')).trim();
+}
+
+function resolveNoteMemo(el: Element, noteMap: Map<string, string>): string {
+  const parts: string[] = [];
+  for (const ref of directChildren(el, 'NoteRef')) {
+    const guid = ref.getAttribute('targetGUID');
+    if (guid && noteMap.has(guid)) parts.push(noteMap.get(guid)!);
+  }
+  return parts.join('\n\n');
+}
+
 // --- Codebook ---------------------------------------------------------
 
 function importCodeTree(
@@ -164,7 +181,11 @@ function importCodeTree(
   const code = findOrCreateCode(project, guidMap, guid, name, color, parentId);
   if (project.codes.length > codesBefore) summary.codesCreated++;
 
-  const memo = resolveMemoText(el, noteMap);
+  const definition = resolveDefinition(el);
+  if (definition) {
+    appendMemo(code, 'definition', definition);
+  }
+  const memo = resolveNoteMemo(el, noteMap);
   if (memo) {
     appendMemo(code, 'summary', memo);
     summary.memosImported++;
@@ -496,8 +517,12 @@ export async function importQdpx(project: Project, payload: QdpxParsePayload): P
   const parser = new DOMParser();
   const doc = parser.parseFromString(payload.qdeXml, 'application/xml');
 
-  const parseError = doc.querySelector('parsererror');
-  if (parseError) {
+  // Detect a malformed document by checking the root element directly. The
+  // browser's DOMParser injects a <parsererror> element (which querySelector
+  // would find), but this code also runs under a plain XML DOM in tests, where
+  // a failed parse yields a document whose root is the error itself.
+  const docEl = doc.documentElement;
+  if (!docEl || docEl.localName === 'parsererror' || docEl.nodeName === 'parsererror') {
     throw new Error('Could not parse project.qde — the .qdpx file may be corrupted or not a valid REFI-QDA export.');
   }
 

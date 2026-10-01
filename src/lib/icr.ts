@@ -16,9 +16,9 @@ import { Project, CodedSegment, UNATTRIBUTED_CODER } from '../domain';
 // - Cohen's kappa for a pair of coders (chance-corrected).
 // - Fleiss' kappa for 3+ coders (chance-corrected, same binary
 //   present/absent categories).
-// - Krippendorff's c-Alpha-binary (ATLAS.ti style): nominal alpha per code
+// - Krippendorff's c-Alpha-binary: nominal alpha per code
 //   over present/absent ratings.
-// - Krippendorff's Cu-Alpha (ATLAS.ti style): nominal alpha over *which*
+// - Krippendorff's Cu-Alpha: nominal alpha over *which*
 //   code was assigned to each jointly-considered quote (overlap units coded
 //   by at least one coder; "uncoded" is an explicit category).
 //
@@ -145,8 +145,25 @@ export function icrCoderName(raw: string | undefined): string {
 }
 
 // Distinct coders that have coded anything, with their segment/region
-// counts. Unstamped items count toward "Unattributed" so nothing is hidden.
+// counts.
+//
+// "Unattributed" is reported SEPARATELY, not as a coder row: unstamped items
+// are legacy/imported data with no human behind them, and scoring them as a
+// rater produces a number that looks like agreement but is really
+// "legacy data vs. person" — and, worse, makes `CodingUnit.agreed` unsatisfiable
+// for every quote unless a second real coder overlaps it. The UI discloses the
+// excluded count so nothing is silently dropped from the picture; the user can
+// still attribute them (Project Settings → "Assign N Unattributed item(s)").
 export function listIcrCoders(project: Project): IcrCoder[] {
+  return [...collectIcrCoders(project).attributed];
+}
+
+export interface IcrCoderInventory {
+  attributed: IcrCoder[];
+  unattributed: IcrCoder | null;
+}
+
+export function collectIcrCoders(project: Project): IcrCoderInventory {
   const map = new Map<string, IcrCoder>();
   const bump = (name: string | undefined, seg: boolean) => {
     const key = icrCoderName(name);
@@ -160,9 +177,12 @@ export function listIcrCoders(project: Project): IcrCoder[] {
   };
   for (const s of project.codedSegments) bump(s.coder, true);
   for (const r of project.codedRegions || []) bump(r.coder, false);
-  return Array.from(map.values()).sort(
-    (a, b) => b.segments + b.regions - (a.segments + a.regions) || a.name.localeCompare(b.name)
-  );
+  const byVolume = (a: IcrCoder, b: IcrCoder) =>
+    b.segments + b.regions - (a.segments + a.regions) || a.name.localeCompare(b.name);
+  return {
+    attributed: Array.from(map.values()).filter(c => c.name !== UNATTRIBUTED_CODER).sort(byVolume),
+    unattributed: map.get(UNATTRIBUTED_CODER) || null
+  };
 }
 
 interface IcrSource {
@@ -280,7 +300,9 @@ export function krippendorffAlphaNominal(items: Array<Array<string | null>>): nu
   return 1 - Do / De;
 }
 
-// Landis & Koch (1977) benchmark labels for kappa/alpha values.
+// Landis & Koch (1977) benchmark labels. Only meaningful for CHANCE-CORRECTED
+// coefficients (Cohen's κ, Fleiss' κ, Krippendorff's α). It must NOT be applied
+// to uncorrected ratios such as Holsti's index — see the caller in App.tsx.
 export function kappaInterpretation(kappa: number | null): string {
   if (kappa === null || Number.isNaN(kappa)) return '—';
   if (kappa < 0) return 'Poor (below chance)';
@@ -291,12 +313,14 @@ export function kappaInterpretation(kappa: number | null): string {
   return 'Almost perfect';
 }
 
-export function formatAlpha(v: number | null): string {
+// One formatter for every numeric agreement figure — κ, α and Holsti alike.
+// Deliberately NOT called "formatKappa": a kappa-specific name invited the
+// mistake of labelling Holsti's index (an uncorrected ratio) as if it were a
+// chance-corrected coefficient.
+export function formatIcrValue(v: number | null): string {
   if (v === null || Number.isNaN(v)) return '—';
   return v.toFixed(3);
 }
-
-export { formatAlpha as formatKappa };
 
 function emptyContingency(): IcrContingency {
   return { bothYes: 0, aOnly: 0, bOnly: 0, bothNo: 0, n: 0 };
@@ -378,12 +402,19 @@ export function computeFleissIcr(
   const codes = project.codes;
   const presence = buildPresence(project);
   const m = coders.length;
+  const perCodeItems = sources.length;
+  const items = perCodeItems * codes.length;
 
+  // One pass over every (source × code) item feeds both the per-code rows and
+  // the overall figure — the two are the same sum at different granularity, so
+  // recomputing the overall in a second loop only doubled the work.
+  let full = 0;
+  let sumP = 0;
+  let totalPresent = 0;
   const perCode: IcrFleissCodeRow[] = codes.map(code => {
-    let full = 0;
-    let sumP = 0;
-    let totalPresent = 0;
-    const items = sources.length;
+    let codeFull = 0;
+    let codeSumP = 0;
+    let codePresentTotal = 0;
     for (const src of sources) {
       const key = `${src.id}::${code.id}`;
       let present = 0;
@@ -391,41 +422,30 @@ export function computeFleissIcr(
         if ((presence.get(c) || new Set<string>()).has(key)) present += 1;
       }
       const absent = m - present;
+      const isFull = present === 0 || present === m;
+      let agreeTerm = 0;
+      if (m > 1) agreeTerm = (present * (present - 1) + absent * (absent - 1)) / (m * (m - 1));
+      codePresentTotal += present;
+      if (isFull) codeFull += 1;
+      codeSumP += agreeTerm;
       totalPresent += present;
-      if (present === 0 || present === m) full += 1;
-      if (m > 1) sumP += (present * (present - 1) + absent * (absent - 1)) / (m * (m - 1));
+      if (isFull) full += 1;
+      sumP += agreeTerm;
     }
-    const pBar = items > 0 ? sumP / items : 0;
-    const pYes = items > 0 && m > 0 ? totalPresent / (items * m) : 0;
+    const pBar = perCodeItems > 0 ? codeSumP / perCodeItems : 0;
+    const pYes = perCodeItems > 0 && m > 0 ? codePresentTotal / (perCodeItems * m) : 0;
     const pe = pYes * pYes + (1 - pYes) * (1 - pYes);
-    const kappa = items === 0 || m < 2 || 1 - pe === 0 ? null : (pBar - pe) / (1 - pe);
+    const kappa = perCodeItems === 0 || m < 2 || 1 - pe === 0 ? null : (pBar - pe) / (1 - pe);
     return {
       codeId: code.id,
       codeName: code.name,
-      items,
-      fullAgreement: full,
-      percentFull: items > 0 ? (full / items) * 100 : 0,
+      items: perCodeItems,
+      fullAgreement: codeFull,
+      percentFull: perCodeItems > 0 ? (codeFull / perCodeItems) * 100 : 0,
       kappa
     };
   });
 
-  let full = 0;
-  let sumP = 0;
-  let totalPresent = 0;
-  const items = sources.length * codes.length;
-  for (const code of codes) {
-    for (const src of sources) {
-      const key = `${src.id}::${code.id}`;
-      let present = 0;
-      for (const c of coders) {
-        if ((presence.get(c) || new Set<string>()).has(key)) present += 1;
-      }
-      const absent = m - present;
-      totalPresent += present;
-      if (present === 0 || present === m) full += 1;
-      if (m > 1) sumP += (present * (present - 1) + absent * (absent - 1)) / (m * (m - 1));
-    }
-  }
   const pBar = items > 0 ? sumP / items : 0;
   const pYes = items > 0 && m > 0 ? totalPresent / (items * m) : 0;
   const pe = pYes * pYes + (1 - pYes) * (1 - pYes);
@@ -445,7 +465,7 @@ export function computeFleissIcr(
   };
 }
 
-// Krippendorff's c-Alpha-binary (ATLAS.ti style): nominal alpha per code
+// Krippendorff's c-Alpha-binary: nominal alpha per code
 // over present/absent ratings, plus an overall binary alpha flattened over
 // every (source × code) item.
 export function computeBinaryAlpha(
@@ -457,21 +477,23 @@ export function computeBinaryAlpha(
   const codes = project.codes;
   const presence = buildPresence(project);
 
-  const perCode: IcrBinaryAlphaRow[] = codes.map(code => {
-    const ratings = sources.map(src => {
+  // Build each (source × code) item's ratings once and reuse the same arrays
+  // for the per-code alpha and the flattened overall alpha.
+  const ratingsByCode: Array<Array<string[]>> = codes.map(code =>
+    sources.map(src => {
       const key = `${src.id}::${code.id}`;
       return coders.map(c => ((presence.get(c) || new Set<string>()).has(key) ? 'present' : 'absent'));
-    });
-    return { codeId: code.id, codeName: code.name, items: sources.length, alpha: krippendorffAlphaNominal(ratings) };
-  });
+    })
+  );
 
-  const allRatings: Array<Array<string | null>> = [];
-  for (const code of codes) {
-    for (const src of sources) {
-      const key = `${src.id}::${code.id}`;
-      allRatings.push(coders.map(c => ((presence.get(c) || new Set<string>()).has(key) ? 'present' : 'absent')));
-    }
-  }
+  const perCode: IcrBinaryAlphaRow[] = codes.map((code, i) => ({
+    codeId: code.id,
+    codeName: code.name,
+    items: sources.length,
+    alpha: krippendorffAlphaNominal(ratingsByCode[i])
+  }));
+
+  const allRatings: Array<Array<string | null>> = ([] as Array<Array<string | null>>).concat(...ratingsByCode);
 
   perCode.sort((x, y) => {
     const ax = x.alpha === null ? 2 : x.alpha;
@@ -494,7 +516,9 @@ export function computeBinaryAlpha(
 // review. Touching boundaries (end == start) do NOT merge; only genuine
 // overlap does, matching the co-occurrence rule used elsewhere.
 export function buildCodingUnits(project: Project, coders: string[], docIds: string[]): CodingUnit[] {
-  const coderSet = new Set(coders);
+  // Never treat the "Unattributed" bucket as a rater — it would poison the
+  // agreed/disagreed verdict (see makeCodingUnit).
+  const coderSet = new Set(coders.filter(c => c !== UNATTRIBUTED_CODER));
   const docSet = new Set(docIds);
   const docsById = new Map(project.docs.map(d => [d.id, d]));
   const segs = project.codedSegments
@@ -548,8 +572,14 @@ function makeCodingUnit(
       segmentIds: byCoder.get(c)!.map(s => s.id)
     }));
   const allCodeIds = new Set(segs.map(s => s.codeId));
+  // Agreement requires EVERY named rater to have coded this unit on the same
+  // single code. Defensive: the "Unattributed" bucket is never a valid rater,
+  // so it can never be the thing that satisfies (or blocks) this check.
+  const rated = coderOrder.filter(c => c !== UNATTRIBUTED_CODER);
   const agreed =
-    perCoder.length === coderOrder.length &&
+    rated.length > 0 &&
+    perCoder.every(p => p.coder !== UNATTRIBUTED_CODER) &&
+    perCoder.length === rated.length &&
     perCoder.every(p => p.segmentIds.length > 0) &&
     allCodeIds.size === 1;
   return {
@@ -565,7 +595,7 @@ function makeCodingUnit(
   };
 }
 
-// Krippendorff's Cu-Alpha (ATLAS.ti style): nominal alpha over *which* code
+// Krippendorff's Cu-Alpha: nominal alpha over *which* code
 // was assigned to each jointly-considered quote (overlap units coded by at
 // least one coder). A coder who left a unit uncoded gets the explicit
 // "uncoded" category, so partial coverage counts as disagreement. When a

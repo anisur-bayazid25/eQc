@@ -1,4 +1,4 @@
-import { Project, Folder, SourceDoc, Code, CodedSegment, uid, colorForNewCode, CODE_COLORS } from '../domain';
+import { Project, Folder, SourceDoc, Code, CodedSegment, CodedRegion, ImageSource, FrameworkCell, CodeRelationNote, MapEdgeStyle, uid, colorForNewCode, CODE_COLORS } from '../domain';
 
 export interface MergeSummary {
   foldersAdded: number;
@@ -7,6 +7,12 @@ export interface MergeSummary {
   codesAdded: number;
   codesReused: number;
   segmentsAdded: number;
+  imagesAdded: number;
+  imagesMerged: number;
+  regionsAdded: number;
+  frameworkCellsAdded: number;
+  relationNotesAdded: number;
+  edgeStylesAdded: number;
 }
 
 function normalize(s: string): string {
@@ -53,8 +59,20 @@ function buildCoderColorPicker(target: Project) {
 //   source of truth. If a target segment has no coder yet, it stays
 //   "Unattributed" until the user explicitly assigns one in Project
 //   Settings — never silently attributed to whoever happens to be active.
+// - Collaborative artifacts carried across with id remapping: image sources +
+//   their coded regions, framework-matrix cells, relationship notes, and
+//   manual Code Map edge styles. These are analytic products of the coding
+//   effort, so dropping them on merge would silently discard a teammate's
+//   analysis. NOT carried: `mapAnnotations` (free-standing drawing marks tied
+//   to no code) and `hiddenMapCodeIds` (a view-local "which codes did I hide
+//   from my map" preference, not shared analysis).
+// - Every carried item is deduped on its remapped key, so re-running Merge on
+//   the same file stays idempotent.
 export function mergeProjectInto(target: Project, source: Project): MergeSummary {
-  const summary: MergeSummary = { foldersAdded: 0, docsAdded: 0, docsMerged: 0, codesAdded: 0, codesReused: 0, segmentsAdded: 0 };
+  const summary: MergeSummary = {
+    foldersAdded: 0, docsAdded: 0, docsMerged: 0, codesAdded: 0, codesReused: 0, segmentsAdded: 0,
+    imagesAdded: 0, imagesMerged: 0, regionsAdded: 0, frameworkCellsAdded: 0, relationNotesAdded: 0, edgeStylesAdded: 0
+  };
 
   const folderIdMap = new Map<string, string>();
   for (const f of source.folders) {
@@ -140,6 +158,30 @@ export function mergeProjectInto(target: Project, source: Project): MergeSummary
   mergeLevel(null, null);
 
   const coder = source.coderName || undefined;
+
+  // Image sources: reuse an existing image with the same data (base64 bytes
+  // are the identity), else add it. Region coordinates are normalized 0–1, so
+  // they survive the remap to a different image id unchanged.
+  const imageIdMap = new Map<string, string>();
+  for (const img of source.images || []) {
+    const existing = (target.images || []).find(t => t.dataUrl === img.dataUrl);
+    if (existing) {
+      imageIdMap.set(img.id, existing.id);
+      summary.imagesMerged++;
+      continue;
+    }
+    const newId = uid('img');
+    imageIdMap.set(img.id, newId);
+    const mapped: ImageSource = {
+      ...img,
+      id: newId,
+      folderId: img.folderId ? folderIdMap.get(img.folderId) || null : null
+    };
+    if (!target.images) target.images = [];
+    target.images.push(mapped);
+    summary.imagesAdded++;
+  }
+
   for (const seg of source.codedSegments) {
     const docId = docIdMap.get(seg.docId);
     const codeId = codeIdMap.get(seg.codeId);
@@ -169,6 +211,115 @@ export function mergeProjectInto(target: Project, source: Project): MergeSummary
     };
     target.codedSegments.push(mapped);
     summary.segmentsAdded++;
+  }
+
+  // Image coded regions — deduped on (image, code, geometry, coder).
+  if (source.codedRegions && source.codedRegions.length > 0) {
+    if (!target.codedRegions) target.codedRegions = [];
+    for (const r of source.codedRegions) {
+      const imageId = imageIdMap.get(r.imageId);
+      const codeId = codeIdMap.get(r.codeId);
+      if (!imageId || !codeId) continue;
+      // Dedupe on the SAME key the segment loop uses: the merge is attributed to
+      // the source project's coder name, so compare against that — comparing
+      // against the region's own (usually absent) stamp would never match and
+      // would duplicate every region on each re-merge.
+      const alreadyPresent = target.codedRegions.some(t =>
+        t.imageId === imageId && t.codeId === codeId && t.x === r.x && t.y === r.y &&
+        t.width === r.width && t.height === r.height && t.coder === coder
+      );
+      if (alreadyPresent) continue;
+      const mapped: CodedRegion = {
+        ...r,
+        id: uid('region'),
+        imageId,
+        codeId,
+        createdAt: r.createdAt || Date.now(),
+        ...(coder ? { coder } : {}),
+        ...(r.note ? { note: r.note } : {}),
+        ...(r.starred ? { starred: true } : {})
+      };
+      target.codedRegions.push(mapped);
+      summary.regionsAdded++;
+    }
+  }
+
+  // Framework-matrix cells (case × theme summaries) — deduped on doc::code.
+  if (source.frameworkCells && source.frameworkCells.length > 0) {
+    if (!target.frameworkCells) target.frameworkCells = [];
+    for (const cell of source.frameworkCells) {
+      const docId = docIdMap.get(cell.docId);
+      const codeId = codeIdMap.get(cell.codeId);
+      if (!docId || !codeId) continue;
+      const key = `${docId}::${codeId}`;
+      const existing = target.frameworkCells.find(c => `${c.docId}::${c.codeId}` === key);
+      if (existing) {
+        // Keep both texts rather than overwrite: two coders may have written
+        // different summaries for the same case/theme pair.
+        if (cell.text && cell.text.trim() && !existing.text.includes(cell.text)) {
+          existing.text = existing.text.trim()
+            ? `${existing.text.trim()}\n\n${cell.text.trim()}`
+            : cell.text.trim();
+          existing.updatedAt = Date.now();
+        }
+        continue;
+      }
+      const mapped: FrameworkCell = { ...cell, id: uid('fw'), docId, codeId, updatedAt: Date.now() };
+      target.frameworkCells.push(mapped);
+      summary.frameworkCellsAdded++;
+    }
+  }
+
+  // Relationship notes on code pairs. Keys are canonicalized to the
+  // lexicographically smaller id first (the same invariant the rest of the
+  // app uses), so A×B and B×A resolve to one note.
+  if (source.relationNotes && source.relationNotes.length > 0) {
+    if (!target.relationNotes) target.relationNotes = [];
+    const noteKey = (a: string, b: string) => (a < b ? `${a}::${b}` : `${b}::${a}`);
+    for (const n of source.relationNotes) {
+      const a = codeIdMap.get(n.codeAId);
+      const b = codeIdMap.get(n.codeBId);
+      if (!a || !b) continue;
+      const text = (n.note || '').trim();
+      if (!text) continue;
+      const key = noteKey(a, b);
+      const existing = target.relationNotes.find(t => noteKey(t.codeAId, t.codeBId) === key);
+      if (existing) {
+        if (!existing.note.includes(text)) {
+          existing.note = existing.note.trim() ? `${existing.note.trim()}\n\n${text}` : text;
+          existing.updatedAt = Date.now();
+        }
+        continue;
+      }
+      const mapped: CodeRelationNote = {
+        id: uid('rel'),
+        codeAId: a < b ? a : b,
+        codeBId: a < b ? b : a,
+        note: text,
+        updatedAt: Date.now()
+      };
+      target.relationNotes.push(mapped);
+      summary.relationNotesAdded++;
+    }
+  }
+
+  // Manually styled / custom Code Map edges — deduped on the unordered pair
+  // plus kind, so a re-merge does not stack duplicate overrides.
+  if (source.mapEdgeStyles && source.mapEdgeStyles.length > 0) {
+    if (!target.mapEdgeStyles) target.mapEdgeStyles = [];
+    for (const s of source.mapEdgeStyles) {
+      const from = codeIdMap.get(s.fromCodeId);
+      const to = codeIdMap.get(s.toCodeId);
+      if (!from || !to) continue;
+      const existing = target.mapEdgeStyles.find(t =>
+        t.kind === s.kind &&
+        ((t.fromCodeId === from && t.toCodeId === to) || (t.fromCodeId === to && t.toCodeId === from))
+      );
+      if (existing) continue;
+      const mapped: MapEdgeStyle = { ...s, id: uid('edge'), fromCodeId: from, toCodeId: to };
+      target.mapEdgeStyles.push(mapped);
+      summary.edgeStylesAdded++;
+    }
   }
 
   return summary;

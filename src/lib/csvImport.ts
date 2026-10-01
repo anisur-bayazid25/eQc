@@ -7,6 +7,10 @@ export interface CsvImportSummary {
   codesCreated: number;
   segmentsCreated: number;
   segmentsNotFound: number;
+  // Definition cells that arrived for a code that already had one. First
+  // non-empty definition wins (an existing coding rule is never silently
+  // overwritten), so these are reported to the user rather than dropped.
+  definitionsSkipped: number;
 }
 
 function normalize(s: string): string {
@@ -69,12 +73,14 @@ function matchSummaryTarget(
 
 // Same level-routing as summaries, but a definition is a single codebook
 // rule rather than an accreting memo: first non-empty value wins, later
-// rows leave an existing definition untouched.
-function applyDefinition(code: Code, text: string) {
+// rows leave an existing definition untouched. Returns false when an incoming
+// definition was skipped, so the import can disclose it instead of dropping it.
+function applyDefinition(code: Code, text: string): boolean {
   const clean = text.trim();
-  if (!clean) return;
-  if (code.definition && code.definition.trim()) return;
+  if (!clean) return true;
+  if (code.definition && code.definition.trim()) return false;
   code.definition = clean;
+  return true;
 }
 
 function matchDefinitionTarget(
@@ -105,7 +111,8 @@ export function importCsvDataset(project: Project, csv: CsvParseResult): CsvImpo
     docsAppended: 0,
     codesCreated: 0,
     segmentsCreated: 0,
-    segmentsNotFound: 0
+    segmentsNotFound: 0,
+    definitionsSkipped: 0
   };
 
   const hasSourceAndQuote = !!(csv.columns.source && csv.columns.quote);
@@ -149,12 +156,13 @@ export function importCsvDataset(project: Project, csv: CsvParseResult): CsvImpo
     }
 
     // Coding definitions ride the same codebook-only path as summaries, so
-    // a codes + definition-columns CSV populates code definitions.
+    // a codes + definition-columns CSV populates code definitions. A definition
+    // that loses to an existing one is counted, never silently discarded.
     for (const field of csv.definitionFields || []) {
       const text = row[field];
       if (!text || !text.trim() || !parentCode) continue;
       const target = matchDefinitionTarget(field, parentCode, child1Code, child2Code);
-      if (target) applyDefinition(target, text);
+      if (target && !applyDefinition(target, text)) summary.definitionsSkipped++;
     }
 
     // Everything below only runs if the file actually has source/quote

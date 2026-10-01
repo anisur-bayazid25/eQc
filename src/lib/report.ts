@@ -72,9 +72,21 @@ export function buildReportHtml(project: Project, extras?: ReportExtras): string
     })
     .join('\n');
 
+  // Codebook memos and coding definitions. A code contributes a block if it has
+// either — the definition (when present) leads, since it is the operational
+// rule for applying the code.
   const memoBlocks = project.codes
-    .filter(c => c.summary.trim())
-    .map(c => `<div class="memo"><h4>${esc(c.name)}</h4><p>${esc(c.summary).replace(/\n/g, '<br/>')}</p></div>`)
+    .filter(c => c.summary.trim() || (c.definition || '').trim())
+    .map(c => {
+      const parts: string[] = [];
+      if ((c.definition || '').trim()) {
+        parts.push(`<p><strong>Definition:</strong> ${esc(c.definition!.trim()).replace(/\n/g, '<br/>')}</p>`);
+      }
+      if (c.summary.trim()) {
+        parts.push(`<p>${esc(c.summary).replace(/\n/g, '<br/>')}</p>`);
+      }
+      return `<div class="memo"><h4>${esc(c.name)}</h4>${parts.join('')}</div>`;
+    })
     .join('\n');
 
   // Framework matrix — top-level (theme) codes as rows, documents as columns.

@@ -174,7 +174,7 @@ export interface QvBridge {
   exportText(payload: { title: string; defaultName: string; content: string; extension: string; filterName: string }): Promise<string | null>;
   exportDocxTable: (payload:
     | { kind: 'table'; title: string; headers: string[]; rows: (string | number)[][]; filenameBase: string }
-    | { kind: 'outline'; title: string; outline: Array<{ name: string; depth: number; summary?: string; quotes?: string[] }>; filenameBase: string }
+    | { kind: 'outline'; title: string; outline: Array<{ name: string; depth: number; summary?: string; definition?: string; quotes?: string[]; imageQuotes?: Array<{ base64: string; width: number; height: number; caption: string }> }>; filenameBase: string }
   ) => Promise<string | null>;
 
   exportReport(project: Project, html: string): Promise<string | null>;

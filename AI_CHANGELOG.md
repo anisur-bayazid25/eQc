@@ -511,3 +511,48 @@ Follow-up to the 2026-09-29 ICR drop, same additive-only constraint (no existing
 - `exportBuilders`: `codesOnly` gains `Definition of Parent/Child 1/Child 2` (per-level defs via `codeLevelDefinitions`); summary scopes gain `Code Definition`. Re-imports losslessly.
 - `merge.ts`: reused codes fill empty definitions; new codes carry `sc.definition`.
 
+## 2026-09-30 — Correctness pass: ICR integrity, delete cascade, merge completeness, qdpx definitions
+
+Follow-up to the ICR work. Driven by a code review that surfaced 17 issues (5 bugs, 7 inconsistencies, 5 dead-code items); all are now resolved. Additive/isolated where possible; no existing behavior changed without a stated reason.
+
+### B1 — `Unattributed` is not a coder (`icr.ts`, `App.tsx`)
+`listIcrCoders` mapped unstamped items onto the literal name `"Unattributed"`, so the ICR panel offered legacy data as if it were a person. Comparing it against a real coder yielded a number that looked like agreement but was "legacy data vs. person"; worse, `CodingUnit.agreed` required *every* named rater to have coded a quote, so the phantom made every unit read as a false disagreement.
+- `collectIcrCoders(project)` returns `{ attributed, unattributed }`; `listIcrCoders` now returns only `attributed`.
+- `buildCodingUnits` filters `UNATTRIBUTED_CODER` out of the rater set defensively; `makeCodingUnit`'s `agreed` also rejects it explicitly.
+- `App.tsx` renders an exclusion notice with the item count + pointer to "Assign … Unattributed item(s)".
+
+### A1 — `deleteCode` cascade (`App.tsx`)
+Now also prunes `frameworkCells` (by `codeId`), `relationNotes` (by either endpoint), and `hiddenMapCodeIds`. A stale hidden id made the `➕ Add codes` panel open empty instead of reporting "All codes are on the canvas." `mapAnnotations` is deliberately untouched — annotation shapes are not code-keyed.
+
+### C1/C2 — Code Map drag correctness (`CodeMap.tsx`)
+- **Label drag persisted per mousemove** (`commitStyle` inside `onMove`), violating the "one persist per action" invariant, and the first drag of an unstyled edge created a partial style row that silently pinned `lineStyle`/`curve`/`arrow` to hardcoded fallbacks. Now held in a local `labelLiveOffset` and committed once on mouseup via `derivedEdgeDefaults(edge)`, which seeds the row from the currently-rendered values.
+- `annoMovedRef` was set on drag but only consumed on annotation click, so a drag ending elsewhere swallowed the next click. Now cleared on mouseup and on each annotation mousedown.
+
+### B3 — Honest metric labelling (`icr.ts`, `App.tsx`)
+`formatAlpha`/`formatKappa` alias collapsed into `formatIcrValue`. The kappa-specific name invited labelling Holsti's index (an uncorrected ratio) as a chance-corrected coefficient. `kappaInterpretation` is documented as κ/α-only; headers and the summary line now say `(chance-corrected)` vs `(not chance-corrected)`.
+
+### A2 — Definition path resolution (`exportBuilders.ts`)
+`codeLevelDefinitions` re-resolved the ancestor chain by *name*; two sibling codes sharing a name could resolve to the wrong branch. Replaced with a `parentId` chain walk plus a `seen` guard (a cyclic `parentId` previously hung). Comment corrected: the 3-column shape cannot carry intermediate levels past depth 3, so "lossless round-trips" was overstated.
+
+### A3 — Removed duplicated passes (`icr.ts`)
+`computeFleissIcr` and `computeBinaryAlpha` each walked every (source × code × coder) item twice (once per-code, once flattened). Now a single pass accumulates both. Verified against an independent implementation of Fleiss' formula.
+
+### D1/D2 — Definitions reach every export path
+- **DOCX codebook outline** (`buildCodebookOutline` + `buildOutlineDocx` in `main.cjs`): definition rendered as a bold `Definition:` run above the memo.
+- **Notes & Memos CSV**: new `Code Definition` rows.
+- **HTML report** (`report.ts`): memo blocks now show `Definition:` then summary; a code qualifies with *either* field.
+- **Manuscript skeleton**: deliberately NOT changed — still memo-driven (per product decision).
+- **qdpx** (`qdpxExport.ts` / `qdpxImport.ts`): the coding definition goes to the code's `<Description>`; the memo becomes a `<Note>` referenced by `<NoteRef>` inside a new `<Notes>` section (REFI-QDA's standard two slots — no custom markers). `resolveDefinition` / `resolveNoteMemo` split the import; sources and selections keep `resolveMemoText` since they have no definition field. Omitted `<Notes>` when empty. The malformed-XML guard now checks `documentElement.localName` instead of `querySelector('parsererror')`.
+- **`csvImport.ts`**: `applyDefinition` returns whether it applied; `definitionsSkipped` added to `CsvImportSummary` and surfaced in the import toast (first-wins preserved, skip disclosed).
+
+### E1 — Merge completeness (`merge.ts`)
+`mergeProjectInto` now carries, with id remapping and per-item dedupe: image sources (matched by `dataUrl`), image coded regions, framework cells, relationship notes (canonicalised so A×B and B×A collapse to one note), and manual map edge styles. Conflicts *append* rather than overwrite. `mapAnnotations` / `hiddenMapCodeIds` are excluded as view-local. `MergeSummary` gained six counters; `handleMerge` clones the carried arrays so the mutating merge can't edit arrays still referenced by current state, and the toast lists carried artifacts only when non-zero. Region dedupe compares the *source project coder name* (matching the segment loop) — an initial version compared the region's own stamp and duplicated regions on every re-merge.
+
+### F1–F3 — Cleanup
+- ATLAS.ti attributions removed from app UI and `CHANGELOG.md`; REFI-QDA partner-tool mentions retained (legitimate).
+- `domain.ts`: 7 `// ADD` scaffolding markers replaced with real docs; misindented `MapAnnotation.fontSize` fixed.
+- Indentation fixes in `CodeMap.tsx` and `App.tsx`; stale `--- RESTORED TOAST NOTIFICATION ---` comment replaced with an accurate one.
+
+### Verification
+`tsc --noEmit` + `npm run build` clean. Compiled-module harnesses: 24 ICR assertions (incl. 5 regression pins for previously verified Holsti/κ/α/Cu-α), 21 exportBuilders assertions (cyclic-parent termination, same-name siblings, deep chains, scope gating), 24 Unattributed assertions (incl. empty-coder-list safety), 36 merge assertions (full idempotency, conflict-append, unmappable-reference skipping), 24 report/outline assertions, 33 qdpx assertions (round-trip, no-leak both directions, legacy-file compatibility, escaping). Encoding audit: no BOM/mojibake in any touched file — after an early PowerShell round-trip corrupted App.tsx's em-dashes, that file was reverted and all edits redone with the edit tool.
+

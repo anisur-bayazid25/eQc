@@ -583,6 +583,17 @@ function buildOutlineDocx(title, nodes) {
   const children = [new Paragraph({ text: title, heading: HeadingLevel.TITLE })];
   for (const node of nodes) {
     children.push(new Paragraph({ text: node.name, heading: levels[Math.min(node.depth, levels.length - 1)] }));
+    // Coding definition first — it is the operational rule for applying the
+    // code, so it belongs directly under the heading. Memo/summary follows.
+    if (node.definition) {
+      children.push(new Paragraph({
+        children: [
+          new TextRun({ text: 'Definition: ', bold: true }),
+          new TextRun({ text: node.definition })
+        ],
+        indent: { left: 360 * (node.depth + 1) }
+      }));
+    }
     if (node.summary) {
       children.push(new Paragraph({ text: node.summary, indent: { left: 360 * (node.depth + 1) } }));
     }

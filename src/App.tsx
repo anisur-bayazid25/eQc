@@ -17,7 +17,7 @@ import { buildQdpxExport, buildQdpxCodebookExport } from './lib/qdpxExport';
 import { importDocxComments } from './lib/docxCommentImport';
 import { mergeProjectInto } from './lib/merge';
 import { codingFrequency, codeDocumentMatrix, codeCooccurrenceMatrix } from './lib/analysis';
-import { listIcrCoders, computePairwiseIcr, computeFleissIcr, computeBinaryAlpha, computeCuAlpha, buildCodingUnits, formatKappa, kappaInterpretation } from './lib/icr';
+import { collectIcrCoders, computePairwiseIcr, computeFleissIcr, computeBinaryAlpha, computeCuAlpha, buildCodingUnits, formatIcrValue, kappaInterpretation } from './lib/icr';
 import { buildReportHtml, ReportExtras } from './lib/report';
 import { AUTO_CODE_LANGUAGES, CaptureBoundary, AutoCodeMatchMode, runAutoCode } from './lib/autoCode';
 import { extractBengaliTextFromPDF } from './lib/pdfExtractor';
@@ -707,9 +707,15 @@ useEffect(() => {
       return; // keep the modal open
     }
     applyJoinedState(stamped, res.seq ?? conflict.seq);
+    const carried = [
+      summary.regionsAdded ? `${summary.regionsAdded} image region(s)` : '',
+      summary.frameworkCellsAdded ? `${summary.frameworkCellsAdded} framework cell(s)` : '',
+      summary.relationNotesAdded ? `${summary.relationNotesAdded} relationship note(s)` : ''
+    ].filter(Boolean);
     showToast(
       `Merged into ${conflict.hostName}'s session: +${summary.codesAdded} code(s), ` +
-      `+${summary.segmentsAdded} passage(s), ${summary.docsMerged} doc(s) matched, +${summary.docsAdded} doc(s) added`
+      `+${summary.segmentsAdded} passage(s), ${summary.docsMerged} doc(s) matched, +${summary.docsAdded} doc(s) added` +
+      (carried.length ? `, ${carried.join(', ')}` : '')
     );
   }
 
@@ -1287,19 +1293,48 @@ function openProjectSettings() {
     if (!project) return;
     const sources = await window.qv.pickMultipleForMerge();
     if (sources.length === 0) return;
-    let next = { ...project, folders: [...project.folders], docs: [...project.docs], codes: [...project.codes], codedSegments: [...project.codedSegments] };
+    let next = {
+      ...project,
+      folders: [...project.folders],
+      docs: [...project.docs],
+      codes: [...project.codes],
+      codedSegments: [...project.codedSegments],
+      // Clone the carried collections too, so the mutating merge never edits
+      // the arrays the current project state still references.
+      images: project.images ? [...project.images] : undefined,
+      codedRegions: project.codedRegions ? [...project.codedRegions] : undefined,
+      frameworkCells: project.frameworkCells ? [...project.frameworkCells] : undefined,
+      relationNotes: project.relationNotes ? [...project.relationNotes] : undefined,
+      mapEdgeStyles: project.mapEdgeStyles ? [...project.mapEdgeStyles] : undefined
+    };
     let totalDocs = 0, totalMerged = 0, totalCodes = 0, totalSegs = 0;
+    let totalImages = 0, totalRegions = 0, totalFw = 0, totalNotes = 0, totalEdges = 0;
     for (const src of sources) {
       const summary = mergeProjectInto(next, src);
       totalDocs += summary.docsAdded;
       totalMerged += summary.docsMerged;
       totalCodes += summary.codesAdded;
       totalSegs += summary.segmentsAdded;
+      totalImages += summary.imagesAdded;
+      totalRegions += summary.regionsAdded;
+      totalFw += summary.frameworkCellsAdded;
+      totalNotes += summary.relationNotesAdded;
+      totalEdges += summary.edgeStylesAdded;
     }
     persist(next);
+    // Only mention the carried analysis when there is some, so a plain
+    // code+excerpt merge keeps its short, readable toast.
+    const carried = [
+      totalImages ? `${totalImages} image(s)` : '',
+      totalRegions ? `${totalRegions} image region(s)` : '',
+      totalFw ? `${totalFw} framework cell(s)` : '',
+      totalNotes ? `${totalNotes} relationship note(s)` : '',
+      totalEdges ? `${totalEdges} map edge style(s)` : ''
+    ].filter(Boolean);
     showToast(
       `Merged ${sources.length} file(s): +${totalDocs} new docs, ${totalMerged} matched onto existing docs, ` +
-      `+${totalCodes} codes, +${totalSegs} coded passages.`
+      `+${totalCodes} codes, +${totalSegs} coded passages.` +
+      (carried.length ? ` Also carried: ${carried.join(', ')}.` : '')
     );
   }
 
@@ -1718,7 +1753,26 @@ async function handleExportDocx() {
         const codedSegments = project.codedSegments.filter(s => !ids.has(s.codeId));
         const codedRegions = (project.codedRegions || []).filter(r => !ids.has(r.codeId));
         const mapEdgeStyles = (project.mapEdgeStyles || []).filter(e => !ids.has(e.fromCodeId) && !ids.has(e.toCodeId));
-        persist({ ...project, codes, codedSegments, codedRegions, mapEdgeStyles });
+        // Cascade the remaining code-keyed collections so nothing dangles:
+        // framework matrix cells (docId::codeId) and relationship notes
+        // (codeAId/codeBId) would otherwise keep rendering against a deleted
+        // code, and a stale hiddenMapCodeIds entry would make the "Add codes"
+        // panel think there is still something to restore.
+        // `mapAnnotations` is deliberately NOT touched — annotation shapes are
+        // free-standing marks, not tied to any code.
+        const frameworkCells = (project.frameworkCells || []).filter(c => !ids.has(c.codeId));
+        const relationNotes = (project.relationNotes || []).filter(n => !ids.has(n.codeAId) && !ids.has(n.codeBId));
+        const hiddenMapCodeIds = (project.hiddenMapCodeIds || []).filter(id => !ids.has(id));
+        persist({
+          ...project,
+          codes,
+          codedSegments,
+          codedRegions,
+          mapEdgeStyles,
+          frameworkCells,
+          relationNotes,
+          hiddenMapCodeIds
+        });
         if (codebookSelectedCodeId && ids.has(codebookSelectedCodeId)) setCodebookSelectedCodeId(null);
       },
     });
@@ -1878,8 +1932,8 @@ function moveDoc(docId: ID, targetFolderId: ID | null) {
     setSegmentPopup(null);
   }
 
-  // Consensus adjudication (Analysis tab): delete a batch of segments by id.
-  // Same persist path as the inspector's Remove, so undo works identically.
+  // Consensus adjudication (Analysis tab): delete a batch of segments by id in
+  // ONE persist() call, so a whole adjudicated quote-unit undoes as one step.
   function deleteSegmentsByIds(ids: ID[]) {
     if (!project || ids.length === 0) return;
     const drop = new Set(ids);
@@ -1954,9 +2008,8 @@ function toggleStarSegment(segId: ID) {
 async function handleExportManuscriptSkeleton() {
     if (!project) return;
 
-    const outline: Array<{ name: string; depth: number; summary?: string; quotes?: string[]; imageQuotes?: Array<{ base64: string; width: number; height: number; caption: string }> }> = [];
+    const outline: Array<{ name: string; depth: number; summary?: string; definition?: string; quotes?: string[]; imageQuotes?: Array<{ base64: string; width: number; height: number; caption: string }> }> = [];
     const totalStarred = project!.codedSegments.filter(s => s.starred).length;
-    let codesWithSummary = 0;
     let quotesMatched = 0;
 
     async function walk(parentId: ID | null, depth: number) {
@@ -1983,7 +2036,7 @@ async function handleExportManuscriptSkeleton() {
           outline.push({
             name: code.name,
             depth,
-            summary,
+            summary: summary || undefined,
             quotes: starredQuotes.length > 0 ? starredQuotes : undefined,
             imageQuotes: imageQuotes.length > 0 ? imageQuotes : undefined
           });
@@ -2142,7 +2195,10 @@ function handleRunAutoCode() {
       showToast(
         `Imported ${parsed.fileName}: +${summary.docsCreated} docs, +${summary.codesCreated} codes, ` +
         `+${summary.segmentsCreated} coded passages` +
-        (summary.segmentsNotFound ? ` (${summary.segmentsNotFound} quotes not matched in text)` : '')
+        (summary.segmentsNotFound ? ` (${summary.segmentsNotFound} quotes not matched in text)` : '') +
+        (summary.definitionsSkipped
+          ? ` (${summary.definitionsSkipped} definition(s) skipped — the code already had one)`
+          : '')
       );
     } catch (e: any) {
       showToast(e.message || String(e));
@@ -2203,8 +2259,8 @@ function handleRunAutoCode() {
     }
   }
 
-  // Global notes & memos: every non-empty doc memo, code summary, excerpt
-  // note, and image-region note in one CSV.
+  // Global notes & memos: every non-empty doc memo, code summary, code
+  // definition, excerpt note, and image-region note in one CSV.
   async function handleExportNotesCsv() {
     if (!project) return;
     const rows: Array<[string, string, string]> = [];
@@ -2213,6 +2269,7 @@ function handleRunAutoCode() {
     }
     for (const c of project.codes) {
       if (c.summary && c.summary.trim()) rows.push(['Code Summary', c.name, c.summary.trim()]);
+      if (c.definition && c.definition.trim()) rows.push(['Code Definition', c.name, c.definition.trim()]);
     }
     const codeName = (id: ID) => project.codes.find(c => c.id === id)?.name || 'Unknown code';
     for (const s of project.codedSegments) {
@@ -2393,22 +2450,35 @@ function openDocxCommentImport() {
   }
   return (
     <div className="app-shell">
-      {/* --- RESTORED TOAST NOTIFICATION --- */}
-{toast && (
-  <div style={{ position: 'fixed', bottom: '24px', right: '24px', backgroundColor: '#334155', color: '#f8fafc', padding: '12px 24px', borderRadius: '6px', zIndex: 9999, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-    {toast}
-  </div>
-)}
+      {/* Transient status toast. showToast() clears it on a timer, so it never
+          lingers; message and duration are supplied by the caller. */}
+      {toast && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            backgroundColor: '#334155',
+            color: '#f8fafc',
+            padding: '12px 24px',
+            borderRadius: '6px',
+            zIndex: 9999,
+            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+          }}
+        >
+          {toast}
+        </div>
+      )}
 
 {/* Single global prompt modal (all tabs) */}
-<IsolatedPromptModal 
-  isOpen={promptConfig.isOpen}
-  message={promptConfig.message}
-  buttonText={promptConfig.buttonText}
-  onResolve={handlePromptResolve}
-/>
+<IsolatedPromptModal
+        isOpen={promptConfig.isOpen}
+        message={promptConfig.message}
+        buttonText={promptConfig.buttonText}
+        onResolve={handlePromptResolve}
+      />
 
-{/* --- OFFLINE EDITS DETECTED (LAN join conflict) --- */}
+      {/* --- OFFLINE EDITS DETECTED (LAN join conflict) --- */}
 {lanConflict && (
   <>
     <div style={{ position: 'fixed', inset: 0, zIndex: 11000, backgroundColor: 'rgba(15,23,42,0.7)' }} />
@@ -4034,7 +4104,13 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
   // which coders and documents count. Null = all (tracks merges/imports,
   // so newly appearing coders/docs join the scope automatically).
   // Pairwise A/B picks fall back to the first two scoped coders.
-  const icrCoders = useMemo(() => listIcrCoders(project), [project]);
+  // Real, human coders only — "Unattributed" is tracked separately and shown as
+  // an exclusion notice, never offered as a rater. Treating it as a coder would
+  // produce a figure that reads like agreement but is really "legacy data vs.
+  // person", and would make the agreed/disagreed verdict unreachable.
+  const icrInventory = useMemo(() => collectIcrCoders(project), [project]);
+  const icrCoders = icrInventory.attributed;
+  const icrUnattributed = icrInventory.unattributed;
   const [icrScopeCoders, setIcrScopeCoders] = useState<string[] | null>(null);
   const [icrScopeDocs, setIcrScopeDocs] = useState<string[] | null>(null);
   const [icrIncludeImages, setIcrIncludeImages] = useState(true);
@@ -4102,8 +4178,15 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
                 {c.name} <span className="section-hint">({c.segments + c.regions})</span>
               </label>
             ))}
-            {icrCoders.length === 0 && <span className="section-hint">No coded passages or regions yet.</span>}
+            {icrCoders.length === 0 && <span className="section-hint">No attributed coders yet — no coded passage or region carries a coder name.</span>}
           </div>
+          {icrUnattributed && (
+            <div className="section-hint" style={{ marginTop: '4px' }}>
+              {icrUnattributed.segments + icrUnattributed.regions} item(s) carry no coder stamp and are
+              <strong> excluded</strong> from these statistics — they are not a coder. Use
+              Project Settings → “Assign … Unattributed item(s) to this coder” to attribute that work.
+            </div>
+          )}
         </div>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: 4 }}>
@@ -4136,18 +4219,16 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
   }
 
   // Consensus adjudication: keep one coder's coding in a unit (delete the
-  // rest), or delete the whole unit. Same persistence path as the
-  // Workspace inspector's Remove, so Ctrl+Z undo works identically.
+  // rest), or delete the whole unit. One persist() per click, so Ctrl+Z undoes
+  // that whole click as a single step (deleting a single segment via the row ✕
+  // is likewise one undo step).
   function adjudicateUnit(unitKey: string, keepCoder: string | null) {
     const unit = consensusUnits.find(u => u.key === unitKey);
     if (!unit) return;
     const ids = keepCoder === null
       ? [...unit.segmentIds]
       : unit.perCoder.filter(p => p.coder !== keepCoder).flatMap(p => p.segmentIds);
-    if (ids.length === 0) {
-      showToast('Nothing to remove — that coder holds the only coding here.');
-      return;
-    }
+    if (ids.length === 0) return; // sole coder — the button is disabled anyway
     onDeleteSegments(ids);
     showToast(keepCoder === null
       ? `Removed ${ids.length} coded passage(s).`
@@ -4653,7 +4734,7 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
           <div className="section-hint" style={{ marginBottom: '8px' }}>
             Agreement over code occurrence: one item = one code applied (or not) to one document or image.
             Pick the coders and documents in scope below. Pairwise: percent agreement, Holsti's index and Cohen's κ.
-            With 3+ coders: Fleiss' κ. Krippendorff's c-Alpha-binary (per code) and Cu-Alpha (ATLAS.ti style) cover the same scope.
+            With 3+ coders: Fleiss' κ. Krippendorff's c-Alpha-binary (per code) and Cu-Alpha cover the same scope.
           </div>
           {renderIcrScopePicker()}
           {icrSelCoders.length < 2 ? (
@@ -4693,8 +4774,8 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
                   <AnalysisExportButtons
                     title={`${project.name} — Inter-Coder Reliability (${icrPair.coderA} vs ${icrPair.coderB})`}
                     filenameBase={`${project.name.replace(/[^\w\- ]/g, '_')}_icr_pairwise`}
-                    headers={['Code', 'Both coded', `${icrPair.coderA} only`, `${icrPair.coderB} only`, 'Neither', '% agreement', "Cohen's kappa", 'Holsti']}
-                    rows={icrPair.perCode.map(r => [r.codeName, r.bothYes, r.aOnly, r.bOnly, r.bothNo, r.percent.toFixed(1), formatKappa(r.kappa), formatKappa(r.holsti)])}
+                    headers={['Code', 'Both coded', `${icrPair.coderA} only`, `${icrPair.coderB} only`, 'Neither', '% agreement', "Cohen's kappa (chance-corrected)", 'Holsti index (not chance-corrected)']}
+                    rows={icrPair.perCode.map(r => [r.codeName, r.bothYes, r.aOnly, r.bOnly, r.bothNo, r.percent.toFixed(1), formatIcrValue(r.kappa), formatIcrValue(r.holsti)])}
                     showToast={showToast}
                   />
                 )}
@@ -4708,8 +4789,8 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
                     <strong>{icrPair.coderA} vs {icrPair.coderB}</strong>
                     {' '}— {icrPair.items} items ({icrPair.sources} sources × {icrPair.codes} codes):{' '}
                     <strong>{icrPair.percent.toFixed(1)}% agreement</strong>, Holsti ={' '}
-                    <strong>{formatKappa(icrPair.holsti)}</strong>, Cohen's κ ={' '}
-                    <strong>{formatKappa(icrPair.kappa)}</strong> ({kappaInterpretation(icrPair.kappa)})
+                    <strong>{formatIcrValue(icrPair.holsti)}</strong> (not chance-corrected), Cohen's κ ={' '}
+                    <strong>{formatIcrValue(icrPair.kappa)}</strong> ({kappaInterpretation(icrPair.kappa)})
                   </div>
                   <div className="matrix-wrap" style={{ marginTop: '8px' }}>
                     <table className="matrix-table">
@@ -4757,8 +4838,8 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
                             <td>{r.bOnly}</td>
                             <td>{r.bothNo}</td>
                             <td>{r.percent.toFixed(1)}%</td>
-                            <td>{formatKappa(r.kappa)}</td>
-                            <td>{formatKappa(r.holsti)}</td>
+                            <td>{formatIcrValue(r.kappa)}</td>
+                            <td>{formatIcrValue(r.holsti)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -4774,7 +4855,7 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
                     <strong>Scoped {icrFleiss.coders.length} coders</strong>
                     {' '}({icrFleiss.coders.join(', ')}) — {icrFleiss.items} items:{' '}
                     <strong>{icrFleiss.percentFull.toFixed(1)}% full agreement</strong>, Fleiss' κ ={' '}
-                    <strong>{formatKappa(icrFleiss.kappa)}</strong> ({kappaInterpretation(icrFleiss.kappa)})
+                    <strong>{formatIcrValue(icrFleiss.kappa)}</strong> ({kappaInterpretation(icrFleiss.kappa)})
                   </div>
                   <div className="matrix-wrap" style={{ marginTop: '8px' }}>
                     <table className="matrix-table">
@@ -4792,7 +4873,7 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
                             <td>{r.codeName}</td>
                             <td>{r.fullAgreement}/{r.items}</td>
                             <td>{r.percentFull.toFixed(1)}%</td>
-                            <td>{formatKappa(r.kappa)}</td>
+                            <td>{formatIcrValue(r.kappa)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -4805,16 +4886,16 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
               {icrBinary && (
                 <>
                   <div className="section-hint" style={{ marginTop: '16px' }}>
-                    <strong>Krippendorff's c-Alpha-binary</strong> (ATLAS.ti style) — per-code agreement over
+                    <strong>Krippendorff's c-Alpha-binary</strong> — per-code agreement over
                     present/absent ratings ({icrBinary.coders.join(', ')}; {icrBinary.items} items):{' '}
-                    overall α = <strong>{formatKappa(icrBinary.alpha)}</strong> ({kappaInterpretation(icrBinary.alpha)})
+                    overall α = <strong>{formatIcrValue(icrBinary.alpha)}</strong> ({kappaInterpretation(icrBinary.alpha)})
                   </div>
                   <div className="sort-row" style={{ marginTop: '4px' }}>
                     <AnalysisExportButtons
                       title={`${project.name} — Krippendorff c-Alpha-binary`}
                       filenameBase={`${project.name.replace(/[^\w\- ]/g, '_')}_icr_calpha_binary`}
                       headers={['Code', 'Items', 'c-Alpha-binary']}
-                      rows={icrBinary.perCode.map(r => [r.codeName, r.items, formatKappa(r.alpha)])}
+                      rows={icrBinary.perCode.map(r => [r.codeName, r.items, formatIcrValue(r.alpha)])}
                       showToast={showToast}
                     />
                   </div>
@@ -4832,7 +4913,7 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
                           <tr key={r.codeId}>
                             <td>{r.codeName}</td>
                             <td>{r.items}</td>
-                            <td>{formatKappa(r.alpha)}</td>
+                            <td>{formatIcrValue(r.alpha)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -4844,10 +4925,10 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
 
               {icrCu && (
                 <div className="section-hint" style={{ marginTop: '16px' }}>
-                  <strong>Krippendorff's Cu-Alpha</strong> (ATLAS.ti style) — agreement on <em>which</em> code was
+                  <strong>Krippendorff's Cu-Alpha</strong> — agreement on <em>which</em> code was
                   assigned to each jointly-considered quote ({icrCu.units} quote-units across the scoped documents;
                   a quote left uncoded by a coder counts as a disagreement):{' '}
-                  Cu-α = <strong>{formatKappa(icrCu.alpha)}</strong> ({kappaInterpretation(icrCu.alpha)}),{' '}
+                  Cu-α = <strong>{formatIcrValue(icrCu.alpha)}</strong> ({kappaInterpretation(icrCu.alpha)}),{' '}
                   full agreement on {icrCu.fullAgreement}/{icrCu.units} units ({icrCu.percentFull.toFixed(1)}%).
                   {' '}Review every unit quote-by-quote in the <strong>Consensus</strong> tab.
                 </div>

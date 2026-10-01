@@ -226,8 +226,13 @@ export default function CodeMap({
   // Editing an existing text annotation's content reuses the same textPrompt
   // UI used to create one — this tracks which mode we're in.
   const [editingAnnoId, setEditingAnnoId] = useState<string | null>(null);
-  // Edge label drag-to-move (offset from the edge midpoint).
+  // Edge label drag-to-move (offset from the edge midpoint). The in-progress
+  // offset is held locally (labelLiveOffset) exactly like annoLiveOffset, so
+  // the drag renders smoothly but persists ONCE on mouseup — never a
+  // per-mousemove project write.
   const [labelDragMove, setLabelDragMove] = useState<{ key: string; edge: EdgeRef; startX: number; startY: number; origDx: number; origDy: number } | null>(null);
+  const [labelLiveOffset, setLabelLiveOffset] = useState<{ key: string; dx: number; dy: number } | null>(null);
+  const labelLiveOffsetRef = useRef<{ key: string; dx: number; dy: number } | null>(null);
   // On-canvas code selection (click a leaf node) + the add/remove-from-canvas
   // machinery: hidden ids live in the project (persisted), this local UI just
   // holds the chosen node and the add-codes popover flag.
@@ -583,6 +588,22 @@ export default function CodeMap({
     setCustomH(newH);
   }
 
+  // The style values an edge is currently RENDERING with, i.e. its derived
+  // defaults where no override exists. Used when a styling action has to create
+  // the style row: seeding it with the derived values keeps the edge looking
+  // exactly as it did instead of freezing it to hardcoded fallbacks. Mirrors the
+  // fallback chain used at render time.
+  function derivedEdgeDefaults(edge: EdgeRef): Partial<MapEdgeStyle> {
+    if (edge.style) return {};
+    const isCooc = edge.kind === 'cooccurrence';
+    return {
+      lineStyle: 'solid',
+      curve: 'straight',
+      arrow: 'none',
+      width: isCooc ? weightFor(`${edge.fromId}::${edge.toId}`) : edge.kind === 'custom' ? 2.5 : 2
+    };
+  }
+
   function commitStyle(edge: EdgeRef, patch: Partial<MapEdgeStyle>) {
     if (edge.style) {
       onUpdateEdgeStyle(edge.style.id, patch);
@@ -792,7 +813,6 @@ export default function CodeMap({
     };
   }, [annoDrag, onUpdateAnnotations, annotations]);
 
-  
   // Drag an already-placed annotation. Live position is tracked locally
   // (annoLiveOffset) so nothing persists until mouseup — one
   // onUpdateAnnotations call per drag, same as everywhere else in this file.
@@ -828,6 +848,11 @@ export default function CodeMap({
       liveAnnoPatchRef.current = null;
       setAnnoLiveOffset(null);
       setAnnoDragMove(null);
+      // Clear the drag flag on mouseup. Otherwise a drag that ends anywhere
+      // other than its own annotation (on empty canvas, or over a different
+      // shape) leaves the flag set, and the NEXT plain click on any
+      // annotation is swallowed as if it were a drag.
+      annoMovedRef.current = false;
     }
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
@@ -843,9 +868,26 @@ export default function CodeMap({
     function onMove(e: MouseEvent) {
       const dx = (e.clientX - active.startX) / zoomRef.current;
       const dy = (e.clientY - active.startY) / zoomRef.current;
-      commitStyle(active.edge, { labelDx: active.origDx + dx, labelDy: active.origDy + dy });
+      const next = { key: active.key, dx: active.origDx + dx, dy: active.origDy + dy };
+      labelLiveOffsetRef.current = next;
+      setLabelLiveOffset(next);
     }
     function onUp() {
+      // ONE persist for the whole drag. commitStyle creates the style row on
+      // demand, so seed it with the edge's currently-rendered defaults —
+      // otherwise the first drag of an unstyled edge would write a row holding
+      // only labelDx/labelDy and silently freeze lineStyle/curve/arrow to the
+      // hardcoded fallbacks instead of the derived rendering.
+      const live = labelLiveOffsetRef.current;
+      if (live && live.key === active.key) {
+        commitStyle(active.edge, {
+          ...derivedEdgeDefaults(active.edge),
+          labelDx: live.dx,
+          labelDy: live.dy
+        });
+      }
+      labelLiveOffsetRef.current = null;
+      setLabelLiveOffset(null);
       setLabelDragMove(null);
     }
     window.addEventListener('mousemove', onMove);
@@ -854,6 +896,9 @@ export default function CodeMap({
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
+    // commitStyle/derivedEdgeDefaults close over current props; the drag is
+    // re-created from scratch on every mousedown, so these are stable enough.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [labelDragMove]);
 
   function openTextPrompt(sx: number, sy: number, tx: number, ty: number) {
@@ -1758,6 +1803,7 @@ export default function CodeMap({
               if (ev.button !== 0 || annotateMode) return;
               ev.stopPropagation();
               annoMovedRef.current = false;
+              labelLiveOffsetRef.current = null;
               setAnnoDragMove({ id: a.id, startX: ev.clientX, startY: ev.clientY, orig: a });
             };
             return (
@@ -1853,9 +1899,12 @@ export default function CodeMap({
               ? style.width
               : isCooc ? weightFor(pairKey) : e.kind === 'custom' ? 2.5 : 2;
             const opacity = isSelected ? 1 : (isCooc && style?.width == null ? opacityFor(pairKey) : 0.9);
+            // While a label drag is in flight the live local offset wins over the
+            // persisted one, so the label tracks the pointer without writing.
+            const liveLabel = labelLiveOffset?.key === e.key ? labelLiveOffset : null;
             const labelPos = {
-              x: (from.x + to.x) / 2 + (style?.labelDx || 0),
-              y: (from.y + to.y) / 2 - 6 + (style?.labelDy || 0)
+              x: (from.x + to.x) / 2 + (liveLabel ? liveLabel.dx : (style?.labelDx || 0)),
+              y: (from.y + to.y) / 2 - 6 + (liveLabel ? liveLabel.dy : (style?.labelDy || 0))
             };
             return (
               <g key={e.key}>
@@ -1897,6 +1946,7 @@ export default function CodeMap({
                     onMouseDown={ev => {
                       if (ev.button !== 0) return;
                       ev.stopPropagation();
+                      labelLiveOffsetRef.current = null;
                       setLabelDragMove({
                         key: e.key, edge: e,
                         startX: ev.clientX, startY: ev.clientY,

@@ -1,22 +1,39 @@
 <img width="1831" height="692" alt="eqc-logo" src="https://github.com/user-attachments/assets/19529f94-981d-4cca-8ffe-77da3bd66f91" />
 
 # eQc — Easy Qual Coding
+## What's New in v1.6.5
+
+A tidier interface: Codebook task tabs, grouped Workspace and header tools, analysis navigation under Coding/Text/Team, compact Code Map menus with automatic Fit, and a wider single-panel About layout. All existing functions remain available. Standard desktop controls fit without unnecessary scrolling; smaller windows and long content retain scrolling.
+
+## Layout and navigation in v1.6.5
+
+All existing functions are retained. Frequently used controls stay visible, with secondary controls grouped by task. Work surfaces fill the space below the header; long source/code lists, long analysis results, expanded tools and small windows still scroll as needed.
+
+- **Header:** choose a project, create/rename it, use LAN, undo/redo and save directly. **Project tools** contains project backup export/import and merging other projects. **Reading** contains the reading font and A−/A+ size controls. Light/Dark stays directly available on the toolbar; document Paperwhite/White/Dark controls also remain visible. Menus close on Escape or clicking outside.
+- **Workspace:** use **Add source** for root folders, documents, OCR PDFs and images. **Search text** searches source content; document-name search stays above the tree. Expand **Sort & coder filter** to change ordering or coder scope. Sidebars are responsive and still manually resizable.
+- **Codebook:** the left sidebar has **Details**, **Merge**, **Export** and **Import** tabs. Details edits the selected code’s name, color, definition and memo, including Pull Subcode Summaries. Merge has a searchable code picker and survivor selector. Export chooses **All codes** or **Selected codes**, contents and CSV/DOCX; selected exports optionally include descendants. Merge and Export share their selection, which is separate from the code being viewed. **Project exports** expands to show complete-project QDPX, codebook-only QDPX, all notes/memos and Manuscript Skeleton. Starred Excerpts and Starred Images remain available. Import offers CSV, REFI-QDA and Word-comment import. Switch task tabs with Left/Right arrows, Home or End. Draft fields remain mounted when switching sidebar tasks.
+- **Analysis:** **Coding** contains Frequency, Documents, Co-occurrence and Framework; **Text** contains Word frequencies and KWIC; **Team** contains Reliability and Consensus. Full analysis names appear in tooltips. In Reliability/Consensus, expand **Scope** to select coders/documents/images; the collapsed summary displays the active selection, which still applies to the HTML report. All eight views and their existing analysis/export actions remain available.
+- **Code Map:** **View** contains folding/view modes, child limits, co-occurrence thresholds, re-layout and legend. **Draw** contains edge drawing and all annotation shapes. **Canvas** contains page presets, custom dimensions and orientation. **Codes** contains add/remove-from-map actions. **Export** contains legend inclusion and SVG/PNG/JPEG downloads. **Help** explains interaction. **Fit** initially shows the full canvas and follows window resizing; using the slider, +/− or **100%** switches to manual zoom. Select Fit again to resume automatic fitting. Fullscreen and Esc remain available. Screen zoom does not change the logical canvas or export dimensions; full code names are available on hover.
+- **About:** app details and project information share one wide panel, with compact information rows that stack at narrow widths. Creator, CARE/BRAC acknowledgment, contact, license, release link and update check remain available.
+
+Standard desktop layouts (1920×1080, 1366×768, 1200×800 and 1024×720) were checked with representative source and code data. Layouts were also checked at 800×600 and 640×480, including natural scrolling, popup bounds and map fitting. Larger datasets and longer memos may require scrolling even on large screens.
+
 ## What's New in v1.6.4
 
 Merge selected codes while preserving quotes, image coding, memos and analysis. Export one or multiple codes, optionally with subcodes, to CSV and DOCX. Every codebook mode includes source names; DOCX includes cropped image excerpts. HTML reports now include scoped ICR, consensus summaries and image coding alongside the existing analyses. About acknowledges the CARE project and BRAC James P Grant School of Public Health, BRAC University.
 
-See [CHANGELOG.md](CHANGELOG.md), [USER_GUIDE_v1.6.4.md](USER_GUIDE_v1.6.4.md), and [DOCUMENTATION.md](DOCUMENTATION.md). Earlier v1.6 releases introduced coder/document scope, Cohen’s and Fleiss’ κ, Holsti, Krippendorff’s α, consensus adjudication, coding definitions and fixes preserving analysis during merges and code deletion.
+See [CHANGELOG.md](CHANGELOG.md), [USER_GUIDE_v1.6.5.md](USER_GUIDE_v1.6.5.md), and [DOCUMENTATION.md](DOCUMENTATION.md). Earlier v1.6 releases introduced coder/document scope, Cohen’s and Fleiss’ κ, Holsti, Krippendorff’s α, consensus adjudication, coding definitions and fixes preserving analysis during merges and code deletion.
 
 ## What's New in v1.5.9
 
 - Logo has been changed
 - Some minor improvements of Codemap Option
 
-## Complete User Guide & Documentation (v1.6.4)
+## Complete User Guide & Documentation (v1.6.5)
 
 eQc is a lightweight, **local-first** qualitative data analysis (QDA) desktop application built with Electron, React, and SQLite. All project data — documents, codes, memos, matrices — is stored **locally on your device**. Nothing leaves your computer (except, optionally, the project backups you choose to export or share).
 
-📘 **Full step-by-step manual:** see **[USER_GUIDE_v1.6.4.md](USER_GUIDE_v1.6.4.md)** — covers everything from your first project, to the Code Map, LAN team sessions, and every analysis mode.
+📘 **Full step-by-step manual:** see **[USER_GUIDE_v1.6.5.md](USER_GUIDE_v1.6.5.md)** — covers everything from your first project, to the Code Map, LAN team sessions, and every analysis mode.
 
 ---
 
@@ -221,9 +238,9 @@ Select a code to see **every** excerpt coded to it, across every document. Sort 
 
 ### 4.3 Import options (left panel)
 
-- **➕ CSV** — import pre-coded tabular data (see [4.5](#45-importing-coded-datasets-csv)).
-- **➕ REFI-QDA** — import a project exported from NVivo, MAXQDA, ATLAS.ti, Taguette, or another REFI-QDA-2-compliant tool. Brings in the **code hierarchy**, **text sources and coded passages**, **images and their coded regions**, and memos (both code-level and source-level). Non-text/media sources that can't be represented are reported by name rather than silently dropped. Re-importing the same file is safe — it won't create duplicates.
-- **➕ DOCX** — import **Word comments** as coded passages (works with the "New Comment" feature in Word). Configure the **separator** used to split structured comment text into fields (e.g. `;`), whether the **first field is the speaker**, and whether the **last field echoes the highlighted excerpt** (so it can be verified, not stored as a code).
+- **CSV dataset / codebook** — import pre-coded tabular data (see [4.5](#45-importing-coded-datasets-csv)).
+- **REFI-QDA project (QDPX)** — import a project exported from NVivo, MAXQDA, ATLAS.ti, Taguette, or another REFI-QDA-2-compliant tool. Brings in the **code hierarchy**, **text sources and coded passages**, **images and their coded regions**, and memos (both code-level and source-level). Non-text/media sources that can't be represented are reported by name rather than silently dropped. Re-importing the same file is safe — it won't create duplicates.
+- **Word comments (DOCX)** — import **Word comments** as coded passages (works with the "New Comment" feature in Word). Configure the **separator** used to split structured comment text into fields (e.g. `;`), whether the **first field is the speaker**, and whether the **last field echoes the highlighted excerpt** (so it can be verified, not stored as a code).
 
 ### 4.4 Export options (left panel)
 
@@ -385,11 +402,11 @@ UDP broadcast discovery works on most home/office Wi-Fi, but some routers drop b
 
 ### Merging codes
 
-In **Codebook → Export Options**, check the codes in **Select codes**, choose **Code to keep after merge**, then click **Merge selected codes** and confirm. For example, select three sibling codes and keep one to reduce ten child codes to eight. Rename the retained code in Code Details if needed. The retained code keeps its identity, color and position. Its definitions and summaries incorporate the other codes’ text with origin labels. Descendant codes move under the retained code; their own coding stays on those descendants. Text and image coding keeps coder attribution, notes and stars. Framework cells and relationship memos combine; map references follow the retained code, while internal self-links disappear and their relationship memos move into the retained summary. Coding records are preserved individually, including overlapping records, to retain coder history and notes. Use **Ctrl+Z** to undo the merge. An ancestor cannot merge into its descendant; keep the ancestor instead.
+In **Codebook → Merge**, check the codes in **Select codes**, choose **Code to keep after merge**, then click **Merge selected codes** and confirm. For example, select three sibling codes and keep one to reduce ten child codes to eight. Rename the retained code in Code Details if needed. The retained code keeps its identity, color and position. Its definitions and summaries incorporate the other codes’ text with origin labels. Descendant codes move under the retained code; their own coding stays on those descendants. Text and image coding keeps coder attribution, notes and stars. Framework cells and relationship memos combine; map references follow the retained code, while internal self-links disappear and their relationship memos move into the retained summary. Coding records are preserved individually, including overlapping records, to retain coder history and notes. Use **Ctrl+Z** to undo the merge. An ancestor cannot merge into its descendant; keep the ancestor instead.
 
 ### Exporting one or several codes
 
-Check one or multiple codes in **Select codes**, or click **Use current code**. Enable **Export selected codes only**, optionally enable **Include their subcodes**, choose the existing scope, then click **CSV** or **DOCX**. Leave the selection toggle off for the whole codebook. The selection also applies to Starred Excerpts and Starred Images; REFI-QDA, Notes & Memos, and Manuscript Skeleton continue to use the whole project.
+Open **Codebook → Export**, choose **Selected codes**, then check one or multiple codes in **Choose codes**, or click **Use current code**, optionally enable **Include their subcodes**, choose the existing scope, then click **CSV** or **DOCX**. Choose **All codes** for the whole codebook. The selection also applies to Starred Excerpts and Starred Images; REFI-QDA, Notes & Memos, and Manuscript Skeleton continue to use the whole project.
 
 Every CSV/DOCX scope includes **Document** names (image names for image coding). Codes-only output lists associated source names and definitions/memos in a table. Excerpt modes include both text quotes and image regions, coder identities and excerpt memos. Image coordinates are normalized from 0 to 1; DOCX also embeds the cropped image. CSV records the source, coordinates and memo rather than binary image content. Summary mode adds code summaries and definitions. Uncoded codes remain in the output with blank source/excerpt cells. **Codes + excerpts + summaries** supplies source attribution, so the former separate document-inclusive mode is removed. Existing option titles stay the same.
 

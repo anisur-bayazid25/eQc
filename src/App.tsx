@@ -6,6 +6,8 @@ import {
   MapEdgeStyle, MapAnnotation, ImageSource
 } from './domain';
 import CodeTree from './components/CodeTree';
+import TaskTabs from './components/TaskTabs';
+import ToolMenu from './components/ToolMenu';
 import CodeSearch from './components/CodeSearch';
 import DocTree, { SortKey } from './components/DocTree';
 import DocEditor from './components/DocEditor';
@@ -387,7 +389,8 @@ useEffect(() => {
   const [codebookSelectedCodeId, setCodebookSelectedCodeId] = useState<ID | null>(null);
   const [workspaceCodeSearch, setWorkspaceCodeSearch] = useState('');
   const [codebookCodeSearch, setCodebookCodeSearch] = useState('');
-  const [showColorPalette, setShowColorPalette] = useState(false);
+  const [codebookTask, setCodebookTask] = useState('details');
+  const [codeSelectionQuery, setCodeSelectionQuery] = useState('');
   const [exportScope, setExportScope] = useState<ExportScope>('codesExcerptsSummaries');
   const [codeSelection, setCodeSelection] = useState<{ projectId: ID; ids: ID[] }>({ projectId: '', ids: [] });
   const selectedCodeIds = codeSelection.projectId === project?.id ? codeSelection.ids.filter(id => project?.codes.some(c => c.id === id)) : [];
@@ -1955,6 +1958,7 @@ function moveDoc(docId: ID, targetFolderId: ID | null) {
       applyCodeToRegion(code);
     } else {
       setCodebookSelectedCodeId(code.id);
+      setCodebookTask('details');
       setTab('codebook');
     }
   }
@@ -2734,16 +2738,7 @@ function openDocxCommentImport() {
       )}
 
         {/* FIRST LINE: Brand & Main Navigation Tabs */}
-        <div className="header-top-row" style={{ 
-          display: 'flex', 
-          width: '100%',                /* Ensure row is full width */
-          alignItems: 'center',       
-          justifyContent: 'flex-start', /* Push contents to the left edge */
-          gap: '24px', 
-          padding: '8px 16px', 
-          borderBottom: '1px solid #ddd',
-          boxSizing: 'border-box'       /* Prevents padding from breaking 100% width */
-        }}>
+        <div className="header-top-row">
           
           {/* Brand Logo & Name */}
           <div className="brand" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -2755,7 +2750,7 @@ function openDocxCommentImport() {
           </div>
 
           {/* Navigation Tabs */}
-          <nav className="tabs" style={{ display: 'flex', gap: '5px' }}>
+          <nav className="tabs" aria-label="Main navigation">
             {(['workspace', 'codebook', 'codemap', 'autocode', 'analysis', 'about'] as Tab[]).map(t => (
               <button key={t} className={`tab-btn ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
                 {t === 'workspace' && 'Workspace'}
@@ -2770,18 +2765,9 @@ function openDocxCommentImport() {
         </div>
 
         {/* SECOND LINE: Project Controls & Action Buttons */}
-        <div className="header-bottom-row" style={{ 
-          display: 'flex', 
-          width: '100%',                /* Ensure row is full width */
-          alignItems: 'center',       
-          justifyContent: 'flex-start', /* Push contents to the left edge */
-          flexWrap: 'wrap',           
-          padding: '8px 16px', 
-          gap: '8px',
-          boxSizing: 'border-box'       /* Prevents padding from breaking 100% width */
-        }}>
+        <div className="header-bottom-row">
           
-          <select value={project.id} onChange={e => handleSwitchProject(e.target.value)}>
+          <select aria-label="Current project" className="project-select" value={project.id} onChange={e => handleSwitchProject(e.target.value)}>
             {projects.map(p => (
               <option key={p.id} value={p.id}>{lanSession && lanSession.projectId === p.id ? `🟢 ${p.name}` : p.name}</option>
             ))}
@@ -2791,9 +2777,11 @@ function openDocxCommentImport() {
           {isLanSharedProjectLocked
             ? <button className="icon-btn" title="The session-shared project can't be renamed" disabled>✏️</button>
             : <button className="icon-btn" title="Rename project" onClick={openProjectSettings}>✏️</button>}
+          <ToolMenu label="Project tools">
           <button className="icon-btn" title="Export backup (.json)" onClick={handleExportBackup}>⬇️ Export</button>
           <button className="icon-btn" title="Import backup (.json)" onClick={handleImportBackup}>⬆️ Import</button>
           <button className="icon-btn" title="Merge project(s) into current" onClick={handleMerge}>🔀 Merge</button>
+          </ToolMenu>
           <button
             className="icon-btn"
             title="LAN collaboration — host or join a live session on this network"
@@ -2821,6 +2809,7 @@ function openDocxCommentImport() {
           <button className="icon-btn-sm" title="Undo (Ctrl+Z)" disabled={past.length === 0} onClick={undo}>↶</button>
           <button className="icon-btn-sm" title="Redo (Ctrl+Shift+Z)" disabled={future.length === 0} onClick={redo}>↷</button>
           <span className="header-divider" style={{ margin: '0 8px', borderLeft: '1px solid #ccc', height: '20px' }} />
+          <ToolMenu label="Reading">
           <select
             title="Reading font"
             value={readerFontFamily}
@@ -2848,6 +2837,8 @@ function openDocxCommentImport() {
           <button className="icon-btn" title="Decrease font size" onClick={() => setReaderFontSize(s => Math.max(8, s - 1))}>A−</button>
           <span title="Font size (px)" style={{ fontSize: '12px', minWidth: '30px', textAlign: 'center' }}>{readerFontSize}px</span>
           <button className="icon-btn" title="Increase font size" onClick={() => setReaderFontSize(s => Math.min(48, s + 1))}>A+</button>
+
+          </ToolMenu>
           <button className="icon-btn" title="Toggle light/dark theme" onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}>
             {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
           </button>
@@ -2870,15 +2861,17 @@ function openDocxCommentImport() {
         className="workspace-grid" 
         style={{ display: tab === 'workspace' ? undefined : 'none' }}
       >
-        <aside className="panel left-panel">
-            <div className="panel-toolbar">
-              <button onClick={addRootFolder}>+ Add Root Folder</button>
-              <button onClick={() => addDocs(null)}>+ Doc</button>
-              <button onClick={() => addScannedPdf(null)}>+ Scanned PDF (OCR)</button>
-              <button onClick={() => addImages(null)}>+ Add Image</button>
-              <button onClick={() => setContentSearchOpen(v => !v)}>🔍 Search Text</button>
+        <aside className="panel left-panel workspace-sources">
+            <div className="sidebar-heading"><h2>Sources</h2><span>{project.docs.length + (project.images?.length || 0)}</span></div>
+            <div className="panel-toolbar source-toolbar">
+              <ToolMenu label="+ Add source">
+                <button onClick={addRootFolder}>+ Add Root Folder</button>
+                <button onClick={() => addDocs(null)}>+ Doc</button>
+                <button onClick={() => addScannedPdf(null)}>+ Scanned PDF (OCR)</button>
+                <button onClick={() => addImages(null)}>+ Add Image</button>
+              </ToolMenu>
+              <button aria-expanded={contentSearchOpen} onClick={() => setContentSearchOpen(v => !v)}>Search text</button>
             </div>
-
             {contentSearchOpen && (
               <div className="code-search" style={{ marginBottom: 10 }}>
                 <input
@@ -2909,6 +2902,7 @@ function openDocxCommentImport() {
                 )}
               </div>
             )}
+            <details className="disclosure"><summary>Sort & coder filter</summary>
             <div className="sort-row">
               <label>Sort by</label>
               <select value={sortBy} onChange={e => setSortBy(e.target.value as SortKey)}>
@@ -2928,6 +2922,7 @@ function openDocxCommentImport() {
                 </select>
               </div>
             )}
+            </details>
              <div className="code-search">
               <input
                 className="code-search-input"
@@ -3382,28 +3377,32 @@ function openDocxCommentImport() {
       
 
       {tab === 'codebook' && (() => {
-
+  const codePicker = <div className="code-picker">
+            <strong>Select codes ({selectedCodeIds.length})</strong>
+            <button className="mini-btn" onClick={() => { setCodeSelection({ projectId: project.id, ids: codebookSelectedCodeId ? [codebookSelectedCodeId] : [] }); setMergeTargetId(codebookSelectedCodeId || ''); }}>Use current code</button>
+            <input aria-label="Find codes to select" placeholder="Find codes…" value={codeSelectionQuery} onChange={e => setCodeSelectionQuery(e.target.value)} />
+            <div className="code-pick-list" style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid var(--border)', padding: 6 }}>
+              {project.codes.filter(code => [...codeAncestorPath(project.codes, code), code.name].join(' › ').toLowerCase().includes(codeSelectionQuery.toLowerCase())).map(code => <label key={code.id} title={[...codeAncestorPath(project.codes, code), code.name].join(' › ')} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+                <input type="checkbox" checked={selectedCodeIds.includes(code.id)} onChange={e => {
+                  const ids = e.target.checked ? [...selectedCodeIds, code.id] : selectedCodeIds.filter(id => id !== code.id);
+                  setCodeSelection({ projectId: project.id, ids });
+                  if (!ids.includes(mergeTargetId)) setMergeTargetId(ids[0] || '');
+                }} />
+                {[...codeAncestorPath(project.codes, code), code.name].join(' › ')}
+              </label>)}
+            </div>
+            {!project.codes.length && <p className="section-hint">Create or import codes to select them.</p>}
+  </div>;
   return (
     <div className="codebook-grid">
-      
-      {/* 1. LEFT PANEL: Import, Code Details, & Export Options */}
-      <aside className="panel left-panel" style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
-        
-        {/* IMPORT OPTIONS */}
-        <div className="sidebar-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', color: '#64748b', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px', marginBottom: '4px' }}>
-            Import Options
-          </div>
-          <div style={{ display: 'flex', gap: '4px' }}>
-            <button className="mini-btn" style={{ flex: 1, padding: '4px 2px', fontSize: '10px' }} onClick={handleCsvImport}>➕ CSV</button>
-            <button className="mini-btn" style={{ flex: 1, padding: '4px 2px', fontSize: '10px' }} onClick={handleQdpxImport}>➕ REFI-QDA</button>
-            <button className="mini-btn" style={{ flex: 1, padding: '4px 2px', fontSize: '10px' }} onClick={openDocxCommentImport}>➕ DOCX</button>
-          </div>
-        </div>
-
-        {/* CODE DETAILS (Only visible when a code is selected) */}
+      <aside className="panel left-panel codebook-tools">
+        <div className="sidebar-heading"><h2>Codebook tools</h2></div>
+        <TaskTabs label="Codebook tasks" active={codebookTask} onChange={setCodebookTask}
+          options={[{ id: 'details', label: 'Details' }, { id: 'merge', label: 'Merge' }, { id: 'export', label: 'Export' }, { id: 'import', label: 'Import' }]} />
+        <div className="task-content">
+          <div id="task-panel-details" role="tabpanel" aria-labelledby="task-tab-details" hidden={codebookTask !== 'details'}>
         {codebookCode && (
-          <div className="sidebar-group" style={{ borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', padding: '12px 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div className="sidebar-group code-details-form">
             <div style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', color: '#64748b', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
               Code Details
             </div>
@@ -3432,17 +3431,7 @@ function openDocxCommentImport() {
                     onClick={() => updateCode(codebookCode.id, { color: c })}
                   />
                 ))}
-                <div style={{ position: 'relative', display: 'inline-block' }}>
-                  <button
-                    className={`mini-btn ${showColorPalette ? 'active' : ''}`}
-                    title="More colors…"
-                    style={{ padding: '1px 6px', fontSize: '12px' }}
-                    onClick={() => setShowColorPalette(v => !v)}
-                  >
-                    🎨
-                  </button>
-                  {showColorPalette && (
-                    <div style={{ position: 'absolute', top: '24px', left: '0', zIndex: 100, background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', width: '255px' }}>
+                <ToolMenu label="More colors">
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: '3px' }}>
                         {MORE_COLORS.map(c => (
                           <button
@@ -3454,9 +3443,10 @@ function openDocxCommentImport() {
                               border: codebookCode.color === c ? '2px solid #000' : '1px solid #e2e8f0',
                               borderRadius: '3px', cursor: 'pointer', padding: 0
                             }}
-                            onClick={() => {
+                            onClick={event => {
                               updateCode(codebookCode.id, { color: c });
-                              setShowColorPalette(false);
+                              const menu = event.currentTarget.closest('details');
+                              if (menu) menu.open = false;
                             }}
                           />
                         ))}
@@ -3470,9 +3460,7 @@ function openDocxCommentImport() {
                           style={{ width: '40px', height: '24px', padding: 0, border: '1px solid #cbd5e1', borderRadius: '3px', cursor: 'pointer', background: 'transparent' }}
                         />
                       </div>
-                    </div>
-                  )}
-                </div>
+                </ToolMenu>
               </div>
             </div>
 
@@ -3501,41 +3489,12 @@ function openDocxCommentImport() {
           </div>
         )}
 
-        {/* EXPORT OPTIONS */}
-        <div className="sidebar-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', color: '#64748b', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
-            Export Options
+            {!codebookCode && <div className="empty-hint">Choose a code in the code tree to edit its name, color, definition and memo.</div>}
           </div>
-          
-          <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleQdpxExport}>
-            ⬇️ REFI-QDA
-          </button>
-
-          <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleQdpxCodebookExport}>
-            📚 Export Codebook (QDPX)
-          </button>
-
-          <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleExportNotesCsv}>
-            📝 Export All Notes &amp; Memos (CSV)
-          </button>
-
-          <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleExportManuscriptSkeleton}>
-            📄 Manuscript Skeleton
-          </button>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
-            <strong>Select codes ({selectedCodeIds.length})</strong>
-            <button className="mini-btn" onClick={() => { setCodeSelection({ projectId: project.id, ids: codebookSelectedCodeId ? [codebookSelectedCodeId] : [] }); setMergeTargetId(codebookSelectedCodeId || ''); }}>Use current code</button>
-            <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid var(--border)', padding: 6 }}>
-              {project.codes.map(code => <label key={code.id} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
-                <input type="checkbox" checked={selectedCodeIds.includes(code.id)} onChange={e => {
-                  const ids = e.target.checked ? [...selectedCodeIds, code.id] : selectedCodeIds.filter(id => id !== code.id);
-                  setCodeSelection({ projectId: project.id, ids });
-                  if (!ids.includes(mergeTargetId)) setMergeTargetId(ids[0] || '');
-                }} />
-                {[...codeAncestorPath(project.codes, code), code.name].join(' › ')}
-              </label>)}
-            </div>
+          <div id="task-panel-merge" role="tabpanel" aria-labelledby="task-tab-merge" hidden={codebookTask !== 'merge'}>
+            <h3>Merge codes</h3>
+            <p className="section-hint">Select two or more codes, then choose the one to keep. Coding and memos are retained; Ctrl+Z undoes the merge.</p>
+            {codePicker}
             <label>Code to keep after merge
               <select aria-label="Code to keep after merge" value={selectedCodeIds.includes(mergeTargetId) ? mergeTargetId : ''} onChange={e => setMergeTargetId(e.target.value)} style={{ width: '100%' }}>
                 <option value="">Choose code to keep…</option>
@@ -3543,10 +3502,20 @@ function openDocxCommentImport() {
               </select>
             </label>
             <button className="mini-btn" disabled={selectedCodeIds.length < 2 || !selectedCodeIds.includes(mergeTargetId)} onClick={handleMergeCodes}>Merge selected codes</button>
-            <label><input type="checkbox" checked={exportSelectedOnly} onChange={e => setExportSelectedOnly(e.target.checked)} /> Export selected codes only</label>
-            {exportSelectedOnly && <label><input type="checkbox" checked={exportDescendants} onChange={e => setExportDescendants(e.target.checked)} /> Include their subcodes</label>}
-            <small>Selection applies to CSV / DOCX exports below. Other export buttons use the whole project.</small>
-            <select 
+          </div>
+          <div id="task-panel-export" role="tabpanel" aria-labelledby="task-tab-export" hidden={codebookTask !== 'export'}>
+            <h3>Export codes & excerpts</h3>
+            <label className="field-label">Codes to include
+              <select aria-label="Codes to include" value={exportSelectedOnly ? 'selected' : 'all'} onChange={e => setExportSelectedOnly(e.target.value === 'selected')}>
+                <option value="all">All codes</option><option value="selected">Selected codes</option>
+              </select>
+            </label>
+            {exportSelectedOnly && <>
+              <details className="disclosure" open><summary>Choose codes ({selectedCodeIds.length})</summary>{codePicker}</details>
+              <label className="check-label"><input type="checkbox" checked={exportDescendants} onChange={e => setExportDescendants(e.target.checked)} /> Include their subcodes</label>
+            </>}
+            <label className="field-label" htmlFor="code-export-scope">Export contents</label>
+            <select id="code-export-scope"
               value={exportScope} 
               onChange={e => setExportScope(e.target.value as any)}
               style={{ width: '100%', padding: '6px', fontSize: '11px' }}
@@ -3581,19 +3550,46 @@ function openDocxCommentImport() {
             >
               ⭐ Starred Images (DOCX)
             </button>
+            <details className="disclosure project-exports"><summary>Project exports</summary>
+              <p className="section-hint">These exports always use the whole project.</p>
+          <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleQdpxExport}>
+            ⬇️ REFI-QDA
+          </button>
+
+          <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleQdpxCodebookExport}>
+            📚 Export Codebook (QDPX)
+          </button>
+
+          <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleExportNotesCsv}>
+            📝 Export All Notes &amp; Memos (CSV)
+          </button>
+
+          <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleExportManuscriptSkeleton}>
+            📄 Manuscript Skeleton
+          </button>
+
+            </details>
+          </div>
+          <div id="task-panel-import" role="tabpanel" aria-labelledby="task-tab-import" hidden={codebookTask !== 'import'}>
+            <h3>Import coded data</h3>
+            <p className="section-hint">Add a codebook or coded sources to the current project.</p>
+            <div className="action-list">
+              <button onClick={handleCsvImport}>CSV dataset / codebook</button>
+              <button onClick={handleQdpxImport}>REFI-QDA project (QDPX)</button>
+              <button onClick={openDocxCommentImport}>Word comments (DOCX)</button>
+            </div>
           </div>
         </div>
-
-        </aside>
+      </aside>
 
       {/* 2. CENTER PANEL: Excerpts Only */}
       <main className="panel center-panel" style={THEME_STYLES[readerTheme]}>
         {codebookCode ? (
-          <div style={{ padding: '16px', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
+          <div className="codebook-excerpts">
             
             {/* Header with Sort Dropdown */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #cbd5e1', paddingBottom: '8px', marginBottom: '16px' }}>
-              <h3 style={{ margin: 0 }}>Excerpts</h3>
+              <h3 style={{ margin: 0 }}>Excerpts · {codebookCode.name}</h3>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 {coderOptions.length > 1 && (
                   <select
@@ -3944,7 +3940,6 @@ function openDocxCommentImport() {
     minHeight: 0
   }}
 >
-    <h2>Code Map</h2>
     <CodeMap
       projectId={project.id}
       codes={project.codes}
@@ -3964,46 +3959,28 @@ function openDocxCommentImport() {
 </div>
 
 {tab === 'about' && (
-  <main 
-    className="panel about-panel" 
-    style={{ 
-      padding: '40px', 
-      maxWidth: '600px', 
-      margin: '40px auto', 
-      textAlign: 'center', 
-      backgroundColor: 'var(--panel)', 
-      color: 'var(--text)', 
-      borderRadius: '8px', 
-      border: '1px solid var(--border)',
-      boxShadow: '0 4px 12px var(--shadow)',
-      overflowX: 'hidden'
-    }}
-  >
-    <img 
-      src="./eqc-logo.png" 
-      alt="EQC Logo" 
-      style={{ width: '220px', height: 'auto', marginBottom: '20px' }} 
-    />
-    <h2 style={{ margin: '0 0 10px 0', fontSize: '24px', color: 'var(--text)' }}>EQC - Easy Qual Coding</h2>
-    <p style={{ fontWeight: 'bold', color: '#fb923c', marginBottom: '20px' }}>Version {pkg.version}</p>
-    <p>
-      <a href="https://github.com/anisur-bayazid25/eQc" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>
-        github.com/anisur-bayazid25/eQc
-      </a> — Visit for latest updates, releases, and source
-      <button onClick={() => window.qv.checkForUpdates()}>🔄 Check for Updates</button>
-    </p>
-    
-    <p style={{ lineHeight: '1.6', marginBottom: '30px', fontSize: '16px', color: 'var(--text)' }}>
-      Designed to strip away the complexity of traditional QDA software. 
-      EQC offers a lightweight, intuitive environment for researchers to seamlessly weave text into meaningful insights.
-    </p>
-
-    <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px', fontSize: '14px', lineHeight: '1.8', color: 'var(--text-dim)' }}>
-      <p><strong style={{ color: 'var(--text)' }}>Made by:</strong> Anisur Rahman Bayazid <em>(with help from borrowed intellect)</em></p>
-      <p><strong style={{ color: 'var(--text)' }}>Acknowledgments:</strong> eQc gratefully acknowledges the contributions of the CARE project and BRAC James P Grant School of Public Health, BRAC University, to its development.</p>
-      <p><strong style={{ color: 'var(--text)' }}>Contact:</strong> <a href="mailto:anisur.rahman.bayazid@gmail.com" style={{ color: 'var(--accent)', textDecoration: 'none' }}>anisur.rahman.bayazid@gmail.com</a></p>
-      <p><strong style={{ color: 'var(--text)' }}>License:</strong> MIT License - Open and free for commercial and non-commercial use.</p>
-      <p><strong style={{ color: 'var(--text)' }}>Year:</strong> 2026</p>
+  <main className="panel about-panel">
+    <div className="about-layout">
+      <section className="about-intro">
+        <div className="about-heading">
+          <img src="./eqc-logo.png" alt="eQc logo" />
+          <div><h1>Easy Qual Coding</h1><span className="version-badge">Version {pkg.version}</span></div>
+        </div>
+        <p>A local-first environment for qualitative research. Organize sources, code text and images, develop memos, and explore your analysis.</p>
+        <div className="about-actions">
+          <a href="https://github.com/anisur-bayazid25/eQc" target="_blank" rel="noopener noreferrer">Source & releases ↗</a>
+          <button onClick={() => window.qv.checkForUpdates()}>Check for Updates</button>
+        </div>
+      </section>
+      <section className="about-info">
+        <dl>
+          <dt>Created by</dt><dd>Anisur Rahman Bayazid <em>(with help from borrowed intellect)</em></dd>
+          <dt>Acknowledgments</dt><dd>eQc gratefully acknowledges the contributions of the CARE project and BRAC James P Grant School of Public Health, BRAC University, to its development.</dd>
+          <dt>Contact</dt><dd><a href="mailto:anisur.rahman.bayazid@gmail.com">anisur.rahman.bayazid@gmail.com</a></dd>
+          <dt>License</dt><dd>MIT License — free for commercial and non-commercial use.</dd>
+          <dt>Year</dt><dd>2026</dd>
+        </dl>
+      </section>
     </div>
   </main>
 )}
@@ -4239,7 +4216,9 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
     const selDocs = icrScope.docIds;
     const imageCount = (project.images || []).length;
     return (
-      <div className="sort-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '6px', border: '1px solid var(--border)', borderRadius: '6px', padding: '8px', marginBottom: '8px' }}>
+      <details className="disclosure analysis-scope">
+        <summary>Scope: {icrSelCoders.length} coders · {selDocs.length} documents{icrIncludeImages && imageCount > 0 ? ` · ${imageCount} images` : ''}</summary>
+        <div className="scope-grid">
         <div>
           <label style={{ marginBottom: 4, display: 'block' }}>Coders in scope ({icrSelCoders.length}/{icrCoders.length})</label>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -4289,7 +4268,8 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
             Include images ({imageCount})
           </label>
         )}
-      </div>
+        </div>
+      </details>
     );
   }
 
@@ -4411,31 +4391,16 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
         })}>⬇️ HTML Report</button>
       </div>
 
-      <nav className="subtabs">
-        <button className={`subtab-btn ${subTab === 'frequency' ? 'active' : ''}`} onClick={() => setSubTab('frequency')}>
-          Coding Frequency
-        </button>
-        <button className={`subtab-btn ${subTab === 'docMatrix' ? 'active' : ''}`} onClick={() => setSubTab('docMatrix')}>
-          Code × Document Matrix
-        </button>
-        <button className={`subtab-btn ${subTab === 'coMatrix' ? 'active' : ''}`} onClick={() => setSubTab('coMatrix')}>
-          Code Co-occurrence Matrix
-        </button>
-        <button className={`subtab-btn ${subTab === 'framework' ? 'active' : ''}`} onClick={() => setSubTab('framework')}>
-          Framework Matrix
-        </button>
-        <button className={`subtab-btn ${subTab === 'words' ? 'active' : ''}`} onClick={() => setSubTab('words')}>
-          Word Frequencies
-        </button>
-        <button className={`subtab-btn ${subTab === 'kwic' ? 'active' : ''}`} onClick={() => setSubTab('kwic')}>
-          KWIC
-        </button>
-        <button className={`subtab-btn ${subTab === 'icr' ? 'active' : ''}`} onClick={() => setSubTab('icr')}>
-          Inter-Coder Reliability
-        </button>
-        <button className={`subtab-btn ${subTab === 'consensus' ? 'active' : ''}`} onClick={() => setSubTab('consensus')}>
-          Consensus
-        </button>
+      <nav className="subtabs analysis-navigation" aria-label="Analysis views">
+        {[
+          { label: 'Coding', views: [['frequency', 'Frequency', 'Coding Frequency'], ['docMatrix', 'Documents', 'Code × Document Matrix'], ['coMatrix', 'Co-occurrence', 'Code Co-occurrence Matrix'], ['framework', 'Framework', 'Framework Matrix']] },
+          { label: 'Text', views: [['words', 'Word frequencies', 'Word Frequencies'], ['kwic', 'KWIC', 'Keyword in Context']] },
+          { label: 'Team', views: [['icr', 'Reliability', 'Inter-Coder Reliability'], ['consensus', 'Consensus', 'Consensus']] }
+        ].map(group => <div key={group.label} className="analysis-nav-group">
+          <span>{group.label}</span>
+          {group.views.map(([id, label, title]) => <button key={id} title={title} aria-current={subTab === id ? 'page' : undefined}
+            className={`subtab-btn ${subTab === id ? 'active' : ''}`} onClick={() => setSubTab(id as typeof subTab)}>{label}</button>)}
+        </div>)}
       </nav>
 
       {subTab === 'frequency' && (

@@ -1,19 +1,15 @@
-# eQc 1.6.4
-
-### Added
-- **Merge codes** — select two or more codes in Codebook, choose the code to keep, and merge. Text passages, image regions, child codes, definitions, memos, framework cells, relationship notes, and map references are retained or remapped. Undo with Ctrl+Z.
-- **Selected-code exports** — export one or multiple codes to CSV or DOCX, optionally including their descendants, using the existing export modes.
-- **Image coding in exports** — excerpt exports include image source names, normalized region coordinates, coder identities and region memos. DOCX includes cropped image excerpts. Starred Excerpts includes both text and image coding, with unchanged option titles.
-- **Complete analysis HTML report** — includes scoped pairwise agreement, Cohen’s κ, Holsti, Fleiss’ κ, Krippendorff’s c-Alpha-binary and Cu-Alpha, per-code results, consensus counts and coder assignments, plus cropped image coding and all existing dashboard analyses.
-- **Acknowledgments** — recognize the contributions of the CARE project and BRAC James P Grant School of Public Health, BRAC University, in About and documentation.
+# eQc 1.6.5
 
 ### Changed
-- All codebook CSV/DOCX modes include document or image source names. Codes-only exports list associated sources and retain uncoded codes; excerpt exports retain uncoded codes and their memos/definitions where enabled.
-- Removed the redundant “Document + codes + excerpts + summaries” mode; “Codes + excerpts + summaries” now supplies source names itself.
-- Notes & Memos CSV includes a Document column and whole-image memos.
-- Updated the user guide and README with previously missing v1.6.0–1.6.3 reliability, consensus, definition, and data-integrity features.
+- **Task-oriented Codebook sidebar** — Details, Merge, Export and Import tabs replace the long stacked panel. Selected-code export and merge use the same searchable code selection. Routine CSV/DOCX and starred exports stay prominent; whole-project exports are grouped in a disclosure. Existing options and export formats are retained.
+- **Tidier Workspace** — Add source groups document, image, scanned PDF and folder actions. Text search stays directly accessible; sorting and coder filters move into a collapsible section. Wider, responsive sidebars give trees and controls room to breathe.
+- **Compact project header** — Project tools groups backup/import/project merge actions; Reading groups fonts and text size. The Light/Dark theme toggle remains outside menus. Project selection, new/rename, LAN, undo/redo and save remain directly available.
+- **Grouped analysis navigation** — Coding, Text and Team groups expose all eight analysis views without a long overflowing row. ICR/consensus scope controls collapse into a summary displaying the current selection.
+- **Code Map tools and automatic Fit** — View, Draw, Canvas, Codes, Export and Help menus retain all map options. Fit follows the available viewport; manual zoom remains fixed until Fit is selected again. Node labels remain readable at reduced zoom, full code names are available on hover, and canvas/export dimensions stay independent of screen zoom.
+- **Wider About layout** — one wide panel presents the app, version/update links, creator, CARE/BRAC acknowledgments, contact and license. Information rows stack in smaller windows.
 
 ### Fixed
-- Image-only manuscript entries now embed their starred regions even when there are no starred text quotes.
-- CSV correctly escapes carriage returns; HTML distinguishes an executed KWIC search with no matches from a search not yet run.
+- Main work surfaces use the height remaining below the header, preventing unnecessary outer scrolling and clipped controls.
+- The scaled Code Map canvas now has matching layout dimensions, eliminating invisible unscaled overflow when zoomed out.
+- Tool panels position within the viewport, reposition on resize/scroll, and dismiss with Escape or an outside click. Native disclosures and keyboard-navigable task tabs keep controls accessible.
 

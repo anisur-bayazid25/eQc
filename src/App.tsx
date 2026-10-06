@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import {
   Project, ProjectSummary, Folder, SourceDoc, Code, CodedSegment, FrameworkCell, CodeRelationNote,
-  ID, uid, newProject, colorForNewCode, childCodes, descendantCodeIds,
+  ID, uid, newProject, colorForNewCode, childCodes, descendantCodeIds, codeAncestorPath,
   CodedRegion, UNATTRIBUTED_CODER,
   MapEdgeStyle, MapAnnotation, ImageSource
 } from './domain';
@@ -16,12 +16,13 @@ import { importQdpx } from './lib/qdpxImport';
 import { buildQdpxExport, buildQdpxCodebookExport } from './lib/qdpxExport';
 import { importDocxComments } from './lib/docxCommentImport';
 import { mergeProjectInto } from './lib/merge';
+import { mergeCodes } from './lib/mergeCodes';
 import { codingFrequency, codeDocumentMatrix, codeCooccurrenceMatrix } from './lib/analysis';
 import { collectIcrCoders, computePairwiseIcr, computeFleissIcr, computeBinaryAlpha, computeCuAlpha, buildCodingUnits, formatIcrValue, kappaInterpretation } from './lib/icr';
 import { buildReportHtml, ReportExtras } from './lib/report';
 import { AUTO_CODE_LANGUAGES, CaptureBoundary, AutoCodeMatchMode, runAutoCode } from './lib/autoCode';
 import { extractBengaliTextFromPDF } from './lib/pdfExtractor';
-import { buildScopedExport, buildCodebookOutline, ExportScope, SCOPE_LABELS } from './lib/exportBuilders';
+import { buildScopedExport, ExportScope, SCOPE_LABELS } from './lib/exportBuilders';
 import pkg from '../package.json';
 import ImageEditor from './components/ImageEditor';
 import { cropRegionToPng, renderCodedImagePng } from './lib/imageCrop';
@@ -388,6 +389,33 @@ useEffect(() => {
   const [codebookCodeSearch, setCodebookCodeSearch] = useState('');
   const [showColorPalette, setShowColorPalette] = useState(false);
   const [exportScope, setExportScope] = useState<ExportScope>('codesExcerptsSummaries');
+  const [codeSelection, setCodeSelection] = useState<{ projectId: ID; ids: ID[] }>({ projectId: '', ids: [] });
+  const selectedCodeIds = codeSelection.projectId === project?.id ? codeSelection.ids.filter(id => project?.codes.some(c => c.id === id)) : [];
+  const [exportSelectedOnly, setExportSelectedOnly] = useState(false);
+  const [exportDescendants, setExportDescendants] = useState(false);
+  const [mergeTargetId, setMergeTargetId] = useState<ID>('');
+  function exportIds(): Set<ID> | undefined {
+    if (!project || !exportSelectedOnly) return undefined;
+    const ids = new Set(selectedCodeIds);
+    if (exportDescendants) for (const id of selectedCodeIds) for (const child of descendantCodeIds(project.codes, id)) ids.add(child);
+    return ids;
+  }
+  function handleMergeCodes() {
+    if (!project) return;
+    try {
+      const merged = mergeCodes(project, selectedCodeIds, mergeTargetId);
+      setConfirmDialog({
+        message: `Merge ${selectedCodeIds.length} codes into “${project.codes.find(c => c.id === mergeTargetId)?.name}”? Quotes, image regions, child codes, definitions, and memos will be retained. You can undo this with Ctrl+Z.`,
+        confirmText: 'Merge codes',
+        onConfirm: () => {
+          persist(merged);
+          setCodeSelection({ projectId: project.id, ids: [mergeTargetId] });
+          setCodebookSelectedCodeId(mergeTargetId);
+          showToast('Codes merged. Ctrl+Z to undo.');
+        }
+      });
+    } catch (error) { showToast((error as Error).message); }
+  }
   const [docxCommentModalOpen, setDocxCommentModalOpen] = useState(false);
   const [docxSeparatorChoice, setDocxSeparatorChoice] = useState<',' | ';' | '|' | 'custom'>(',');
   const [docxCustomSeparator, setDocxCustomSeparator] = useState('');
@@ -934,7 +962,9 @@ useEffect(() => {
 
 async function handleExportStarredImages() {
     if (!project) return;
-    const starredRegions = (project.codedRegions || []).filter(r => r.starred);
+    const ids = exportIds();
+    if (ids && !ids.size) { showToast('Select at least one code to export.'); return; }
+    const starredRegions = (project.codedRegions || []).filter(r => r.starred && (!ids || ids.has(r.codeId)));
     if (starredRegions.length === 0) {
       showToast('No starred image regions yet.');
       return;
@@ -1657,9 +1687,19 @@ async function handleExportDocDocx(doc: SourceDoc) {
     persist({ ...project, codes: [...project.codes, code] });
   }
 
+async function exportImageCells(data: ReturnType<typeof buildScopedExport>) {
+  const cells: Array<{ row: number; column: number; base64: string; width: number; height: number }> = [];
+  for (const item of data.imageRows || []) {
+    const image = project?.images?.find(i => i.id === item.region.imageId);
+    if (image) cells.push({ row: item.row, column: item.column, ...await cropRegionToPng(image.dataUrl, item.region) });
+  }
+  return cells;
+}
+
 async function handleExportCsv() {
   if (!project) return;
-  const { csv } = buildScopedExport(project, exportScope);
+  if (exportSelectedOnly && !selectedCodeIds.length) { showToast('Select at least one code to export.'); return; }
+  const { csv } = buildScopedExport(project, exportScope, exportIds());
   const path = await window.qv.exportText({
     title: 'Export CSV',
     defaultName: `${project.name.replace(/[^\w\- ]/g, '_')}_${exportScope}.csv`,
@@ -1672,23 +1712,16 @@ async function handleExportCsv() {
 
 async function handleExportDocx() {
   if (!project) return;
-  if (exportScope === 'codesOnly') {
-    const outline = buildCodebookOutline(project);
-    const path = await window.qv.exportDocxTable({
-      kind: 'outline',
-      title: `${project.name} — Codebook`,
-      outline,
-      filenameBase: `${project.name}_codebook`
-    });
-    if (path) showToast(`Exported to ${path}`);
-    return;
-  }
-  const { headers, rows } = buildScopedExport(project, exportScope);
+  if (exportSelectedOnly && !selectedCodeIds.length) { showToast('Select at least one code to export.'); return; }
+  const data = buildScopedExport(project, exportScope, exportIds());
+  const { headers, rows } = data;
+  const imageCells = await exportImageCells(data);
   const path = await window.qv.exportDocxTable({
     kind: 'table',
     title: `${project.name} — ${SCOPE_LABELS[exportScope]}`,
     headers,
     rows,
+    imageCells,
     filenameBase: `${project.name}_${exportScope}`
   });
   if (path) showToast(`Exported to ${path}`);
@@ -1972,19 +2005,18 @@ function toggleStarSegment(segId: ID) {
 
   async function handleExportStarredQuotes(kind: 'csv' | 'docx') {
     if (!project) return;
-    const starred = project.codedSegments.filter(s => s.starred);
-    if (starred.length === 0) {
-      showToast('No starred quotes yet — star an excerpt first.');
+    const ids = exportIds();
+    if (ids && !ids.size) { showToast('Select at least one code to export.'); return; }
+    const starred = project.codedSegments.filter(s => s.starred && (!ids || ids.has(s.codeId)));
+    const regions = (project.codedRegions || []).filter(r => r.starred && (!ids || ids.has(r.codeId)));
+    if (!starred.length && !regions.length) {
+      showToast('No starred excerpts in the export selection.');
       return;
     }
-    const headers = ['Quote', 'Code', 'Document', 'Coder', 'Note'];
-    const rows = starred.map(s => [
-      s.text,
-      codesById.get(s.codeId)?.name || 'Unknown code',
-      project.docs.find(d => d.id === s.docId)?.name || 'Unknown source',
-      s.coder || UNATTRIBUTED_CODER,
-      s.note || ''
-    ]);
+    const codeIds = new Set([...starred.map(s => s.codeId), ...regions.map(r => r.codeId)]);
+    const data = buildScopedExport({ ...project, codedSegments: starred, codedRegions: regions }, 'codesExcerptsSummaries', codeIds);
+    const { headers, rows } = data;
+    const imageCells = kind === 'docx' ? await exportImageCells(data) : undefined;
     const filenameBase = `${project.name.replace(/[^\w\- ]/g, '_')}_starred_quotes`;
 
     const path = kind === 'csv'
@@ -2000,9 +2032,10 @@ function toggleStarSegment(segId: ID) {
           title: `${project.name} — Starred Quotes`,
           headers,
           rows,
+          imageCells,
           filenameBase
         });
-    if (path) showToast(`Exported ${starred.length} starred quotes to ${path}`);
+    if (path) showToast(`Exported ${starred.length + regions.length} starred excerpts to ${path}`);
   }
 
 async function handleExportManuscriptSkeleton() {
@@ -2030,13 +2063,16 @@ async function handleExportManuscriptSkeleton() {
             const image = (project!.images || []).find(i => i.id === r.imageId);
             if (!image) continue;
             const cropped = await cropRegionToPng(image.dataUrl, r);
-            imageQuotes.push({ ...cropped, caption: image.name + (r.note ? ` — ${r.note}` : '') });
+            imageQuotes.push({ ...cropped, caption: image.name + (r.coder ? ` [Coded by: ${r.coder}]` : '') + (r.note ? ` — ${r.note}` : '') });
           }
 
           outline.push({
             name: code.name,
             depth,
-            summary: summary || undefined,
+            summary: `Documents: ${[...new Set([
+              ...project!.codedSegments.filter(s => s.codeId === code.id).map(s => project!.docs.find(d => d.id === s.docId)?.name || 'Unknown source'),
+              ...(project!.codedRegions || []).filter(r => r.codeId === code.id).map(r => project!.images?.find(i => i.id === r.imageId)?.name || 'Unknown source')
+            ])].join('; ') || 'No coded sources'}\n\n${summary}`,
             quotes: starredQuotes.length > 0 ? starredQuotes : undefined,
             imageQuotes: imageQuotes.length > 0 ? imageQuotes : undefined
           });
@@ -2263,32 +2299,35 @@ function handleRunAutoCode() {
   // definition, excerpt note, and image-region note in one CSV.
   async function handleExportNotesCsv() {
     if (!project) return;
-    const rows: Array<[string, string, string]> = [];
+    const rows: string[][] = [];
+    const documentName = (id: ID) => project.docs.find(d => d.id === id)?.name || 'Unknown document';
+    const imageName = (id: ID) => (project.images || []).find(d => d.id === id)?.name || 'Unknown image';
     for (const d of project.docs) {
-      if (d.notes && d.notes.trim()) rows.push(['Doc Memo', d.name, d.notes.trim()]);
+      if (d.notes?.trim()) rows.push(['Doc Memo', d.name, d.name, d.notes.trim()]);
+    }
+    for (const image of project.images || []) {
+      if (image.notes?.trim()) rows.push(['Image Memo', image.name, image.name, image.notes.trim()]);
     }
     for (const c of project.codes) {
-      if (c.summary && c.summary.trim()) rows.push(['Code Summary', c.name, c.summary.trim()]);
-      if (c.definition && c.definition.trim()) rows.push(['Code Definition', c.name, c.definition.trim()]);
+      const documents = [...new Set([
+        ...project.codedSegments.filter(s => s.codeId === c.id).map(s => documentName(s.docId)),
+        ...(project.codedRegions || []).filter(r => r.codeId === c.id).map(r => imageName(r.imageId))
+      ])].join('; ');
+      if (c.summary?.trim()) rows.push(['Code Summary', c.name, documents, c.summary.trim()]);
+      if (c.definition?.trim()) rows.push(['Code Definition', c.name, documents, c.definition.trim()]);
     }
     const codeName = (id: ID) => project.codes.find(c => c.id === id)?.name || 'Unknown code';
     for (const s of project.codedSegments) {
-      if (s.note && s.note.trim()) {
-        const docName = project.docs.find(d => d.id === s.docId)?.name || 'Unknown document';
-        rows.push(['Segment Note', `${docName} — ${codeName(s.codeId)}`, s.note.trim()]);
-      }
+      if (s.note?.trim()) rows.push(['Segment Note', codeName(s.codeId), documentName(s.docId), s.note.trim()]);
     }
     for (const r of project.codedRegions || []) {
-      if (r.note && r.note.trim()) {
-        const imgName = (project.images || []).find(img => img.id === r.imageId)?.name || 'Unknown image';
-        rows.push(['Region Note', `${imgName} — ${codeName(r.codeId)}`, r.note.trim()]);
-      }
+      if (r.note?.trim()) rows.push(['Region Note', codeName(r.codeId), imageName(r.imageId), r.note.trim()]);
     }
     if (rows.length === 0) {
       showToast('No notes or memos found — nothing to export.');
       return;
     }
-    const csv = toCsv(['Type', 'Target Name', 'Note/Memo Text'], rows);
+    const csv = toCsv(['Type', 'Target Name', 'Document', 'Note/Memo Text'], rows);
     const path = await window.qv.exportText({
       title: 'Export All Notes & Memos (CSV)',
       defaultName: `${project.name.replace(/[^\w\- ]/g, '_')}_notes_and_memos.csv`,
@@ -2344,7 +2383,12 @@ function openDocxCommentImport() {
   // =================================================================
   async function handleExportReport(extras?: ReportExtras) {
     if (!project) return;
-    const html = buildReportHtml(project, extras);
+    const imageExcerpts: Array<{ regionId: string; base64: string }> = [];
+    for (const region of project.codedRegions || []) {
+      const image = project.images?.find(i => i.id === region.imageId);
+      if (image) imageExcerpts.push({ regionId: region.id, base64: (await cropRegionToPng(image.dataUrl, region)).base64 });
+    }
+    const html = buildReportHtml(project, { ...extras, imageExcerpts });
     const path = await window.qv.exportReport(project, html);
     if (path) showToast(`Report exported to ${path}`);
   }
@@ -3480,6 +3524,28 @@ function openDocxCommentImport() {
           </button>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
+            <strong>Select codes ({selectedCodeIds.length})</strong>
+            <button className="mini-btn" onClick={() => { setCodeSelection({ projectId: project.id, ids: codebookSelectedCodeId ? [codebookSelectedCodeId] : [] }); setMergeTargetId(codebookSelectedCodeId || ''); }}>Use current code</button>
+            <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid var(--border)', padding: 6 }}>
+              {project.codes.map(code => <label key={code.id} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+                <input type="checkbox" checked={selectedCodeIds.includes(code.id)} onChange={e => {
+                  const ids = e.target.checked ? [...selectedCodeIds, code.id] : selectedCodeIds.filter(id => id !== code.id);
+                  setCodeSelection({ projectId: project.id, ids });
+                  if (!ids.includes(mergeTargetId)) setMergeTargetId(ids[0] || '');
+                }} />
+                {[...codeAncestorPath(project.codes, code), code.name].join(' › ')}
+              </label>)}
+            </div>
+            <label>Code to keep after merge
+              <select aria-label="Code to keep after merge" value={selectedCodeIds.includes(mergeTargetId) ? mergeTargetId : ''} onChange={e => setMergeTargetId(e.target.value)} style={{ width: '100%' }}>
+                <option value="">Choose code to keep…</option>
+                {project.codes.filter(c => selectedCodeIds.includes(c.id)).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </label>
+            <button className="mini-btn" disabled={selectedCodeIds.length < 2 || !selectedCodeIds.includes(mergeTargetId)} onClick={handleMergeCodes}>Merge selected codes</button>
+            <label><input type="checkbox" checked={exportSelectedOnly} onChange={e => setExportSelectedOnly(e.target.checked)} /> Export selected codes only</label>
+            {exportSelectedOnly && <label><input type="checkbox" checked={exportDescendants} onChange={e => setExportDescendants(e.target.checked)} /> Include their subcodes</label>}
+            <small>Selection applies to CSV / DOCX exports below. Other export buttons use the whole project.</small>
             <select 
               value={exportScope} 
               onChange={e => setExportScope(e.target.value as any)}
@@ -3934,6 +4000,7 @@ function openDocxCommentImport() {
 
     <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px', fontSize: '14px', lineHeight: '1.8', color: 'var(--text-dim)' }}>
       <p><strong style={{ color: 'var(--text)' }}>Made by:</strong> Anisur Rahman Bayazid <em>(with help from borrowed intellect)</em></p>
+      <p><strong style={{ color: 'var(--text)' }}>Acknowledgments:</strong> eQc gratefully acknowledges the contributions of the CARE project and BRAC James P Grant School of Public Health, BRAC University, to its development.</p>
       <p><strong style={{ color: 'var(--text)' }}>Contact:</strong> <a href="mailto:anisur.rahman.bayazid@gmail.com" style={{ color: 'var(--accent)', textDecoration: 'none' }}>anisur.rahman.bayazid@gmail.com</a></p>
       <p><strong style={{ color: 'var(--text)' }}>License:</strong> MIT License - Open and free for commercial and non-commercial use.</p>
       <p><strong style={{ color: 'var(--text)' }}>Year:</strong> 2026</p>
@@ -3966,7 +4033,7 @@ function openDocxCommentImport() {
 {confirmDialog && (
   <div className="modal-overlay">
     <div className="modal-content">
-      <h3>Delete</h3>
+      <h3>{confirmDialog.confirmText || 'Delete'}</h3>
       <p>{confirmDialog.message}</p>
       <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '20px' }}>
         <button
@@ -4335,6 +4402,7 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
       <div className="analysis-header">
         <h2>Analysis Dashboard</h2>
         <button onClick={() => onExportReport({
+          icr: { coders: icrSelCoders, scope: icrScope, coderA: icrEffA, coderB: icrEffB },
           wordFrequencies: wordFreqs,
           stopWordsText,
           kwicKeyword: activeSearch,

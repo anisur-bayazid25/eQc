@@ -1,4 +1,5 @@
 import { Project, childCodes } from '../domain';
+import { collectIcrCoders, computePairwiseIcr, computeFleissIcr, computeBinaryAlpha, computeCuAlpha, buildCodingUnits, formatIcrValue, IcrScope } from './icr';
 import { codingFrequency, codeDocumentMatrix, codeCooccurrenceMatrix } from './analysis';
 
 function esc(s: string): string {
@@ -9,6 +10,8 @@ function esc(s: string): string {
 // user last generated and the KWIC search they last ran. Passed straight into
 // the report so it mirrors exactly what is on screen.
 export interface ReportExtras {
+  imageExcerpts?: Array<{ regionId: string; base64: string }>;
+  icr?: { coders: string[]; scope: IcrScope; coderA: string; coderB: string };
   wordFrequencies?: Array<{ word: string; count: number }> | null;
   stopWordsText?: string;
   kwicKeyword?: string;
@@ -85,7 +88,11 @@ export function buildReportHtml(project: Project, extras?: ReportExtras): string
       if (c.summary.trim()) {
         parts.push(`<p>${esc(c.summary).replace(/\n/g, '<br/>')}</p>`);
       }
-      return `<div class="memo"><h4>${esc(c.name)}</h4>${parts.join('')}</div>`;
+      const sources = [...new Set([
+        ...project.codedSegments.filter(s => s.codeId === c.id).map(s => project.docs.find(d => d.id === s.docId)?.name || 'Unknown source'),
+        ...(project.codedRegions || []).filter(r => r.codeId === c.id).map(r => project.images?.find(i => i.id === r.imageId)?.name || 'Unknown source')
+      ])];
+      return `<div class="memo"><h4>${esc(c.name)}</h4><p>Documents: ${esc(sources.join('; ') || 'No coded sources')}</p>${parts.join('')}</div>`;
     })
     .join('\n');
 
@@ -117,6 +124,48 @@ export function buildReportHtml(project: Project, extras?: ReportExtras): string
       <td class="kwic-context">${esc(r.after.join(' '))} &hellip;</td>
     </tr>`)
     .join('\n');
+
+  const imageExcerptById = new Map((extras?.imageExcerpts || []).map(i => [i.regionId, i.base64]));
+  const imageRows = (project.codedRegions || []).map(r => {
+    const image = (project.images || []).find(i => i.id === r.imageId);
+    const crop = imageExcerptById.get(r.id);
+    return `<tr><td>${esc(image?.name || 'Unknown image')}</td><td>${esc(codesById.get(r.codeId)?.name || 'Unknown code')}</td><td>${esc(r.coder || 'Unattributed')}</td><td>${crop ? `<img alt="Coded image region" style="max-width:180px;max-height:180px" src="data:image/png;base64,${esc(crop)}"/><br/>` : ''}x=${r.x}, y=${r.y}, width=${r.width}, height=${r.height}</td><td>${esc(r.note || '')}</td></tr>`;
+  }).join('');
+
+  const inventory = collectIcrCoders(project);
+  const allCoders = inventory.attributed.map(c => c.name);
+  const icrCoders = (extras?.icr?.coders ?? allCoders).filter(c => allCoders.includes(c));
+  const scope = extras?.icr?.scope ?? { docIds: project.docs.map(d => d.id), includeImages: true };
+  const a = extras?.icr?.coderA ?? icrCoders[0];
+  const b = extras?.icr?.coderB ?? icrCoders[1];
+  const pair = a && b && a !== b && icrCoders.includes(a) && icrCoders.includes(b) ? computePairwiseIcr(project, a, b, scope) : null;
+  const fleiss = icrCoders.length >= 3 ? computeFleissIcr(project, icrCoders, scope) : null;
+  const binary = icrCoders.length >= 2 ? computeBinaryAlpha(project, icrCoders, scope) : null;
+  const cu = icrCoders.length >= 2 && scope.docIds.length ? computeCuAlpha(project, icrCoders, scope.docIds) : null;
+  const units = icrCoders.length >= 2 ? buildCodingUnits(project, icrCoders, scope.docIds) : [];
+  const reviewUnits = units.filter(u => u.distinctCoders >= 2);
+  const agreements = reviewUnits.filter(u => u.agreed).length;
+  const table = (headers: string[], rows: (string | number)[][]) => `<table><thead><tr>${headers.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${row.map(v => `<td>${esc(String(v)).replace(/\n/g, '<br/>')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  const icrHtml = `
+    <h2>Inter-Coder Reliability (ICR)</h2>
+    <p>Coders: ${esc(icrCoders.join(', ') || 'None')}. Documents: ${esc(project.docs.filter(d => scope.docIds.includes(d.id)).map(d => d.name).join(', ') || 'None')}. Include images: ${scope.includeImages ? 'Yes' : 'No'}.</p>
+    <p>${(inventory.unattributed?.segments || 0) + (inventory.unattributed?.regions || 0)} unattributed project items excluded; unattributed items are not treated as a coder. Undefined coefficients are shown as —.</p>
+    <p>Occurrence metrics use one source × code item (present/absent). Holsti is an uncorrected ratio; κ and α are chance-corrected. Cu-Alpha uses overlapping text passages, with uncoded ratings included.</p>
+    <h3>Pairwise agreement, Cohen's κ and Holsti index</h3>
+    ${pair ? `<p>${esc(pair.coderA)} vs ${esc(pair.coderB)}: ${pair.items} items (${pair.sources} sources × ${pair.codes} codes), ${pair.percent.toFixed(1)}% agreement; Cohen's κ = ${formatIcrValue(pair.kappa)}; Holsti = ${formatIcrValue(pair.holsti)}.</p>
+      ${table(['Contingency', 'Both coded', 'A only', 'B only', 'Neither'], [['Overall', pair.contingency.bothYes, pair.contingency.aOnly, pair.contingency.bOnly, pair.contingency.bothNo]])}
+      ${table(['Code', 'Both coded', 'A only', 'B only', 'Neither', '% agreement', "Cohen's κ", 'Holsti'], pair.perCode.map(r => [r.codeName, r.bothYes, r.aOnly, r.bOnly, r.bothNo, r.percent.toFixed(1), formatIcrValue(r.kappa), formatIcrValue(r.holsti)]))}` : '<p>Select two different attributed coders for pairwise reliability.</p>'}
+    <h3>Fleiss’ κ</h3>
+    ${fleiss ? `<p>${fleiss.items} items; ${fleiss.percentFull.toFixed(1)}% full agreement; κ = ${formatIcrValue(fleiss.kappa)}.</p>${table(['Code', 'Items', 'Full agreements', '% full agreement', 'κ'], fleiss.perCode.map(r => [r.codeName, r.items, r.fullAgreement, r.percentFull.toFixed(1), formatIcrValue(r.kappa)]))}` : '<p>Requires at least three attributed coders in scope.</p>'}
+    <h3>Krippendorff’s c-Alpha-binary</h3>
+    ${binary ? `<p>${binary.items} items; α = ${formatIcrValue(binary.alpha)}.</p>${table(['Code', 'Items', 'α'], binary.perCode.map(r => [r.codeName, r.items, formatIcrValue(r.alpha)]))}` : '<p>Requires at least two attributed coders in scope.</p>'}
+    <h3>Krippendorff’s Cu-Alpha</h3>
+    ${cu ? `<p>${cu.units} text units; ${cu.fullAgreement} full agreements (${cu.percentFull.toFixed(1)}%); α = ${formatIcrValue(cu.alpha)}.</p>` : '<p>Requires at least two attributed coders and one document in scope.</p>'}
+    <h2>Consensus Summary</h2>
+    <p>${reviewUnits.length} review passages: ${agreements} agreements, ${reviewUnits.length - agreements} disagreements. ${units.length - reviewUnits.length} single-coder passages excluded.</p>
+    <p>Agreement means that the coders who actually coded a passage assigned the same single code. Consensus covers text only and includes both statuses regardless of the current review filter. This is the current coding state, rather than an adjudication history.</p>
+    ${reviewUnits.length ? table(['Document', 'Start', 'End', 'Quote', 'Status', 'Coder assignments'], reviewUnits.map(u => [u.docName, u.start, u.end, u.text, u.agreed ? 'Agreement' : 'Disagreement', u.perCoder.filter(c => c.segmentIds.length).map(c => `${c.coder}: ${c.codeIds.map(id => codesById.get(id)?.name || 'Unknown code').join(', ')}`).join('\n')])) : '<p>No jointly coded text passages in scope.</p>'}
+  `;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -207,7 +256,12 @@ export function buildReportHtml(project: Project, extras?: ReportExtras): string
     <thead><tr><th>Document Name</th><th>Pre-Context</th><th>Keyword</th><th>Post-Context</th></tr></thead>
     <tbody>${kwicRows}</tbody>
   </table>`
-    : '<p>No KWIC search run yet. Open the KWIC tab and run a search, then export the report again.</p>'}
+    : extras?.kwicKeyword ? `<p>Keyword &quot;${esc(extras.kwicKeyword)}&quot;: no matches (context window ${extras.kwicWindow ?? 5}).</p>` : '<p>No KWIC search run yet. Open the KWIC tab and run a search, then export the report again.</p>'}
+
+  <h2>Image Coding</h2>
+  ${imageRows ? `<table><thead><tr><th>Document</th><th>Code</th><th>Coder</th><th>Region</th><th>Memo</th></tr></thead><tbody>${imageRows}</tbody></table>` : '<p>No coded image regions.</p>'}
+
+  ${icrHtml}
 
   <h2>Code Summaries / Memos</h2>
   ${memoBlocks || '<p>No code summaries have been written yet.</p>'}

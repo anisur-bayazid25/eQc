@@ -1,17 +1,16 @@
-import { Project, Code, ID, codeAncestorPath, childCodes, UNATTRIBUTED_CODER } from '../domain';
+import { Project, Code, ID, CodedRegion, codeAncestorPath, childCodes, UNATTRIBUTED_CODER } from '../domain';
 
-export type ExportScope = 'codesOnly' | 'codesExcerpts' | 'codesExcerptsSummaries' | 'full';
+export type ExportScope = 'codesOnly' | 'codesExcerpts' | 'codesExcerptsSummaries';
 
 export const SCOPE_LABELS: Record<ExportScope, string> = {
   codesOnly: 'Codes only (codebook)',
   codesExcerpts: 'Codes + excerpts',
-  codesExcerptsSummaries: 'Codes + excerpts + summaries',
-  full: 'Document + codes + excerpts + summaries'
+  codesExcerptsSummaries: 'Codes + excerpts + summaries'
 };
 
 function csvEscape(v: string | undefined): string {
   const s = v ?? '';
-  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 function rowsToCsv(headers: string[], rows: string[][]): string {
   return [headers, ...rows].map(r => r.map(csvEscape).join(',')).join('\r\n');
@@ -19,7 +18,7 @@ function rowsToCsv(headers: string[], rows: string[][]): string {
 
 // Breaks a code's hierarchy into up to 3 columns (Parent / Child 1 / Child 2)
 // — deliberately matching the same header names your CSV importer already
-// recognizes, so codesExcerpts/Summaries/full exports can be re-imported
+// recognizes, so codesExcerpts/Summaries exports can be re-imported
 // into another project via "Import Dataset (CSV)" if you ever want to.
 function codeLevelColumns(codes: Code[], code: Code): [string, string, string] {
   const path = [...codeAncestorPath(codes, code), code.name];
@@ -62,50 +61,50 @@ export interface ScopedExport {
   headers: string[];
   rows: string[][];
   csv: string;
+  imageRows?: Array<{ row: number; column: number; region: CodedRegion }>;
 }
 
-export function buildScopedExport(project: Project, scope: ExportScope): ScopedExport {
+export function buildScopedExport(project: Project, scope: ExportScope, selectedIds?: ReadonlySet<ID>): ScopedExport {
   const docsById = new Map(project.docs.map(d => [d.id, d]));
-
+  const imagesById = new Map((project.images || []).map(d => [d.id, d]));
+  const codes = project.codes.filter(c => !selectedIds || selectedIds.has(c.id));
+  const includeSummary = scope === 'codesExcerptsSummaries';
   if (scope === 'codesOnly') {
-    const headers = ['Parent Node', 'Child Node 1', 'Child Node 2', 'Definition of Parent', 'Definition of Child 1', 'Definition of Child 2'];
-    const rows = project.codes.map(c => [...codeLevelColumns(project.codes, c), ...codeLevelDefinitions(project.codes, c)]);
+    const headers = ['Document', 'Parent Node', 'Child Node 1', 'Child Node 2', 'Definition of Parent', 'Definition of Child 1', 'Definition of Child 2', 'Code Summary'];
+    const rows = codes.map(c => {
+      const names = new Set([
+        ...project.codedSegments.filter(s => s.codeId === c.id).map(s => docsById.get(s.docId)?.name || 'Unknown source'),
+        ...(project.codedRegions || []).filter(r => r.codeId === c.id).map(r => imagesById.get(r.imageId)?.name || 'Unknown source')
+      ]);
+      return [[...names].join('; '), ...codeLevelColumns(project.codes, c), ...codeLevelDefinitions(project.codes, c), c.summary || ''];
+    });
     return { headers, rows, csv: rowsToCsv(headers, rows) };
   }
-
-  const includeSummary = scope === 'codesExcerptsSummaries' || scope === 'full';
-  const includeDocument = scope === 'full';
-  const headers = [
-    ...(includeDocument ? ['Document'] : []),
-    'Parent Node', 'Child Node 1', 'Child Node 2', 'Quote', 'Coder',
-    ...(includeSummary ? ['Code Summary', 'Code Definition'] : [])
-  ];
-
-  let segs = [...project.codedSegments];
-  if (includeDocument) {
-    segs.sort((a, b) => {
-      const da = docsById.get(a.docId)?.name || '';
-      const db = docsById.get(b.docId)?.name || '';
-      return da !== db ? da.localeCompare(db) : a.start - b.start;
-    });
-  }
-
+  const headers = ['Document', 'Parent Node', 'Child Node 1', 'Child Node 2', 'Quote', 'Coder', 'Excerpt Memo',
+    ...(includeSummary ? ['Code Summary', 'Code Definition'] : [])];
   const rows: string[][] = [];
-  for (const seg of segs) {
-    const code = project.codes.find(c => c.id === seg.codeId);
-    if (!code) continue;
-    const [parent, child1, child2] = codeLevelColumns(project.codes, code);
-    const row: string[] = [];
-    if (includeDocument) row.push(docsById.get(seg.docId)?.name || 'Unknown source');
-    row.push(parent, child1, child2, seg.text, seg.coder || UNATTRIBUTED_CODER);
-    if (includeSummary) row.push(code.summary || '', code.definition || '');
-    rows.push(row);
+  const imageRows: NonNullable<ScopedExport['imageRows']> = [];
+  for (const code of codes) {
+    const makeRow = (name: string, quote: string, coder: string, note: string) => {
+      rows.push([name, ...codeLevelColumns(project.codes, code), quote, coder, note,
+        ...(includeSummary ? [code.summary || '', code.definition || ''] : [])]);
+    };
+    const segments = project.codedSegments.filter(s => s.codeId === code.id);
+    const regions = (project.codedRegions || []).filter(r => r.codeId === code.id);
+    for (const seg of segments) makeRow(docsById.get(seg.docId)?.name || 'Unknown source', seg.text, seg.coder || UNATTRIBUTED_CODER, seg.note || '');
+    for (const r of regions) {
+      imageRows.push({ row: rows.length, column: 4, region: r });
+      makeRow(imagesById.get(r.imageId)?.name || 'Unknown source',
+        `[Image region: x=${r.x}, y=${r.y}, width=${r.width}, height=${r.height}]`, r.coder || UNATTRIBUTED_CODER, r.note || '');
+    }
+    // Uncoded codes still carry their definitions and memos in the export.
+    if (!segments.length && !regions.length) makeRow('', '', '', '');
   }
-  return { headers, rows, csv: rowsToCsv(headers, rows) };
+  return { headers, rows, imageRows, csv: rowsToCsv(headers, rows) };
 }
 
-// For the "codesOnly" DOCX export — an indented outline instead of a flat
-// table, since that reads much better for a codebook's hierarchy.
+// Legacy outline helper retained for callers needing an indented code tree.
+// Current codebook DOCX uses the source-aware table builder above.
 // Carries both the summary/memo and the coding definition, so a codebook
 // exported to Word is self-contained.
 export function buildCodebookOutline(project: Project): { depth: number; name: string; summary?: string; definition?: string }[] {

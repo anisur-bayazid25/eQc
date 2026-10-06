@@ -562,15 +562,25 @@ ipcMain.handle('export:saveText', async (_e, { title, defaultName, content, exte
 // ---------------------------------------------------------------------
 // IPC: generic .docx export — either a flat table or a codebook outline
 // ---------------------------------------------------------------------
-function buildTableDocx(title, headers, rows) {
+function buildTableDocx(title, headers, rows, imageCells = []) {
+  const images = new Map(imageCells.map(cell => [`${cell.row}:${cell.column}`, cell]));
   const headerRow = new TableRow({
     children: headers.map(h => new TableCell({
       width: { size: Math.floor(100 / headers.length), type: WidthType.PERCENTAGE },
       children: [new Paragraph({ children: [new TextRun({ text: h, bold: true })] })]
     }))
   });
-  const dataRows = rows.map(r => new TableRow({
-    children: r.map(cell => new TableCell({ children: [new Paragraph(String(cell ?? ''))] }))
+  const dataRows = rows.map((r, row) => new TableRow({
+    children: r.map((cell, column) => {
+      const image = images.get(`${row}:${column}`);
+      const children = [new Paragraph(String(cell ?? ''))];
+      if (image) {
+        const scale = Math.min(1, 180 / image.width, 180 / image.height);
+        children.push(new Paragraph({ children: [new ImageRun({ type: 'png', data: Buffer.from(image.base64, 'base64'),
+          transformation: { width: Math.max(1, Math.round(image.width * scale)), height: Math.max(1, Math.round(image.height * scale)) } })] }));
+      }
+      return new TableCell({ children });
+    })
   }));
   const table = new Table({ rows: [headerRow, ...dataRows], width: { size: 100, type: WidthType.PERCENTAGE } });
   return new Document({
@@ -597,26 +607,16 @@ function buildOutlineDocx(title, nodes) {
     if (node.summary) {
       children.push(new Paragraph({ text: node.summary, indent: { left: 360 * (node.depth + 1) } }));
     }
-    if (Array.isArray(node.quotes)) {
-      for (const q of node.quotes) {
-        children.push(new Paragraph({
-          children: [new TextRun({ text: q, italics: true })],
-          indent: { left: 360 * (node.depth + 1) + 180 },
-          spacing: { after: 80 }
-        }));
-        if (Array.isArray(node.imageQuotes)) {
-      for (const iq of node.imageQuotes) {
-        const buffer = Buffer.from(iq.base64, 'base64');
-        const maxWidth = 300;
-        const scale = iq.width > maxWidth ? maxWidth / iq.width : 1;
-        children.push(new Paragraph({
-          indent: { left: 360 * (node.depth + 1) + 180 },
-          children: [new ImageRun({ data: buffer, transformation: { width: Math.round(iq.width * scale), height: Math.round(iq.height * scale) } })]
-        }));
-        children.push(new Paragraph({ text: iq.caption, indent: { left: 360 * (node.depth + 1) + 180 }, spacing: { after: 120 } }));
-      }
+    for (const q of node.quotes || []) {
+      children.push(new Paragraph({ children: [new TextRun({ text: q, italics: true })],
+        indent: { left: 360 * (node.depth + 1) + 180 }, spacing: { after: 80 } }));
     }
-      }
+    for (const iq of node.imageQuotes || []) {
+      const scale = Math.min(1, 300 / iq.width, 300 / iq.height);
+      children.push(new Paragraph({ indent: { left: 360 * (node.depth + 1) + 180 },
+        children: [new ImageRun({ type: 'png', data: Buffer.from(iq.base64, 'base64'),
+          transformation: { width: Math.max(1, Math.round(iq.width * scale)), height: Math.max(1, Math.round(iq.height * scale)) } })] }));
+      children.push(new Paragraph({ text: iq.caption, indent: { left: 360 * (node.depth + 1) + 180 }, spacing: { after: 120 } }));
     }
   }
   return new Document({ sections: [{ children }] });
@@ -649,7 +649,7 @@ ipcMain.handle('export:docx', async (_e, payload) => {
     ? buildOutlineDocx(payload.title, payload.outline)
     : payload.kind === 'imageGallery'
     ? buildImageGalleryDocx(payload.title, payload.items)
-    : buildTableDocx(payload.title, payload.headers, payload.rows);
+    : buildTableDocx(payload.title, payload.headers, payload.rows, payload.imageCells);
 
   const buffer = await Packer.toBuffer(doc);
   fs.writeFileSync(filePath, buffer);

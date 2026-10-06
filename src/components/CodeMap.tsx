@@ -1,3 +1,4 @@
+import ToolMenu from './ToolMenu';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Code, CodedSegment, ID, MapAnnotation, MapEdgeStyle, childCodes, descendantCodeIds, uid } from '../domain';
 
@@ -251,6 +252,8 @@ export default function CodeMap({
   const annoClickGuardRef = useRef(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
+  const [fitToWindow, setFitToWindow] = useState(true);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [presetIdx, setPresetIdx] = useState(0);
   const [customMode, setCustomMode] = useState(false);
@@ -260,6 +263,26 @@ export default function CodeMap({
   const canvas = customMode
     ? { w: Math.max(CANVAS_MIN, Math.min(CANVAS_MAX, customW)), h: Math.max(CANVAS_MIN, Math.min(CANVAS_MAX, customH)) }
     : CANVAS_PRESETS[presetIdx];
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport || !fitToWindow) return;
+    const fit = () => {
+      if (viewport.clientWidth <= 40 || viewport.clientHeight <= 40) return;
+      const scale = Math.min(1, (viewport.clientWidth - 40) / canvas.w, (viewport.clientHeight - 40) / canvas.h);
+      setZoom(Math.max(0.01, Math.floor(scale * 1000) / 1000));
+      viewport.scrollTo(0, 0);
+    };
+    const observer = new ResizeObserver(fit);
+    observer.observe(viewport);
+    fit();
+    return () => observer.disconnect();
+  }, [canvas.w, canvas.h, fitToWindow, isFullscreen]);
+
+  function manualZoom(value: number) {
+    setFitToWindow(false);
+    setZoom(Math.max(0.1, Math.min(4, value)));
+  }
 
   const zoomRef = useRef(zoom);
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
@@ -276,6 +299,7 @@ export default function CodeMap({
   useEffect(() => {
     if (prevProjectRef.current !== projectId) {
       prevProjectRef.current = projectId;
+      setFitToWindow(true);
       setExpandedRoots(new Set());
       setChildrenPerRoot(5);
       setViewMode('auto');
@@ -959,6 +983,7 @@ export default function CodeMap({
     const h = Math.max(1, Math.round(canvas.h * scale));
     clone.setAttribute('width', String(w));
     clone.setAttribute('height', String(h));
+    clone.querySelectorAll('[data-export-font-size]').forEach(label => label.setAttribute('font-size', label.getAttribute('data-export-font-size')!));
     if (includeLegendInExport) {
       // Bake the floating legend in as plain SVG elements (no CSS classes,
       // no foreignObject) so it rasterizes identically in every export path.
@@ -1108,20 +1133,21 @@ export default function CodeMap({
   // we track each placed label's box and, on overlap with an earlier one,
   // shift the new label up/down in alternating steps until it clears. A rough
   // heuristic — not a full collision solver.
+  const screenLabelSize = Math.max(12, 11 / zoom);
   const labelDeltas = useMemo(() => {
     const deltas = new Map<ID, number>();
     const placed: Array<{ x: number; y: number; w: number }> = [];
-    const steps = [0, -16, 16, -32, 32, -48, 48];
+    const steps = [0, 1, 2, 3, 4, 5, 6].map(n => n * Math.max(16, 14 / zoom));
     for (const c of visibleCodes) {
       const pos = positions.get(c.id);
       if (!pos) continue;
-      const w = truncated(c.name).length * 6.6;
-      const baseY = pos.y + 14;
+      const w = truncated(c.name).length * screenLabelSize * 0.55;
+      const baseY = pos.y + radiusFor(c.id, foldMode && c.parentId === null) + 14;
       let dy = 0;
       for (let attempt = 0; attempt < steps.length; attempt++) {
         dy = steps[attempt];
         const y = baseY + dy;
-        const clash = placed.some(p => Math.abs(p.x - pos.x) < (p.w + w) / 2 + 6 && Math.abs(p.y - y) < 15);
+        const clash = placed.some(p => Math.abs(p.x - pos.x) < (p.w + w) / 2 + 6 && Math.abs(p.y - y) < screenLabelSize + 3);
         if (!clash) {
           placed.push({ x: pos.x, y, w });
           deltas.set(c.id, dy);
@@ -1131,7 +1157,7 @@ export default function CodeMap({
     }
     return deltas;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleCodes, positions]);
+  }, [visibleCodes, positions, screenLabelSize, zoom, counts, rolledUpCounts, foldMode]);
 
   const COLOR_PALETTE = ['#0f172a', '#ef4444', '#f59e0b', '#22c55e', '#0ea5e9', '#a78bfa', '#ec4899'];
 
@@ -1151,63 +1177,9 @@ export default function CodeMap({
         boxSizing: 'border-box'
       } : { position: 'relative' })
     }}>
-      <div className="sort-row" style={{ gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '12px', color: 'var(--text-dim)', flex: 1, minWidth: '260px' }}>
-          Drag nodes to rearrange · right-click a node to change its shape · node size = coding frequency · click a leaf node to select it (✕ Remove from map hides it, ➕ Add codes brings it back) · click a folded node (or its + badge) to expand/collapse it
-        </span>
-        <label className="mini-label" style={{ fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-          <input
-            type="checkbox"
-            checked={showCooc}
-            onChange={e => setShowCooc(e.target.checked)}
-          />
-          Co-occurrence ({coocCount})
-        </label>
-        {showCooc && (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>min</span>
-            {[1, 2, 3, 5, 8].map(n => (
-              <button
-                key={n}
-                className="mini-btn"
-                style={{ padding: '1px 5px', fontSize: '11px', ...(minShared === n ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}) }}
-                onClick={() => setMinShared(n)}
-                title={`Only draw co-occurrence edges sharing at least ${n} document${n === 1 ? '' : 's'}`}
-              >
-                {n}
-              </button>
-            ))}
-          </span>
-        )}
-        <button
-          className="mini-btn"
-          style={drawMode ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
-          onClick={() => { setSelectedKey(null); setDrawMode(m => !m); setDrawSource(null); }}
-        >
-          {drawMode ? 'Cancel draw' : '✏️ Draw edge'}
-        </button>
-        <button
-          className="mini-btn"
-          style={annotateMode ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
-          onClick={() => { setAnnotateMode(m => !m); setSelectedKey(null); setSelectedAnnoId(null); }}
-          title="Draw free-standing annotation shapes — not tied to any code"
-        >
-          ✏️ Annotate
-        </button>
-        {annotateMode && (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }} title="Annotation shape — drag on empty canvas to draw; text places a labeled note">
-            {(['rect', 'circle', 'arrow', 'text'] as const).map(s => (
-              <button
-                key={s}
-                className="mini-btn"
-                style={{ padding: '1px 5px', fontSize: '11px', ...(annotateShape === s ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}) }}
-                onClick={() => setAnnotateShape(s)}
-              >
-                {s}
-              </button>
-            ))}
-          </span>
-        )}
+      <div className="map-toolbar" aria-label="Code Map tools">
+        <strong className="map-title">Code Map</strong>
+        <ToolMenu label="View">
         <select
           value={viewMode}
           onChange={e => handleViewModeChange(e.target.value as 'auto' | 'full' | 'custom')}
@@ -1249,19 +1221,63 @@ export default function CodeMap({
         >
           ◆ Legend
         </button>
-        <button className="mini-btn" onClick={() => setZoom(z => Math.max(0.1, +(z - 0.1).toFixed(2)))}>−</button>
-        <input
-          type="range"
-          min={10}
-          max={400}
-          step={10}
-          value={Math.round(zoom * 100)}
-          onChange={e => setZoom(Number(e.target.value) / 100)}
-          style={{ width: '140px', verticalAlign: 'middle' }}
-        />
-        <span style={{ fontSize: 12, minWidth: 40, textAlign: 'center', display: 'inline-block' }}>{Math.round(zoom * 100)}%</span>
-        <button className="mini-btn" onClick={() => setZoom(z => Math.min(4, +(z + 0.1).toFixed(2)))}>+</button>
-        <button className="mini-btn" onClick={() => setZoom(1)}>Reset</button>
+        <label className="mini-label" style={{ fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+          <input
+            type="checkbox"
+            checked={showCooc}
+            onChange={e => setShowCooc(e.target.checked)}
+          />
+          Co-occurrence ({coocCount})
+        </label>
+        {showCooc && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+            <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>min</span>
+            {[1, 2, 3, 5, 8].map(n => (
+              <button
+                key={n}
+                className="mini-btn"
+                style={{ padding: '1px 5px', fontSize: '11px', ...(minShared === n ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}) }}
+                onClick={() => setMinShared(n)}
+                title={`Only draw co-occurrence edges sharing at least ${n} document${n === 1 ? '' : 's'}`}
+              >
+                {n}
+              </button>
+            ))}
+          </span>
+        )}
+        </ToolMenu>
+        <ToolMenu label="Draw">
+        <button
+          className="mini-btn"
+          style={drawMode ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
+          onClick={() => { setSelectedKey(null); setDrawMode(m => !m); setDrawSource(null); }}
+        >
+          {drawMode ? 'Cancel draw' : '✏️ Draw edge'}
+        </button>
+        <button
+          className="mini-btn"
+          style={annotateMode ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
+          onClick={() => { setAnnotateMode(m => !m); setSelectedKey(null); setSelectedAnnoId(null); }}
+          title="Draw free-standing annotation shapes — not tied to any code"
+        >
+          ✏️ Annotate
+        </button>
+        {annotateMode && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }} title="Annotation shape — drag on empty canvas to draw; text places a labeled note">
+            {(['rect', 'circle', 'arrow', 'text'] as const).map(s => (
+              <button
+                key={s}
+                className="mini-btn"
+                style={{ padding: '1px 5px', fontSize: '11px', ...(annotateShape === s ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}) }}
+                onClick={() => setAnnotateShape(s)}
+              >
+                {s}
+              </button>
+            ))}
+          </span>
+        )}
+        </ToolMenu>
+        <ToolMenu label="Canvas">
         <select
           value={customMode ? 'custom' : String(presetIdx)}
           onChange={e => selectCanvasPreset(e.target.value)}
@@ -1310,13 +1326,8 @@ export default function CodeMap({
         >
           {canvas.w > canvas.h ? '⬜ Landscape' : '▯ Portrait'}
         </button>
-        <button
-          className="mini-btn"
-          onClick={() => setIsFullscreen(v => !v)}
-          title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Expand the whole map panel to fill the window'}
-        >
-          {isFullscreen ? '✕ Exit fullscreen' : '⛶ Fullscreen'}
-        </button>
+        </ToolMenu>
+        <ToolMenu label="Codes">
         {selectedMapCodeId && (
           <button
             className="mini-btn"
@@ -1349,6 +1360,8 @@ export default function CodeMap({
         >
           ➕ Add codes
         </button>
+        </ToolMenu>
+        <ToolMenu label="Export">
         <label className="mini-label" style={{ fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }} title="Bake the legend into exported SVG / PNG / JPEG">
           <input
             type="checkbox"
@@ -1360,6 +1373,29 @@ export default function CodeMap({
         <button className="mini-btn" onClick={exportSvg}>⬇️ SVG</button>
         <button className="mini-btn" onClick={() => exportRaster('png')}>⬇️ PNG</button>
         <button className="mini-btn" onClick={() => exportRaster('jpeg')}>⬇️ JPEG</button>
+        </ToolMenu>
+        <div className="map-zoom">
+          <button title="Zoom out" aria-label="Zoom out" onClick={() => manualZoom(zoom - 0.1)}>−</button>
+          <input aria-label="Map zoom" type="range" min={10} max={400} step={10} value={Math.max(10, Math.round(zoom * 100))} onChange={e => manualZoom(Number(e.target.value) / 100)} />
+          <span>{Math.round(zoom * 100)}%</span>
+          <button title="Zoom in" aria-label="Zoom in" onClick={() => manualZoom(zoom + 0.1)}>+</button>
+          <button aria-pressed={fitToWindow} onClick={() => setFitToWindow(true)}>Fit</button>
+          <button title="Reset to actual size" onClick={() => manualZoom(1)}>100%</button>
+        </div>
+        <button
+          className="mini-btn"
+          onClick={() => setIsFullscreen(v => !v)}
+          title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Expand the whole map panel to fill the window'}
+        >
+          {isFullscreen ? '✕ Exit fullscreen' : '⛶ Fullscreen'}
+        </button>
+        <ToolMenu label="Help">
+          <p>Drag nodes to rearrange; right-click a node to change its shape. Node size reflects coding frequency.</p>
+          <p>Click a leaf node to select it. Remove from map hides it; Add codes brings it back. Click a folded node or its + badge to expand or collapse it.</p>
+          <p>Fit shows the whole canvas and follows window resizing. Zoom in for detail; canvas size and export resolution are independent of screen zoom.</p>
+        </ToolMenu>
+        {drawMode && <span className="map-mode">Drawing edge</span>}
+        {annotateMode && <span className="map-mode">Annotating · {annotateShape}</span>}
       </div>
 
       {showAddCodes && (
@@ -1689,7 +1725,7 @@ export default function CodeMap({
           <div
             style={{
               position: 'absolute', top: legendPos.y, left: legendPos.x, zIndex: 10,
-              background: 'rgba(255,255,255,0.95)', border: '1px solid var(--border)',
+              background: 'var(--panel)', border: '1px solid var(--border)',
               borderRadius: '6px', padding: '6px 10px', fontSize: '11px',
               color: 'var(--text-dim)', boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
               cursor: 'grab', userSelect: 'none'
@@ -1729,13 +1765,13 @@ export default function CodeMap({
             )}
           </div>
         )}
-        <div style={{ position: 'absolute', inset: 0, border: '1px solid var(--border)', borderRadius: '6px', overflow: 'auto', backgroundColor: '#f0f0f0' }}>
-        <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: `${canvas.w}px`, height: `${canvas.h}px`, margin: '20px' }}>
+        <div ref={viewportRef} className="map-viewport">
+        <div style={{ width: `${canvas.w * zoom}px`, height: `${canvas.h * zoom}px`, margin: '20px' }}>
         <svg
           ref={svgRef}
           viewBox={`0 0 ${canvas.w} ${canvas.h}`}
-          width={canvas.w}
-          height={canvas.h}
+          width={canvas.w * zoom}
+          height={canvas.h * zoom}
           style={{
             display: 'block',
             backgroundColor: 'white',
@@ -1988,6 +2024,7 @@ export default function CodeMap({
                 onContextMenu={e => cycleShape(e, c)}
                 style={{ cursor: 'grab' }}
               >
+                <title>{c.name}</title>
                 {shape === 'circle' && (
                   <circle
                     cx={pos.x} cy={pos.y} r={r}
@@ -2020,7 +2057,8 @@ export default function CodeMap({
                   x={pos.x}
                   y={pos.y + r + 14 + (labelDeltas.get(c.id) || 0)}
                   textAnchor="middle"
-                  fontSize={12}
+                  data-export-font-size="12"
+                  fontSize={screenLabelSize}
                   fill="#0f172a"
                   style={{ pointerEvents: 'none', userSelect: 'none' }}
                 >
@@ -2038,7 +2076,8 @@ export default function CodeMap({
                       x={0}
                       y={0}
                       textAnchor="middle"
-                      fontSize={9}
+                      data-export-font-size="9"
+                      fontSize={Math.max(9, 10 / zoom)}
                       fontWeight={600}
                       fill={isExpanded ? '#475569' : '#0f172a'}
                       stroke="#f8fafc"

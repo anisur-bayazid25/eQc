@@ -33,6 +33,9 @@ jobs:
         if: runner.os == 'macOS'
         run: npm install @rollup/rollup-darwin-arm64@4.62.2 --no-save
 
+      - name: Run feature regression tests
+        run: node --test tests/release-1.6.4.cjs
+
       - name: Build React App (Vite)
         run: npm run build
 
@@ -61,6 +64,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check out release notes
+        uses: actions/checkout@v4
+
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
@@ -72,6 +78,7 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: eQc ${{ github.ref_name }}
           draft: false
+          body_path: RELEASE_NOTES.md
           files: artifacts/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

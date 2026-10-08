@@ -1,4 +1,4 @@
-import { Project, ResearchCase, ResearchQuery, CodedSegment, CodedRegion, ID, uid, descendantCodeIds, colorForNewCode } from '../domain';
+import { Project, ResearchCase, ResearchQuery, CodedSegment, CodedRegion, ID, uid, descendantCodeIds, colorForNewCode, normalizeCoderName } from '../domain';
 import { relocateSegmentsAfterEdit } from './relocateSegments';
 
 /** Relocate analytic references with coding text. Unmatched notes remain in the memo library. */
@@ -35,6 +35,7 @@ function attributeMatches(c: ResearchCase, query: ResearchQuery): boolean {
   return rule.operator === 'gt' ? Number(value) > Number(rule.value) : Number(value) < Number(rule.value);
 }
 export function retrieveExcerpts(project: Project, query: ResearchQuery): RetrievedExcerpt[] {
+  if (query.needsScopeReview) return [];
   const codes = new Set(query.codeIds);
   const excluded = new Set(query.excludeCodeIds);
   const restrictCodes = query.codeIds.length > 0 || query.codeGroupIds.length > 0;
@@ -49,21 +50,21 @@ export function retrieveExcerpts(project: Project, query: ResearchQuery): Retrie
   const eligibleCases = new Set((project.cases || []).filter(c => (!query.caseIds.length || query.caseIds.includes(c.id)) && attributeMatches(c, query)).map(c => c.id));
   const docById = new Map(project.docs.map(d => [d.id, d]));
   const images = new Map((project.images || []).map(i => [i.id, i]));
-  const common = (codeId: ID, coder: string | undefined, starred?: boolean) => project.codes.some(c => c.id === codeId) && (!query.coder || (coder || 'Unattributed') === query.coder) && (!query.starredOnly || starred);
+  const common = (codeId: ID, coder: string | undefined, starred?: boolean) => project.codes.some(c => c.id === codeId) && (!query.coder || normalizeCoderName(coder) === normalizeCoderName(query.coder)) && (!query.starredOnly || starred);
   // Apply source/case/coder scopes BEFORE boolean conditions. A participant's
   // coding must not acquire another FGD speaker's code through source-level AND.
   const textRows: RetrievedExcerpt[] = project.codedSegments.flatMap(segment => {
     const doc = docById.get(segment.docId); if (!doc || !common(segment.codeId, segment.coder, segment.starred) || (restrictSources && !sourceIds.has(doc.id))) return [];
     const memberships = casesForSegment(project, segment).map(c => c.id);
     if (restrictCases && !memberships.some(id => eligibleCases.has(id))) return [];
-    return [{ id: segment.id, type: 'text' as const, sourceId: doc.id, sourceName: doc.name, codeId: segment.codeId, coder: segment.coder || 'Unattributed', text: doc.content.slice(segment.start, segment.end), segment, caseIds: memberships }];
+    return [{ id: segment.id, type: 'text' as const, sourceId: doc.id, sourceName: doc.name, codeId: segment.codeId, coder: normalizeCoderName(segment.coder), text: doc.content.slice(segment.start, segment.end), segment, caseIds: memberships }];
   });
   const imageRows: RetrievedExcerpt[] = (project.codedRegions || []).flatMap(region => {
     const image = images.get(region.imageId); if (!image || !common(region.codeId, region.coder, region.starred)) return [];
     if (restrictSources && !sourceIds.has(image.id) && !sourceIds.has(image.pdfPage?.docId || '')) return [];
     const memberships = (project.cases || []).filter(c => c.links.some(l => (l.docId === image.id || l.docId === image.pdfPage?.docId) && l.start === undefined)).map(c => c.id);
     if (restrictCases && !memberships.some(id => eligibleCases.has(id))) return [];
-    return [{ id: region.id, type: 'image' as const, sourceId: image.id, sourceName: image.name, codeId: region.codeId, coder: region.coder || 'Unattributed', text: image.notes || '', region, caseIds: memberships }];
+    return [{ id: region.id, type: 'image' as const, sourceId: image.id, sourceName: image.name, codeId: region.codeId, coder: normalizeCoderName(region.coder), text: image.notes || '', region, caseIds: memberships }];
   });
   const rows = [...textRows, ...imageRows];
   const bySource = new Map<string, RetrievedExcerpt[]>();
@@ -113,6 +114,7 @@ export function resizeExcerpt(project: Project, id: ID, start: number, end: numb
 export function cleanResearchLinks(project: Project): Project {
   const docs = new Set(project.docs.map(d => d.id)), codes = new Set(project.codes.map(c => c.id)), images = new Set(project.images?.map(i => i.id)), segments = new Set([...project.codedSegments,...(project.codedRegions||[])].map(s => s.id)), cases = new Set(project.cases?.map(c => c.id));
   return { ...project,
+    frameworkCells: project.frameworkCells?.filter(cell => docs.has(cell.docId) && codes.has(cell.codeId)),
     cases: project.cases?.map(c => ({ ...c, links: c.links.filter(l => docs.has(l.docId) || images.has(l.docId)) })),
     groups: project.groups?.map(g => ({ ...g, memberIds: g.memberIds.filter(id => g.kind === 'codes' ? codes.has(id) : docs.has(id) || images.has(id)) })),
     annotations: project.annotations?.filter(a => docs.has(a.docId)),

@@ -306,6 +306,14 @@ export default function CodeMap({
       setChildrenPerRoot(5);
       setViewMode('auto');
       setSelectedKey(null);
+      setSelectedMapCodeId(null);
+      setShowAddCodes(false);
+      setDrawSource(null);
+      setDrawMode(false);
+      setSelectedAnnoId(null);
+      setEditingAnnoId(null);
+      setTextPrompt(null);
+      setDrag(null);
     }
   }, [projectId]);
 
@@ -1329,7 +1337,7 @@ export default function CodeMap({
         </button>
         </ToolMenu>
         <ToolMenu label="Codes">
-        {selectedMapCodeId && (
+        {selectedMapCodeId && shownCodes.some(c => c.id === selectedMapCodeId) && (
           <button
             className="mini-btn"
             style={{ color: '#ef4444' }}

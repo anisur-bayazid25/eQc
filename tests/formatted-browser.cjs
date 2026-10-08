@@ -59,6 +59,17 @@ function simplePdf(scan = false) {
     await page.locator('.workspace-sources .doc-row').filter({hasText:'Interview.docx'}).click();
     await page.locator('.word-document-body article table').waitFor();
     await page.waitForFunction(()=>{const el=document.querySelector('.word-document-body'),parent=el.parentElement;return el.getBoundingClientRect().width <= parent.clientWidth + 2;});
+    async function checkToolbarFlow(bodySelector) {
+      const layout=await page.evaluate(selector=>{
+        const scroll=document.getElementById('doc-scroll-container'),toolbar=scroll.querySelector('.formatted-toolbar'),body=scroll.querySelector(selector);
+        scroll.scrollTop=0;const start=toolbar.getBoundingClientRect(),bodyTop=body.getBoundingClientRect().top;
+        scroll.scrollTop=150;const delta=scroll.scrollTop,moved=start.top-toolbar.getBoundingClientRect().top;scroll.scrollTop=0;
+        return {bodyTop,toolbarBottom:start.bottom,delta,moved,position:getComputedStyle(toolbar).position};
+      },bodySelector);
+      assert.equal(layout.position,'static');assert.ok(layout.bodyTop>=layout.toolbarBottom,'Toolbar reserves space above source content');
+      assert.ok(layout.delta>10,'Fixture can scroll');assert.ok(Math.abs(layout.moved-layout.delta)<2,'Zoom ribbon scrolls with the source instead of overlaying it');
+    }
+    await checkToolbarFlow('.word-document-body');
     assert.ok(await page.locator('.word-document-body img').count());
     assert.ok(await page.locator('.word-document-body header').count());
     const out=path.resolve('release/formatted-qa');fs.mkdirSync(out,{recursive:true});
@@ -99,6 +110,7 @@ function simplePdf(scan = false) {
     await page.locator('.workspace-sources .doc-row').filter({hasText:'Report.pdf'}).click();
     await page.getByRole('button',{name:'Original view',exact:true}).click();
     await page.locator('.pdf-text-layer').getByText('PDF first page.',{exact:false}).waitFor();
+    await checkToolbarFlow('.pdf-sheet');
     await page.getByLabel('PDF page',{exact:true}).selectOption('2');
     await page.locator('.pdf-text-layer').getByText('PDF second page.',{exact:false}).waitFor();
     await selectText('.pdf-text-layer','Repeated phrase.');await apply();

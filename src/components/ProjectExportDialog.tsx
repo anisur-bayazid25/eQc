@@ -1,9 +1,10 @@
+import type { ProfileBackup } from '../lib/profileStore';
 import React, { useEffect, useState } from 'react';
 import { Project } from '../domain';
 import { projectForExport } from '../lib/projectExport';
 import { buildQdpxExport } from '../lib/qdpxExport';
 
-export default function ProjectExportDialog({ project, onClose, onMessage }: { project: Project; onClose: () => void; onMessage: (message: string) => void }) {
+export default function ProjectExportDialog({ project, onClose, onMessage, getProfileBackup }: { project: Project; onClose: () => void; onMessage: (message: string) => void; getProfileBackup: () => Promise<ProfileBackup> }) {
   const [format, setFormat] = useState('json'), [originals, setOriginals] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState('');
   useEffect(() => { const previous = document.activeElement as HTMLElement | null; return () => previous?.focus(); }, []);
   return <div className="research-overlay" onKeyDown={e => {
@@ -19,8 +20,8 @@ export default function ProjectExportDialog({ project, onClose, onMessage }: { p
     <label>File format<select autoFocus aria-label="Project export format" value={format} onChange={e => setFormat(e.target.value)}><option value="json">JSON — eQc backup</option><option value="qdpx">QDPX — REFI-QDA exchange</option></select></label>
     <label>Documents<select aria-label="Export document contents" value={originals ? 'originals' : 'text'} onChange={e => setOriginals(e.target.value === 'originals')}><option value="originals">Original documents and coding text</option><option value="text">Plain text only — smaller file</option></select></label>
     <p>{originals ? 'Retains attached Word and PDF files alongside coding text.' : 'Omits attached Word and PDF files. Keeps coding text, codes, memos, cases and image coding, including PDF page snapshots.'}</p>
-    <p className="section-hint">JSON restores the eQc project. QDPX exchanges sources and coding with compatible applications; advanced research records are carried as notes. Local recovery history is stored on this computer.</p>
+    <p className="section-hint">JSON restores the eQc project and includes the selected profile and its time records. QDPX exchanges sources and coding with compatible applications; advanced research records are carried as notes. Local recovery history is stored on this computer.</p>
     {error && <p role="alert">{error}</p>}
-    <div className="research-actions"><button disabled={busy} className="primary-btn" onClick={async () => { setBusy(true); setError(''); try { const data = projectForExport(project, originals); const saved = format === 'json' ? await window.qv.exportBackup(data) : await window.qv.exportQdpx(await buildQdpxExport(data)); if (saved) { onMessage(`Project exported to ${saved}`); onClose(); } } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); } }}>{busy ? 'Exporting…' : 'Export project'}</button><button disabled={busy} onClick={onClose}>Cancel</button></div>
+    <div className="research-actions"><button disabled={busy} className="primary-btn" onClick={async () => { setBusy(true); setError(''); try { const data = projectForExport(project, originals); const saved = format === 'json' ? await window.qv.exportBackup({...data,researchProfile:await getProfileBackup()} as Project) : await window.qv.exportQdpx(await buildQdpxExport(data)); if (saved) { onMessage(`Project exported to ${saved}`); onClose(); } } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); } }}>{busy ? 'Exporting…' : 'Export project'}</button><button disabled={busy} onClick={onClose}>Cancel</button></div>
   </section></div>;
 }

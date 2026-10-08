@@ -13,8 +13,11 @@ export default function ToolMenu({ label, children }: { label: string; children:
     const below = window.innerHeight - anchor.bottom - margin - 6;
     const above = anchor.top - margin - 6;
     const useAbove = below < 180 && above > below;
-    const height = Math.min(content.scrollHeight, 520, Math.max(80, useAbove ? above : below));
-    content.style.maxHeight = `${height}px`;
+    // Constrain to the viewport, not the previously constrained scrollHeight.
+    // Flex layout and borders can otherwise feed a clipped height into the next opening.
+    const availableHeight = Math.min(520, Math.max(0, useAbove ? above : below));
+    content.style.maxHeight = `${availableHeight}px`;
+    const height = content.getBoundingClientRect().height;
     content.style.left = `${Math.max(margin, Math.min(anchor.left, window.innerWidth - content.offsetWidth - margin))}px`;
     content.style.top = `${useAbove ? Math.max(margin, anchor.top - height - 6) : anchor.bottom + 6}px`;
   }

@@ -1,19 +1,19 @@
-import React, { useMemo, useState } from 'react';
-import guide from '../../USER_GUIDE_v1.7.0.md?raw';
+import React, { useEffect, useMemo, useState } from 'react';
+import guide from '../../USER_GUIDE.md?raw';
 import documentation from '../../DOCUMENTATION.md?raw';
+import { helpSlug as slug, helpSections } from '../lib/helpSections';
 
-const slug = (text: string) => text.toLocaleLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, '').trim().replace(/\s/g, '-');
-function MarkdownText({ text, onDocument }: { text: string; onDocument: (book: string) => void }) {
+function MarkdownText({ text, onDocument, onAnchor }: { text: string; onDocument: (book: string) => void; onAnchor: (anchor: string) => void }) {
   function inline(value: string): React.ReactNode[] {
-    return value.split(/(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^\s]+\)|\*[^*\n]+\*)/g).map((part, i) => {
+    return value.split(/(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^\s)]+\)|\*[^*\n]+\*)/g).map((part, i) => {
       if (part.startsWith('**')) return <strong key={i}>{inline(part.slice(2, -2))}</strong>;
       if (part.startsWith('`')) return <code key={i}>{part.slice(1, -1)}</code>;
       if (part.startsWith('*')) return <em key={i}>{part.slice(1, -1)}</em>;
-      const link = part.match(/^\[([^\]]+)\]\(([^\s]+)\)$/);
+      const link = part.match(/^\[([^\]]+)\]\(([^\s)]+)\)$/);
       if (link) {
         const [, label, href] = link;
         if (/^USER_GUIDE|^DOCUMENTATION/.test(href)) return <button className="help-link" key={i} onClick={() => onDocument(href.startsWith('USER_GUIDE') ? 'guide' : 'documentation')}>{label}</button>;
-        if (href.startsWith('#')) return <a key={i} href={href} onClick={e => { e.preventDefault(); const target = document.getElementById('help-' + href.slice(1)); if (target) { const section = target.closest('details'); if (section) section.open = true; target.scrollIntoView({ block:'start' }); } }}>{label}</a>;
+        if (href.startsWith('#')) return <a key={i} href={href} onClick={e => { e.preventDefault(); onAnchor(href.slice(1)); }}>{label}</a>;
         if (/^https?:\/\//.test(href) || /^(CHANGELOG|AI_CHANGELOG)\.md$/.test(href)) return <a key={i} href={href.startsWith('http') ? href : 'https://github.com/anisur-bayazid25/eQc/blob/main/' + href} target="_blank" rel="noopener noreferrer">{label}</a>;
         return label;
       }
@@ -45,13 +45,24 @@ function MarkdownText({ text, onDocument }: { text: string; onDocument: (book: s
 }
 export default function HelpPanel() {
   const [search, setSearch] = useState(''), [book, setBook] = useState('guide'), [expanded, setExpanded] = useState(false);
-  const sections = useMemo(() => (book === 'guide' ? guide : documentation).split(/(?=^##\s)/m).map((part, id) => ({ id, title: part.match(/^#+\s+(.+)/m)?.[1] || 'Introduction', text: part.replace(/^#+\s+.+\r?\n/, '') })), [book]);
+  const [anchor, setAnchor] = useState('');
+  const [revealedSection, setRevealedSection] = useState('');
+  const [anchorVisit, setAnchorVisit] = useState(0);
+  const sections = useMemo(() => helpSections(book === 'guide' ? guide : documentation), [book]);
+  useEffect(() => {
+    if (!anchor) return;
+    const target = document.getElementById('help-' + anchor);
+    if (target) {
+      for (let parent: HTMLElement | null = target; parent; parent = parent.parentElement) if (parent instanceof HTMLDetailsElement) parent.open = true;
+      target.scrollIntoView({ block: 'start' });
+    }
+  }, [anchor, anchorVisit, book, search]);
   const terms = search.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
   const matches = sections.filter(section => terms.every(term => (section.title + ' ' + section.text).toLocaleLowerCase().includes(term)));
-  return <main className="panel help-panel"><header><h1>Help</h1><p>Find instructions while you work. Documentation is included with the app and available offline.</p></header>
-    <div className="help-controls"><label>Search documentation<input type="search" placeholder="Try: merge codes, memos, QDPX, refinement…" value={search} onChange={e => setSearch(e.target.value)} /></label><label>Read<select value={book} onChange={e => setBook(e.target.value)}><option value="guide">Complete user guide</option><option value="documentation">Application documentation</option></select></label><button onClick={() => setExpanded(!expanded)}>{expanded ? 'Collapse sections' : 'Read complete documentation'}</button></div>
-    <p role="status">{matches.length} sections{search && ' match your search'}. Open a section below.</p>
-    <div className="help-sections">{matches.map(section => <details key={`${book}-${section.id}-${expanded}-${search}`} id={'help-' + slug(section.title)} open={expanded || !!search}><summary>{section.title}</summary><MarkdownText text={section.text} onDocument={setBook} /></details>)}</div>
+  return <main className="panel help-panel"><header><h1>Help</h1></header>
+    <div className="help-controls"><label>Search documentation<input type="search" placeholder="Try: merge codes, memos, QDPX, refinement…" value={search} onChange={e => { setRevealedSection(''); setAnchor(''); setSearch(e.target.value); }} /></label><label>Read<select aria-label="Documentation to read" value={book} onChange={e => { setRevealedSection(''); setAnchor(''); setSearch(''); setBook(e.target.value); }}><option value="guide">Complete user guide</option><option value="documentation">Application documentation</option></select></label><button onClick={() => { setRevealedSection(''); setAnchor(''); setExpanded(!expanded); }}>{expanded ? 'Collapse sections' : 'Read complete documentation'}</button></div>
+    {search && <p role="status">{matches.length} sections match your search.</p>}
+    <div className="help-sections">{matches.map((section, index) => <details key={`${book}-${section.id}-${expanded}-${search}`} id={'help-' + slug(section.title)} open={expanded || !!search || revealedSection === 'help-' + slug(section.title) || index === 0 && section.title === 'Table of Contents'}><summary>{section.title}</summary><MarkdownText text={section.text} onDocument={value => { setRevealedSection(''); setAnchor(''); setSearch(''); setBook(value); }} onAnchor={value => { const section = sections.find(section => slug(section.title) === value || [...section.text.matchAll(/^#{1,6}\s+(.+)$/gm)].some(heading => slug(heading[1]) === value)); setRevealedSection(section ? 'help-' + slug(section.title) : ''); setSearch(''); setAnchor(value); setAnchorVisit(visit => visit + 1); }} /></details>)}</div>
     {!matches.length && <p>No matching sections. Try a shorter phrase or choose the other documentation.</p>}
   </main>;
 }

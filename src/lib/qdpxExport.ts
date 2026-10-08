@@ -290,7 +290,7 @@ export async function buildQdpxExport(project: Project): Promise<QdpxExportPaylo
   const qdeXml =
     `<?xml version="1.0" encoding="UTF-8"?>\n` +
     `<Project xmlns="${NS}" xmlns:xsi="${XSI}" xsi:schemaLocation="${NS} http://schema.qdasoftware.org/versions/Project/v1.0/Project.xsd" ` +
-    `name="${esc(project.name)}" origin="eQc" creatingUserGUID="${users.creator}" creationDateTime="${nowIso}">` +
+    `name="${esc(project.name)}" origin="eQc; code descriptions=definitions" creatingUserGUID="${users.creator}" creationDateTime="${nowIso}">` +
     users.xml +
     codebook +
     (textSources || pictureSources ? `<Sources>${textSources}${pictureSources}</Sources>` : '') +
@@ -318,7 +318,7 @@ export function buildQdpxCodebookExport(project: Project): QdpxExportPayload {
   const qdeXml =
     `<?xml version="1.0" encoding="UTF-8"?>\n` +
     `<Project xmlns="${NS}" xmlns:xsi="${XSI}" xsi:schemaLocation="${NS} http://schema.qdasoftware.org/versions/Project/v1.0/Project.xsd" ` +
-    `name="${esc(project.name)}" origin="eQc" creatingUserGUID="${users.creator}" creationDateTime="${nowIso}">` +
+    `name="${esc(project.name)}" origin="eQc; code descriptions=definitions" creatingUserGUID="${users.creator}" creationDateTime="${nowIso}">` +
     users.xml +
     buildCodebook(project, codeGuids, memos) +
     buildNotesXml(memos, files) +

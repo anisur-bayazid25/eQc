@@ -109,6 +109,7 @@ export default function LanModal({
               <input
                 value={myName}
                 onChange={e => onMyNameChange(e.target.value)}
+                onBlur={e => onMyNameChange(e.target.value.trim())}
                 placeholder="e.g. Anisur (Coder 1)"
                 disabled={busy || hostActive}
                 style={{ width: '100%', padding: '8px', boxSizing: 'border-box', fontSize: 13 }}
@@ -188,6 +189,7 @@ export default function LanModal({
                   <input
                     value={myName}
                     onChange={e => onMyNameChange(e.target.value)}
+                onBlur={e => onMyNameChange(e.target.value.trim())}
                     placeholder="e.g. Coder 2"
                     disabled={busy}
                     style={{ width: '100%', padding: '8px', boxSizing: 'border-box', fontSize: 13 }}

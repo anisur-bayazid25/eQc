@@ -151,10 +151,9 @@ function resolveMemoText(el: Element, noteMap: Map<string, string>): string {
   return parts.join('\n\n');
 }
 
-// Codes split the two REFI-QDA slots: <Description> is the coding definition
-// (our own export writes it there), while the analytic memo arrives via
-// <NoteRef> into <Notes>. Other elements (sources, selections) keep using
-// <Description> as their memo, so they use resolveMemoText instead.
+// Modern codebooks split Description definitions from NoteRef memos.
+// importCodeTree also handles legacy projects that stored memos in Description.
+// Sources/selections use resolveMemoText instead.
 function resolveDefinition(el: Element): string {
   return textOf(directChild(el, 'Description')).trim();
 }
@@ -183,7 +182,8 @@ function importCodeTree(
   noteMap: Map<string, string>,
   el: Element,
   parentId: ID | null,
-  summary: QdpxImportSummary
+  summary: QdpxImportSummary,
+  modernDefinitions: boolean
 ) {
   const guid = el.getAttribute('guid') || uid('guid');
   const name = el.getAttribute('name') || 'Unnamed code';
@@ -193,9 +193,13 @@ function importCodeTree(
   const code = findOrCreateCode(project, guidMap, guid, name, color, parentId);
   if (project.codes.length > codesBefore) summary.codesCreated++;
 
-  const definition = resolveDefinition(el);
-  if (definition) {
-    appendMemo(code, 'definition', definition);
+  const description = resolveDefinition(el);
+  // Legacy project exports used Description for memos. Modern archives and
+  // standalone QDC codebooks preserve the separate definition slot.
+  const definitionSlot = modernDefinitions || directChildren(el, 'NoteRef').length > 0;
+  if (description) {
+    appendMemo(code, definitionSlot ? 'definition' : 'summary', description);
+    if (!definitionSlot) summary.memosImported++;
   }
   const memo = resolveNoteMemo(el, noteMap);
   if (memo) {
@@ -208,7 +212,7 @@ function importCodeTree(
   const subCodes = directChild(el, 'SubCodes');
   if (subCodes) childEls.push(...directChildren(subCodes, 'Code'));
   for (const child of childEls) {
-    importCodeTree(project, guidMap, noteMap, child, code.id, summary);
+    importCodeTree(project, guidMap, noteMap, child, code.id, summary, modernDefinitions);
   }
 }
 
@@ -217,8 +221,12 @@ function importCodebook(project: Project, doc: XMLDocument, guidMap: Map<string,
   if (!codeBook) return;
   const codesRoot = directChild(codeBook, 'Codes');
   if (!codesRoot) return;
+  const root = doc.documentElement;
+  const modernDefinitions = root.localName === 'CodeBook' ||
+    !!root.getAttribute('origin')?.includes('eQc; code descriptions=definitions') ||
+    (root.getAttribute('origin') === 'eQc' && Array.from(root.getElementsByTagNameNS('*', 'Code')).some(code => directChildren(code, 'NoteRef').length > 0));
   for (const codeEl of directChildren(codesRoot, 'Code')) {
-    importCodeTree(project, guidMap, noteMap, codeEl, null, summary);
+    importCodeTree(project, guidMap, noteMap, codeEl, null, summary, modernDefinitions);
   }
 }
 

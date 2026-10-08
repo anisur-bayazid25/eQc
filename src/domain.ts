@@ -154,6 +154,7 @@ export interface ResearchQuery {
   docIds: ID[]; documentGroupIds: ID[]; caseIds: ID[];
   attribute?: { name: string; operator: 'equals' | 'contains' | 'gt' | 'lt'; value: string };
   coder: string; text: string; distance: number; starredOnly: boolean;
+  needsScopeReview?: boolean;
 }
 export interface ActivityEntry { id: number; at: number; actor: string; summary: string }
 export interface ProjectSnapshot { id: number; at: number; label: string; automatic: boolean; sizeBytes: number }
@@ -197,6 +198,10 @@ export function uid(prefix = 'id'): ID {
 // This is a structural value, so the Workspace/Codebook coder filter treats
 // "Unattributed" as a real group instead of hiding untagged items.
 export const UNATTRIBUTED_CODER = 'Unattributed';
+/** Compare legacy attribution consistently without rewriting stored stamps. */
+export function normalizeCoderName(raw: string | undefined): string {
+  return (raw || '').trim() || UNATTRIBUTED_CODER;
+}
 
 export function newProject(name: string): Project {
   return {

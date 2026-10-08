@@ -41,7 +41,18 @@ const path = require('node:path');
       await importQdpx(pdfImported, pdfPayload);
       const qdc = newProject('Codebook');
       await importQdpx(qdc, { fileName: 'reference.qdc', qdeXml: '<CodeBook xmlns="urn:QDA-XML:codebook:0:4" origin="ATLAS.ti Win 26.1.1"><Codes><Code guid="p" name="Parent" isCodable="true"><Description>Comment</Description><Code guid="c" name="Child" isCodable="true"/></Code></Codes></CodeBook>', sourceFiles: {} });
-      return { payload, imported, summary, repeat, legacy, pdfPayload, pdfImported, qdc };
+      const legacyMemos=[];
+      for (const origin of ['eQc','NVivo','MAXQDA']) {
+        const recovered=newProject(origin);
+        await importQdpx(recovered,{qdeXml:`<Project xmlns="urn:QDA-XML:project:1.0" origin="${origin}"><CodeBook><Codes><Code guid="legacy" name="Legacy"><Description>Legacy interpretation</Description></Code></Codes></CodeBook></Project>`,sourceFiles:{}});
+        await importQdpx(recovered,{qdeXml:`<Project xmlns="urn:QDA-XML:project:1.0" origin="${origin}"><CodeBook><Codes><Code guid="legacy" name="Legacy"><Description>Legacy interpretation</Description></Code></Codes></CodeBook></Project>`,sourceFiles:{}});
+        legacyMemos.push(recovered.codes[0]);
+      }
+      const definitionOnly=newProject('Definition only');definitionOnly.codes=[{id:'rule',name:'Rule only',parentId:null,color:'#123456',definition:'Apply when water is mentioned',summary:''}];
+      const definitionPayload=await buildQdpxExport(definitionOnly),definitionImported=newProject('Imported definition');await importQdpx(definitionImported,definitionPayload);
+      const mixed=newProject('Mixed'),mixedPayload=structuredClone(payload);mixedPayload.qdeXml=mixedPayload.qdeXml.replace('eQc; code descriptions=definitions','eQc').replace('<Codes>','<Codes><Code guid="definition-only" name="Other rule"><Description>Other definition</Description></Code>');await importQdpx(mixed,mixedPayload);
+      return { payload, imported, summary, repeat, legacy, pdfPayload, pdfImported, qdc, legacyMemos, definitionImported, mixed };
+
     });
     const validated = spawnSync(process.env.EQC_PYTHON || 'python', [path.join(__dirname, 'validate-qdpx.py')], { input: JSON.stringify(result.payload), encoding: 'utf8' });
     assert.equal(validated.status, 0, validated.stderr);
@@ -63,6 +74,10 @@ const path = require('node:path');
     assert.equal(result.pdfImported.docs[0].original.format, 'pdf');
     assert.equal(result.pdfImported.codedSegments.length, 3);
     assert.equal(result.pdfImported.docs[0].notes, 'Document memo');
+    for(const code of result.legacyMemos){assert.equal(code.summary,'Legacy interpretation');assert.equal(code.definition||'','');}
+    assert.equal(result.definitionImported.codes[0].definition,'Apply when water is mentioned');assert.equal(result.definitionImported.codes[0].summary,'');
+    assert.equal(result.mixed.codes.find(c=>c.name==='Other rule').definition,'Other definition');
+    assert.equal(result.qdc.codes[0].definition,'Comment');assert.equal(result.qdc.codes[0].summary,'');
     assert.equal(result.qdc.codes.length, 2);
     assert.equal(result.qdc.codes[1].parentId, result.qdc.codes[0].id);
     console.log('QDPX schema, browser conversion, text/image/memo/coder roundtrip, repeat import and legacy compatibility passed.');

@@ -1,6 +1,20 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('qv', {
+  openContactEmail: () => ipcRenderer.invoke('contact:openEmail'),
+  profileTime: {
+    open: legacy => ipcRenderer.invoke('profiles:open',legacy),
+    write: payload => ipcRenderer.invoke('profiles:write',payload),
+    select: id => ipcRenderer.invoke('profiles:select',id),
+    create: () => ipcRenderer.invoke('profiles:create'),
+    delete: id => ipcRenderer.invoke('profiles:delete',id),
+    backup: id => ipcRenderer.invoke('profiles:backup',id),
+    validate: backup => ipcRenderer.invoke('profiles:validate',backup),
+    import: backup => ipcRenderer.invoke('profiles:import',backup),
+    flushOnExit: payload => ipcRenderer.send('profiles:flush',payload),
+    onPrepareClose: callback => {const listener=()=>callback();ipcRenderer.on('profiles:prepareClose',listener);return()=>ipcRenderer.removeListener('profiles:prepareClose',listener);},
+    completeClose: result => ipcRenderer.send('profiles:closeReady',result),
+  },
   // Projects
   listProjects: () => ipcRenderer.invoke('projects:list'),
   loadProject: id => ipcRenderer.invoke('projects:load', id),
@@ -54,6 +68,7 @@ onUpdateProgress: (cb) => ipcRenderer.on('update:progress', (_e, pct) => cb(pct)
 
   // LAN collaboration (host discovery, WebSocket sessions, live sync)
   lan: {
+    updateName: (name) => ipcRenderer.invoke('lan:updateName', name),
     startHost: (config) => ipcRenderer.invoke('lan:startHost', config),
     stopHost: () => ipcRenderer.invoke('lan:stopHost'),
     kickClient: (clientId) => ipcRenderer.invoke('lan:kickClient', clientId),

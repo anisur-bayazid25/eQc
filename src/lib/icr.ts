@@ -1,4 +1,4 @@
-import { Project, CodedSegment, UNATTRIBUTED_CODER } from '../domain';
+import { Project, CodedSegment, UNATTRIBUTED_CODER, normalizeCoderName } from '../domain';
 
 // Inter-coder reliability (ICR) / inter-coder agreement.
 //
@@ -153,7 +153,7 @@ export function defaultIcrScope(project: Project): IcrScope {
 export const ICR_UNCODED = '∅ uncoded';
 
 export function icrCoderName(raw: string | undefined): string {
-  return (raw || '').trim() || UNATTRIBUTED_CODER;
+  return normalizeCoderName(raw);
 }
 
 // Distinct coders that have coded anything, with their segment/region

@@ -1,4 +1,5 @@
 import { Project, Folder, SourceDoc, Code, CodedSegment, CodedRegion, ImageSource, FrameworkCell, CodeRelationNote, MapEdgeStyle, uid, colorForNewCode, CODE_COLORS } from '../domain';
+import { mergeResearch } from './researchMerge';
 
 export interface MergeSummary {
   foldersAdded: number;
@@ -95,6 +96,7 @@ export function mergeProjectInto(target: Project, source: Project): MergeSummary
       td => normalize(td.name) === normalize(d.name) && td.content === d.content
     );
     if (existingMatch) {
+      if (!existingMatch.original && d.original) existingMatch.original = { ...d.original };
       docIdMap.set(d.id, existingMatch.id);
       summary.docsMerged++;
       continue;
@@ -107,7 +109,8 @@ export function mergeProjectInto(target: Project, source: Project): MergeSummary
       name: d.name,
       content: d.content,
       addedAt: d.addedAt || Date.now(),
-      sizeBytes: d.sizeBytes || d.content.length
+      sizeBytes: d.sizeBytes || d.content.length,
+      ...(d.original ? { original: { ...d.original } } : {})
     };
     target.docs.push(mapped);
     summary.docsAdded++;
@@ -164,8 +167,11 @@ export function mergeProjectInto(target: Project, source: Project): MergeSummary
   // they survive the remap to a different image id unchanged.
   const imageIdMap = new Map<string, string>();
   for (const img of source.images || []) {
-    const existing = (target.images || []).find(t => t.dataUrl === img.dataUrl);
+    const existing = (target.images || []).find(t => img.pdfPage
+      ? t.pdfPage?.docId === docIdMap.get(img.pdfPage.docId) && t.pdfPage?.page === img.pdfPage.page && t.pdfPage?.originalHash === img.pdfPage.originalHash
+      : t.dataUrl === img.dataUrl);
     if (existing) {
+      if (!existing.pdfPage && img.pdfPage && docIdMap.has(img.pdfPage.docId)) existing.pdfPage = { ...img.pdfPage, docId: docIdMap.get(img.pdfPage.docId)! };
       imageIdMap.set(img.id, existing.id);
       summary.imagesMerged++;
       continue;
@@ -175,6 +181,7 @@ export function mergeProjectInto(target: Project, source: Project): MergeSummary
     const mapped: ImageSource = {
       ...img,
       id: newId,
+      ...(img.pdfPage ? { pdfPage: { ...img.pdfPage, docId: docIdMap.get(img.pdfPage.docId) || img.pdfPage.docId } } : {}),
       folderId: img.folderId ? folderIdMap.get(img.folderId) || null : null
     };
     if (!target.images) target.images = [];
@@ -183,6 +190,7 @@ export function mergeProjectInto(target: Project, source: Project): MergeSummary
   }
 
   for (const seg of source.codedSegments) {
+    const coder = seg.coder || source.coderName || undefined;
     const docId = docIdMap.get(seg.docId);
     const codeId = codeIdMap.get(seg.codeId);
     if (!docId || !codeId) continue;
@@ -217,6 +225,7 @@ export function mergeProjectInto(target: Project, source: Project): MergeSummary
   if (source.codedRegions && source.codedRegions.length > 0) {
     if (!target.codedRegions) target.codedRegions = [];
     for (const r of source.codedRegions) {
+      const coder = r.coder || source.coderName || undefined;
       const imageId = imageIdMap.get(r.imageId);
       const codeId = codeIdMap.get(r.codeId);
       if (!imageId || !codeId) continue;
@@ -322,5 +331,6 @@ export function mergeProjectInto(target: Project, source: Project): MergeSummary
     }
   }
 
+  mergeResearch(target,source,docIdMap,codeIdMap,imageIdMap);
   return summary;
 }

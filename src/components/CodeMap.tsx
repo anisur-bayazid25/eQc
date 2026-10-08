@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Code, CodedSegment, ID, MapAnnotation, MapEdgeStyle, childCodes, descendantCodeIds, uid } from '../domain';
 
 interface Props {
+  active?: boolean;
   projectId: ID;
   codes: Code[];
   codedSegments: CodedSegment[];
@@ -172,6 +173,7 @@ function relaxLayout(layout: Map<ID, { x: number; y: number }>, codes: Code[], v
 }
 
 export default function CodeMap({
+  active = true,
   projectId, codes, codedSegments, mapEdgeStyles, annotations, hiddenMapCodeIds,
   onUpdateCode, onUpdateCodesBatch, onUpdateEdgeStyle, onAddEdgeStyle, onDeleteEdgeStyle,
   onUpdateAnnotations, onUpdateHiddenMapCodes,
@@ -490,15 +492,14 @@ export default function CodeMap({
   // arranged; hand-placed positions are never clobbered. Only the visible
   // node set is laid out, so spacing and physics reflect what is drawn.
   useEffect(() => {
+    if(!active)return;
     const missing = visibleCodes.filter(c => !c.mapPosition);
     if (missing.length === 0) return;
     const auto = computeAutoLayout(visibleCodes, canvas.w, canvas.h);
-    for (const c of missing) {
-      const pos = auto.get(c.id);
-      if (pos) onUpdateCode(c.id, { mapPosition: pos });
-    }
+    const updates = missing.flatMap(c => { const pos=auto.get(c.id); return pos ? [{id:c.id,patch:{mapPosition:pos}}] : []; });
+    if(updates.length)onUpdateCodesBatch(updates);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleCodes, canvas.w, canvas.h]);
+  }, [active, visibleCodes, canvas.w, canvas.h]);
 
   const styles = mapEdgeStyles || [];
   const findStyle = (kind: MapEdgeStyle['kind'], a: ID, b: ID): MapEdgeStyle | undefined =>

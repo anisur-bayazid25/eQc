@@ -1,6 +1,6 @@
 {
   "name": "eqc-desktop",
-  "version": "1.6.5",
+  "version": "1.7.0",
   "description": "eQc - Easy Qual Coding - local-first qualitative data coding and analysis app (Electron + React + SQLite)",
   "author": "Anisur Rahman Bayazid",
   "license": "MIT",
@@ -32,7 +32,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tesseract.js": "^7.0.0",
-    "ws": "^8.21.3"
+    "ws": "^8.21.3",
+    "docx-preview": "0.3.7"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",

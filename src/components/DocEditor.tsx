@@ -1,13 +1,17 @@
 import React, { useMemo, useRef, useEffect } from 'react';
-import { CodedSegment, Code, ID, SourceDoc } from '../domain';
+import { CodedSegment, Code, ID, SourceDoc, PassageAnnotation } from '../domain';
 import { getSelectionOffsets, SelectionOffsets } from '../lib/textOffsets';
+import { sourceLines } from '../lib/sourceLines';
 
 interface Props {
   doc: SourceDoc;
   segments: CodedSegment[];
+  annotations?: PassageAnnotation[];
+  onClickAnnotation?: () => void;
   codesById: Map<string, Code>;
   fontSize?: number;
   fontFamily?: string;
+  showLineNumbers?: boolean;
   onSelectionChange: (sel: SelectionOffsets | null) => void;
   onClickSegment: (segments: CodedSegment[], x: number, y: number) => void;
   onDropCode?: (codeId: ID) => void;
@@ -18,8 +22,11 @@ interface Props {
 }
 
 interface Chunk {
+  start: number;
+  end: number;
   text: string;
   segIds: string[];
+  annotationIds: string[];
   isSearchMatch?: boolean;
 }
 
@@ -31,11 +38,10 @@ interface Chunk {
 // way — its boundaries get their own split points, independent of any
 // coded segment, so an arbitrary uncoded passage can still be precisely
 // targeted and scrolled to.
-function buildChunks(content: string, segments: CodedSegment[], highlightRange?: { start: number; end: number } | null): Chunk[] {
-  if (segments.length === 0 && !highlightRange) return [{ text: content, segIds: [] }];
-
+function buildChunks(content: string, segments: CodedSegment[], highlightRange?: { start: number; end: number } | null, annotations: PassageAnnotation[] = []): Chunk[] {
   const points = new Set<number>([0, content.length]);
-  for (const s of segments) {
+  for (const line of sourceLines(content)) { points.add(line.start); points.add(line.end); }
+  for (const s of [...segments,...annotations]) {
     points.add(Math.max(0, Math.min(s.start, content.length)));
     points.add(Math.max(0, Math.min(s.end, content.length)));
   }
@@ -52,17 +58,27 @@ function buildChunks(content: string, segments: CodedSegment[], highlightRange?:
     if (start === end) continue;
     const covering = segments.filter(s => s.start <= start && s.end >= end);
     const isSearchMatch = !!highlightRange && highlightRange.start <= start && highlightRange.end >= end;
-    chunks.push({ text: content.slice(start, end), segIds: covering.map(s => s.id), isSearchMatch });
+    chunks.push({ start, end, text: content.slice(start, end), segIds: covering.map(s => s.id), annotationIds:annotations.filter(a=>a.start<=start&&a.end>=end).map(a=>a.id), isSearchMatch });
   }
   return chunks;
 }
 
 export default function DocEditor({
-  doc, segments, codesById, fontSize, fontFamily, onSelectionChange, onClickSegment, onDropCode,
+  doc, segments, annotations, onClickAnnotation, codesById, fontSize, fontFamily, showLineNumbers = false, onSelectionChange, onClickSegment, onDropCode,
   scrollToSegmentId, scrollNonce, highlightRange, highlightNonce
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const chunks = useMemo(() => buildChunks(doc.content, segments, highlightRange), [doc.content, segments, highlightRange]);
+  const chunks = useMemo(() => buildChunks(doc.content, segments, highlightRange, annotations), [doc.content, segments, highlightRange, annotations]);
+  const lines = useMemo(() => sourceLines(doc.content), [doc.content]);
+  const chunksByLine = useMemo(() => {
+    const grouped: Chunk[][] = lines.map(() => []);
+    let index = 0;
+    for (const chunk of chunks) {
+      while (index + 1 < lines.length && chunk.start >= lines[index + 1].start) index++;
+      grouped[index].push(chunk);
+    }
+    return grouped;
+  }, [lines, chunks]);
   const segById = useMemo(() => new Map(segments.map(s => [s.id, s])), [segments]);
 
   // Track the selection via `selectionchange` rather than mouseup inside the
@@ -132,23 +148,14 @@ export default function DocEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlightRange, highlightNonce, chunks]);
 
-  return (
-    <div
-      className="doc-editor"
-      ref={containerRef}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-      style={{
-        fontSize: fontSize ? `${fontSize}px` : undefined,
-        fontFamily: fontFamily || undefined
-      }}
-    >
-      {chunks.map((chunk, i) => {
+  const renderChunk = (chunk: Chunk) => {
         if (chunk.segIds.length === 0) {
           return (
             <span
-              key={i}
-              className={chunk.isSearchMatch ? 'search-match-highlight' : undefined}
+              key={chunk.start}
+              className={`${chunk.isSearchMatch ? 'search-match-highlight' : ''}${chunk.annotationIds.length ? ' passage-annotation' : ''}`}
+              title={chunk.annotationIds.length ? annotations?.filter(a=>chunk.annotationIds.includes(a.id)).map(a=>a.note).join('\n') : undefined}
+              onClick={chunk.annotationIds.length ? () => { if(!window.getSelection()?.toString())onClickAnnotation?.(); } : undefined}
               data-search-match={chunk.isSearchMatch ? 'true' : undefined}
             >
               {chunk.text}
@@ -160,8 +167,8 @@ export default function DocEditor({
         const multi = segsHere.length > 1;
         return (
           <span
-            key={i}
-            className={`coded-segment${multi ? ' multi-coded' : ''}${chunk.isSearchMatch ? ' search-match-highlight' : ''}`}
+            key={chunk.start}
+            className={`coded-segment${multi ? ' multi-coded' : ''}${chunk.isSearchMatch ? ' search-match-highlight' : ''}${chunk.annotationIds.length ? ' passage-annotation' : ''}`}
             style={{ background: primaryCode ? primaryCode.color + '55' : '#cbd5e155' }}
             title={segsHere.map(s => codesById.get(s.codeId)?.name || '?').join(', ')}
             data-seg-ids={chunk.segIds.join(' ')}
@@ -176,7 +183,25 @@ export default function DocEditor({
             {chunk.text}
           </span>
         );
-      })}
+
+  };
+
+  return (
+    <div
+      className={`doc-editor${showLineNumbers ? ' with-source-lines' : ''}`}
+      ref={containerRef}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      style={{
+        fontSize: fontSize ? `${fontSize}px` : undefined,
+        fontFamily: fontFamily || undefined
+      }}
+    >
+      {showLineNumbers ? lines.map((line, index) => (
+        <span className="doc-source-line" data-line-number={line.number} key={line.start}>
+          {chunksByLine[index].map(renderChunk)}
+        </span>
+      )) : chunks.map(renderChunk)}
     </div>
   );
 }

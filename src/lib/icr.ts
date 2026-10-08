@@ -31,6 +31,12 @@ export interface IcrCoder {
   regions: number;
 }
 
+export function scopedCoderCounts(project: Project, coder: string, docIds: string[], includeImages: boolean): IcrCoder {
+  const docs = new Set(docIds);
+  return { name:coder, segments:project.codedSegments.filter(s => docs.has(s.docId) && icrCoderName(s.coder) === coder).length,
+    regions:includeImages ? (project.codedRegions || []).filter(r => icrCoderName(r.coder) === coder).length : 0 };
+}
+
 export interface IcrContingency {
   bothYes: number;
   aOnly: number;

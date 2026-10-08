@@ -49,6 +49,9 @@ export function mergeCodes(project: Project, sourceIds: ID[], targetId: ID): Pro
   }
   return {
     ...project, codes, frameworkCells, relationNotes,
+    groups: project.groups?.map(g => ({...g, memberIds:g.kind==='codes'?Array.from(new Set(g.memberIds.map(remap))):g.memberIds})),
+    memos: project.memos?.map(m => ({...m,codeIds:Array.from(new Set(m.codeIds.map(remap)))})),
+    queries: project.queries?.map(q => ({...q,codeIds:Array.from(new Set(q.codeIds.map(remap))),excludeCodeIds:Array.from(new Set(q.excludeCodeIds.map(remap)))})),
     codedSegments: project.codedSegments.map(s => ({ ...s, codeId: remap(s.codeId) })),
     codedRegions: (project.codedRegions || []).map(r => ({ ...r, codeId: remap(r.codeId) })),
     mapEdgeStyles: (project.mapEdgeStyles || []).map(e => ({ ...e, fromCodeId: remap(e.fromCodeId), toCodeId: remap(e.toCodeId) }))

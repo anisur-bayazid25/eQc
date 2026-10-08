@@ -4,6 +4,36 @@ All notable changes to **eQc - Easy Qual Coding** are documented in this file.
 
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 1.7.0 - 2026-10-08
+
+### Added
+- **Offline Help** — searchable complete user guide and application documentation, section dropdowns and expand-all reading. Navigation is Workspace, Codebook, Auto-Code, Analysis, Code Map, Help, About.
+- **Unified project import** — the existing Import dialog accepts JSON/QDPX projects, QDC codebooks and extracted QDE XML with adjacent sources; missing sources are reported before creating an unusable project.
+- **Workspace project export choices** — JSON/QDPX with originals or smaller text-only document data; coding, memos and image regions remain in both choices without changing local originals.
+- **Memo tools** — select, edit, copy and export both standalone and attached memos; individual/selected Word or CSV exports and confirmed consolidation into a new or selected standalone memo, preserving all text and links while keeping sources/codes/coding intact.
+- **Research tools** — one workspace under Project tools with Cases, Groups, Review, Notes and History: cases/attributes, FGD passage links/CSV import, overlapping groups, saved scoped Boolean/overlap/proximity queries, contextual text/image review and case counts, linked memos/annotations, bulk reassignment/splitting, boundary adjustment and in-vivo/multiple-code selection actions.
+- **Codes & Strips** — discoverable reader-toolbar button beside Portrait/Lines, remembered visibility, narrow vertical code labels and separate overlapping passage lanes. Hover/focus widens the coloured stripe by 3 pixels.
+- **Persistent recovery** — local SQLite activity plus named/rotating automatic checkpoints, restore confirmation, pre-recovery checkpoint and integrity checks; activity CSV export.
+- **Research-record exports** — CSV/narrative Word/HTML, full analysis HTML inclusion, JSON/LAN/merge preservation and reference remapping. Source edits relocate references or preserve unlinked notes. QDPX includes readable Notes and an eQc research appendix; foreign native case/group/query conversion is not claimed.
+- **Formatted Word/PDF coding** — Workspace Original view preserves Word styles, tables, lists and images, and renders original PDF pages with page navigation, text selection, region coding and fit/percentage zoom. Selections map back to existing coding offsets; mismatched passages and edited originals use a safe Plain text fallback. Linked PDF page snapshots reuse image-coding analysis and exports, retain document/page names, survive backups/merges and follow document rename/move/delete actions. Existing projects and table-free narrative reports remain compatible.
+
+### Fixed
+- ICR coder labels now distinguish scoped text assignments and image regions. Consensus shows text-entry and overlapping-passage totals, jointly coded review counts and hidden single-coder groups, with explanations of their different units.
+- History reports a useful restart instruction when an older running desktop process lacks the new handlers.
+- Coding stripe label, hover background and focus colours follow the document viewer theme independently of the application theme.
+- In-app Help uses readable Markdown lists/tables/links and user-facing About instructions; developer validation/build details remain in AI_CHANGELOG.
+- Batch Code Map position initialization and ignore unchanged patches to prevent repeated saves after adding/splitting codes. Undo history is recorded outside React state updater callbacks.
+
+### Changed
+- Excerpt Review starts with code/source/text filters; advanced query criteria are grouped in a disclosure. Refinement controls and the user guide explain reassignment, splitting and boundary adjustment.
+- **REFI-QDA compatibility** — QDPX uses the standard Project 1.0 namespace/schema, directly nested codes, valid attributes and nonempty containers, lowercase `sources/` paths, named memo files, coder GUID references and inclusive Unicode-codepoint text positions. Non-JPEG/PNG images are converted to PNG. Invalid coding or unreadable images stop export with a specific error rather than being silently omitted. Import retains legacy eQc QDPX support and now accepts standalone QDC codebooks.
+- **Original source retention** — new Word/PDF imports, scanned PDFs and Word-comment imports retain the original bytes alongside coding text. QDPX import retains original Word files and PDF text representations when supplied. Workspace’s Original menu opens/saves the original or attaches one to an older document without replacing coding text. Backups and project merges carry originals. Unchanged originals export through standard DOCX `richTextPath` or PDF `Representation`; edited text exports its current plain representation to avoid pairing coding with an outdated original.
+- **Stable source lines** — Workspace’s Lines toggle shows one-based logical line numbers, including blank lines, independent of wrapping/font size. Codebook excerpt cards and CSV/DOCX exports include source line ranges. Native Word page-line numbering remains in the original file; formatted Word/PDF coding is available in Original view.
+- Codebook Word exports use a table-free **document/image → code → numbered excerpt** layout. Source names, full code paths, excerpt counts, coder identities, key-excerpt marks and excerpt memos accompany the text and cropped image regions. Summary mode also includes source memos, code definitions/summaries and document–code framework memos. Codes-only retains definitions/summaries and source attribution; uncoded codes have a separate section.
+- Starred Excerpts and Starred Images use the same Word layout. Coverage percentages are omitted; counts describe coding entries, retaining overlapping passages and separate coders.
+- Codebook CSV/DOCX filenames use `Project name_Code name`; multiple codes are joined with ` + `, and whole-codebook exports use `Project name_All codes`. Starred exports add a descriptive suffix. Unicode names are preserved, forbidden filename characters are replaced, and long names are bounded.
+- Complete v1.7.0 user guide, offline in-app Help, README, application documentation, release notes and AI change history updated for this release.
+
 ## 1.6.5 - 2026-10-06
 
 ### Changed
@@ -164,7 +194,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 ## 1.4.4 - 2026-08-13
 
 ### Added
-- **REFI-QDA (.qdpx) export** — Codebook tab → Export Options → `⬇️ REFI-QDA`. Exports the full project (codebook with hierarchy/colors/memos, text documents and their coded passages, images and their coded regions) as a REFI-QDA-2 `.qdpx` archive.
+- **REFI-QDA (.qdpx) export** — Codebook tab → Export Options → `⬇️ REFI-QDA`. Exports the full project (codebook with hierarchy/colors/memos, text documents and their coded passages, images and their coded regions) as a `.qdpx` archive (the legacy format was corrected to the standard schema in the pending update).
 - **REFI-QDA image import** — picture sources (`<PictureSource>`) inside `.qdpx` files are now imported as images, including their coded regions (`<PictureSelection>`) and memos. Image files from the archive are re-encoded as data URLs.
 - **Image rename** — each image in the document tree now has a ✏️ button to rename it.
 - **Coded-region count badge** — image rows in the tree show how many coded regions they contain.
@@ -175,7 +205,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - **Color scheme** — root codes get a color from the palette; subcodes automatically inherit their parent's color (overridable via the codebook swatch picker).
 - **Export Options layout** — removed a duplicate "Export Options" group in the Codebook tab; REFI-QDA export now sits at the top of the existing Export Options group, above Manuscript Skeleton.
 - **Image zoom steps** — `−` / `+` buttons and the slider now move in 10% steps (was 25%); minimum zoom is now 10%.
-- **REFI-QDA import robustness** — the importer now also reads subcodes nested inside a `<SubCodes>` wrapper (the REFI-QDA-2 standard shape), so real MAXQDA/NVivo files import better and exports round-trip.
+- **REFI-QDA import robustness** — the importer now also reads subcodes nested inside a `<SubCodes>` wrapper (a legacy wrapper shape; the standard uses direct nested Code elements), so real MAXQDA/NVivo files import better and exports round-trip.
 
 ### Fixed
 - **Zoom buttons** — the `−` / `+` / Reset / slider buttons in the image viewer were nested inside the Notes button, so clicking them also opened the notes panel; they are now separate controls.

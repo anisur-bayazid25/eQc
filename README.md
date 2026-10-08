@@ -1,9 +1,83 @@
 <img width="1831" height="692" alt="eqc-logo" src="https://github.com/user-attachments/assets/19529f94-981d-4cca-8ffe-77da3bd66f91" />
 
 # eQc — Easy Qual Coding
+
+Version **1.7.0** adds formatted Word/PDF coding, cases and attributes, groups, queries, review, memo tools, recovery history, table-free Word reports, improved REFI-QDA exchange and searchable offline Help.
 ## What's New in v1.6.5
 
 A tidier interface: Codebook task tabs, grouped Workspace and header tools, analysis navigation under Coding/Text/Team, compact Code Map menus with automatic Fit, and a wider single-panel About layout. All existing functions remain available. Standard desktop controls fit without unnecessary scrolling; smaller windows and long content retain scrolling.
+
+## Help, project exports and everyday coding (v1.7.0)
+
+The top navigation is **Workspace → Codebook → Auto-Code → Analysis → Code Map → Help → About**. **Help** works offline: search the complete user guide or application documentation, open a section from its dropdown, or choose **Read complete documentation** to expand all sections. Search matches section titles and content; use a short phrase or keywords. Light/Dark controls remain outside tabs; About remains one wide panel.
+
+### Export a project
+
+Open **Project tools → Export**, choose **JSON — eQc backup** or **QDPX — REFI-QDA exchange**, then choose **Original documents and coding text** or **Plain text only — smaller file**. Original attachments are included by default. The smaller option omits retained Word/PDF binary files while keeping coding text, codes, memos, cases, groups, queries, annotations and image coding, including coded PDF page snapshots. It does not change the open project or erase its originals. JSON is the full eQc project backup; QDPX exchanges supported sources and coding, with advanced eQc research records carried as notes/appendix. Local activity and recovery checkpoints do not travel with either format. Cancel the save dialog to leave the export unfinished.
+
+### Import a project or codebook
+
+The existing **Project tools → Import** accepts **JSON**, **QDPX**, **QDC** and **QDE** in one file dialog and creates a separate project. JSON restores an eQc backup; QDPX is the packaged project exchange format and is the preferred choice for ATLAS.ti/NVivo transfers. QDC transfers the codebook only, without documents or excerpts. QDE is unpacked project XML: keep it beside the matching `sources` folder, or select the original QDPX archive. Referenced files that are missing cannot be recovered from XML alone. An import with unavailable/unsupported sources reports the omissions; if no referenced source can be imported, it stops without creating an incomplete project. Source-folder links outside the selected QDE directory are not followed. **Codebook → Import → REFI-QDA** remains available to add exchanged coding to the current project.
+
+### Codes & Strips
+
+Select a document and click **Codes & Strips**, beside **Portrait** and **Lines** in the reader toolbar. This remembered toggle shows narrow vertical coloured bars and vertical code names beside coded passages, with separate lanes for overlapping coding. Hover or focus a bar to widen its colour by 3 pixels; click the bar or label to jump to its excerpt. Long names and short passage labels may be truncated: the tooltip gives the full code name and coder. Stripes follow rendered text in Plain text and mapped Word/PDF views; PDF shows coding for the displayed page. The Reading menu also offers the toggle. Labels and hover/focus styling follow the document viewer’s Paperwhite, White or Dark setting independently of the app theme.
+
+### A simple excerpt-review workflow
+
+Open **Project tools → Research tools → Review**. Choose **Query codes** and/or **Sources**, optionally enter words in **Find in excerpts or notes**, then click **Run query**. Empty selections retrieve all coding. Read the highlighted excerpt with surrounding text, or choose **Open source**. Export the results to CSV or Word. Check individual cards only when you want to export or refine a subset; without checks, export includes all retrieved results. **Advanced filters and combined queries** contains code combinations, code/document groups, cases, attributes, coder, child codes and key-excerpt filters. Save a named query for repeat use. Changing filters clears old results so they cannot be mistaken for the new query.
+
+### Memo tools
+
+In **Research tools → Notes**, create and search linked analytic, methodological or journal memos. Each memo has **Copy memo text**, **Export memo Word** and **Export memo CSV**. Select memo checkboxes and expand **Export or merge selected memos** to export a subset or merge into a selected destination. Merging retains the destination title, purpose and creation date, appends other memo texts under their original titles, and combines document/code/case/excerpt links without duplicates. A confirmation explains removal of the other standalone memos; close Research tools and use Undo to restore them if needed. Passage annotations and attached source/code/excerpt/framework memos also have selection, copy and export controls; attached memos can be edited in Notes. **Export research records** still exports all research notes and other research collections.
+
+### Selecting and merging existing memos
+
+All nonempty source, code, excerpt, image, region, case, framework and relationship memos appear with selection checkboxes and individual edit/copy/export controls in Notes. Passage annotations can also be selected for export or consolidation. **Select all memos** includes these attached memos as well as standalone memos. For a merge, choose **New combined memo** and enter its title, or choose a selected standalone memo as the destination. The combined memo retains all text under its original memo titles and combines source/code/case/excerpt links. Confirmation explains that selected attached memo fields will be cleared and selected standalone memos consolidated; the underlying sources, codes, coding and annotations remain. Use Undo after closing Research tools to restore the originals.
+
+### Understanding ICR and Consensus counts
+
+The team-analysis tab is **ICR** (inter-coder reliability). Its coder selectors show **text coding entries** and **image regions** for the current scope. A passage assigned three codes creates three coding entries. The agreement table uses a different unit: one source–code pair, counted once per coder even when a code appears several times in a source. Percent agreement includes pairs neither coder used; many unused pairs can produce a high percentage alongside low Holsti or κ.
+
+**Consensus** groups overlapping text coding entries into passage groups, including multiple codes on the same words. It shows the total text entries, total passage groups, jointly coded groups available for review and single-coder groups hidden. Image regions are excluded. For example, 62 text entries plus 6 image regions for one coder do not imply 68 consensus passages: the text entries may form 30 overlapping groups, and only a few groups may have a second coder. Open **Counts by coder in the current scope** to compare the underlying entries. Changing coders or documents changes both views' scope. These measures describe different units; their totals are not expected to match.
+
+### History in an updated app
+
+History and recovery require the current desktop app process. If the app asks you to restart these tools after an update, first save your project, fully close eQc and open it again. Reloading a document or switching tabs does not load the updated desktop process. Your saved projects remain on this computer.
+
+### Coding refinement: where to find each action
+
+1. **Reassign existing coding:** in Review, Run query, check the relevant cards, open **Refine selected coding**, choose the destination code and click **Reassign coding**. This moves those coding entries; it does not add a second copy.
+2. **Split a code:** retrieve one code, check the excerpts that belong in a separate concept, open **Refine selected coding**, enter **New code name for selected excerpts**, then **Split into new code**. The new code is a sibling of the original; unchecked excerpts stay under the original. Text and image coding are supported, but selected entries must come from one code.
+3. **Adjust a text boundary:** choose **Adjust passage** on an excerpt card. In the source's Plain text view, select the replacement words, then **Selection actions → Update passage**. The same coding entry retains its memo, coder, creation date and key-excerpt status. Cancel adjustment to keep the old passage. Image regions are reviewed using their existing image controls.
+4. **Create an in-vivo code:** select words in the reader, choose **Selection actions → Create in-vivo code**, review the suggested name, then **Create and apply**.
+5. **Apply several codes at once:** select text, open **Selection actions → Apply multiple codes**, check codes and choose **Apply selected codes**.
+6. **Merge codes:** open **Codebook → Merge**, select the codes and a survivor, review the merge, then apply it. Related coding and research links follow the survivor. Use a named History checkpoint before substantial reorganisation.
+
+## Research tools
+
+**Project tools → Research tools** opens one workspace: **Cases, Groups, Review, Notes and History**. Adds participants/attributes and FGD passage links, overlapping groups, saved scoped queries, contextual text/image review and case counts, annotations and a memo library, bulk recoding/splitting, passage adjustment, in-vivo/multiple-code actions, and local activity/recovery checkpoints. **Codes & Strips** in the reader toolbar is optional. Research exports include source names; full HTML reports include the new records. See [the user guide](USER_GUIDE_v1.7.0.md#research-tools) for query semantics, retention and exchange limits.
+
+## Formatted Word and PDF coding
+
+Documents with retained originals now offer **Original view** and **Plain text** in Workspace. Original view is the initial preference; your last view choice is remembered. Text-only documents still use Plain text. Attach a missing original through **Original → Attach original** to enable formatted viewing.
+
+- **Word:** view document styles, headings, tables, lists, headers/footers and embedded images. Select body text (including table cells), then click or drag a code from the existing legend/search. Existing and overlapping coding is highlighted; click a highlight to inspect, memo, star or remove its coding. Zoom starts at **Fit width** and follows the available space. Word pagination and advanced layout can differ from Microsoft Word; the retained file remains unchanged.
+- **PDF:** view original pages with **Previous/Next**, a page selector, **Fit width** and percentage zoom. **Text** mode selects the PDF text layer and saves excerpts against the existing source text. **Region** mode draws a rectangle on a page, then applies a code. Scans without a text layer support Region coding; their OCR text stays codeable in Plain text. Text selections are made within one displayed PDF page at a time.
+- **Reliable locations:** formatted selections map to existing UTF-16 source offsets; repeated quotations keep their own occurrences. Only whitespace and heading casing are normalized during matching. A selection with unmatched/altered text is rejected with a Plain text fallback instead of guessing an excerpt position. Generated header/footer/footnote markers are view-only when absent from the coding text. Text edits or a mismatched attachment disable text coding in Original view; original PDF region coding remains available. **Edit text** changes the coding text, not the Word/PDF original. Source line numbers and reading-font controls apply to Plain text; original views use source formatting and zoom.
+- **PDF region exports:** the first region coding on a page stores a linked PNG page snapshot, labelled with the document name and PDF page number. Further regions reuse that snapshot regardless of zoom. These regions participate in existing image coding, memos/stars, analysis and all image-capable CSV/DOCX/HTML/QDPX exports. QDPX transfers them as standard PictureSource/PictureSelection entries alongside the original PDF, rather than native PDF-region selections. **Go to Image** opens the retained page snapshot. JSON backups/LAN retain page links; merges remap document IDs and reuse linked pages. Renaming/moving the document updates linked page names/folders; deleting it also removes linked snapshots and regions after confirmation. Original attachments replaced later do not overwrite older coded page snapshots.
+
+Rendering stays local; original documents are not uploaded. Broken/encrypted/unsupported originals show a recoverable message and leave Plain text available. Saving through **Original → Save original** preserves exact source bytes; narrative excerpt reports keep their established table-free export layout.
+
+## Source lines and REFI-QDA compatibility
+
+Version 1.7.0 retains original Word/PDF files alongside the plain text used for coding. New regular, dropped, scanned-PDF and Word-comment imports retain their originals. **Workspace → Original** opens a copy in your system viewer, saves the exact imported file, or attaches/replaces an original for an older text-only document. Attaching an original does not replace your coding text. Text edits leave the original unchanged; the menu indicates a mismatch. Original bytes travel with JSON backups, LAN project data and project merges, so these projects/backups are larger than text-only ones. Existing projects continue to work without re-importing; attach an original if formatting is needed.
+
+**Lines** shows stable, one-based source-line numbers in the text reader. Blank lines count; screen wrapping, fonts and window size do not change the numbers. Codebook excerpt cards and text-excerpt CSV/DOCX exports include the corresponding line range. Editing the source text can change those ranges. These numbers refer to eQc’s coding text, not Word’s layout-dependent native page lines or inferred PDF text lines. Native numbering, tables, fonts and original page layout stay in the retained file. Formatted Word/PDF coding is available in Original view.
+
+**REFI-QDA export** now follows the standard Project 1.0 schema (also used by the supplied ATLAS.ti export): valid nested codes, attributes, memo files, lowercase `sources/` paths, coder references and Unicode-codepoint coding positions. Images are exported as JPEG/PNG; other supported image formats convert to a static PNG. Corrupt coding or unreadable images stop export with an explanation instead of being silently dropped. Use **Codebook → Import → REFI-QDA (QDPX / QDC)** to import a full project or standalone codebook; legacy eQc files remain readable.
+
+When the coding text still matches the retained original, QDPX includes the original DOCX through `richTextPath`, or the original PDF with its plain-text `Representation`. If the text was edited or an attached file has different extracted text, QDPX exports the current coding text without pairing it with that outdated original; the original remains available locally and in backups. Previously imported text-only documents cannot recover formatting until you attach the original file. Interoperability still depends on the receiving application: [NVivo’s REFI-QDA documentation](https://help-nv.qsrinternational.com/14/win/Content/projects-teamwork/refi-qda%20standard.htm) lists PDF text coding, framework matrices, maps and source-folder structures among transfer limitations. These changes have passed schema and ATLAS.ti-reference round-trip checks; a direct NVivo import is still to be verified.
 
 ## Layout and navigation in v1.6.5
 
@@ -22,18 +96,18 @@ Standard desktop layouts (1920×1080, 1366×768, 1200×800 and 1024×720) were c
 
 Merge selected codes while preserving quotes, image coding, memos and analysis. Export one or multiple codes, optionally with subcodes, to CSV and DOCX. Every codebook mode includes source names; DOCX includes cropped image excerpts. HTML reports now include scoped ICR, consensus summaries and image coding alongside the existing analyses. About acknowledges the CARE project and BRAC James P Grant School of Public Health, BRAC University.
 
-See [CHANGELOG.md](CHANGELOG.md), [USER_GUIDE_v1.6.5.md](USER_GUIDE_v1.6.5.md), and [DOCUMENTATION.md](DOCUMENTATION.md). Earlier v1.6 releases introduced coder/document scope, Cohen’s and Fleiss’ κ, Holsti, Krippendorff’s α, consensus adjudication, coding definitions and fixes preserving analysis during merges and code deletion.
+See [CHANGELOG.md](CHANGELOG.md), [USER_GUIDE_v1.7.0.md](USER_GUIDE_v1.7.0.md), and [DOCUMENTATION.md](DOCUMENTATION.md). Earlier v1.6 releases introduced coder/document scope, Cohen’s and Fleiss’ κ, Holsti, Krippendorff’s α, consensus adjudication, coding definitions and fixes preserving analysis during merges and code deletion.
 
 ## What's New in v1.5.9
 
 - Logo has been changed
 - Some minor improvements of Codemap Option
 
-## Complete User Guide & Documentation (v1.6.5)
+## Complete User Guide & Documentation (v1.7.0)
 
 eQc is a lightweight, **local-first** qualitative data analysis (QDA) desktop application built with Electron, React, and SQLite. All project data — documents, codes, memos, matrices — is stored **locally on your device**. Nothing leaves your computer (except, optionally, the project backups you choose to export or share).
 
-📘 **Full step-by-step manual:** see **[USER_GUIDE_v1.6.5.md](USER_GUIDE_v1.6.5.md)** — covers everything from your first project, to the Code Map, LAN team sessions, and every analysis mode.
+📘 **Full step-by-step manual:** see **[USER_GUIDE_v1.7.0.md](USER_GUIDE_v1.7.0.md)** — covers everything from your first project, to the Code Map, LAN team sessions, and every analysis mode.
 
 ---
 
@@ -94,7 +168,7 @@ eQc is a lightweight, **local-first** qualitative data analysis (QDA) desktop ap
 - **👥 Coder attribution** — every coded passage and image region records **who coded it** (manual, auto-code, or merged). Names are stamped at the moment the item is created and are **never changed later**.
 - **🎛️ Filter by coder** — new **Coder** dropdowns in the Workspace (doc tree panel) and Codebook (Excerpts header) let you view only one coder's work, or **Everyone**. Scan adds an **Unattributed** group so nothing is hidden.
 - **🧍 Coder-name disentanglement** — when one PC is shared by several coders, changing the Coder Name in Project Settings only affects codes made *afterward*; earlier codes keep their original attribution. Older/imported items with no stamp show as **Unattributed**, and you can assign them in one click via **Project Settings → “Assign N Unattributed item(s) to this coder.”**
-- **📤 Coder column in exports** — scoped CSV/DOCX exports and Starred Quotes include a **Coder** column (per-segment stamp, or "Unattributed").
+- **📤 Coder column in exports** — scoped CSV exports and Starred Quotes include a **Coder** column; Word exports show the same attribution beside each excerpt (per-segment stamp, or "Unattributed").
 - **🟢 Live presence (LAN)** — in a shared session, the document tree shows colored dots next to documents/images that teammates are currently viewing, with a "Viewing: …" tooltip; the host is notified with a toast when someone joins.
 - **🔎 Clearer "Coded by" everywhere** — described tags now appear on text excerpts, image-region cards, and in both click-popups in the workspace.
 
@@ -165,7 +239,7 @@ The header has two rows: the top row holds the **brand and the main tabs** (Work
 
 - **➕ New project** — create a fresh local project.
 - **✏️ Rename project** — opens the project settings dialog (also where deletion lives).
-- **⬇️ Export / ⬆️ Import** (`.json`) — full project backup and restore (documents, codes, highlights, memos, relationships).
+- **Project tools → Export / Import** — export JSON/QDPX with original or text-only documents; import JSON/QDPX projects, QDC codebooks or extracted QDE files with matching sources.
 - **🔀 Merge** — combine another project's `.json` into the active one (useful for multi-coder collaboration). When merging, each coder is assigned a stable, distinct color.
 - **Project dropdown** — switch between projects; the header save indicator shows auto-save status (`✓ Saved` / `Saving…` / `⚠ Save failed`).
 
@@ -239,7 +313,7 @@ Select a code to see **every** excerpt coded to it, across every document. Sort 
 ### 4.3 Import options (left panel)
 
 - **CSV dataset / codebook** — import pre-coded tabular data (see [4.5](#45-importing-coded-datasets-csv)).
-- **REFI-QDA project (QDPX)** — import a project exported from NVivo, MAXQDA, ATLAS.ti, Taguette, or another REFI-QDA-2-compliant tool. Brings in the **code hierarchy**, **text sources and coded passages**, **images and their coded regions**, and memos (both code-level and source-level). Non-text/media sources that can't be represented are reported by name rather than silently dropped. Re-importing the same file is safe — it won't create duplicates.
+- **REFI-QDA project (QDPX)** — import a project exported from NVivo, MAXQDA, ATLAS.ti, Taguette, or another REFI-QDA-compliant tool. Brings in the **code hierarchy**, **text sources and coded passages**, **images and their coded regions**, and memos (both code-level and source-level). Non-text/media sources that can't be represented are reported by name rather than silently dropped. Re-importing the same file is safe — it won't create duplicates.
 - **Word comments (DOCX)** — import **Word comments** as coded passages (works with the "New Comment" feature in Word). Configure the **separator** used to split structured comment text into fields (e.g. `;`), whether the **first field is the speaker**, and whether the **last field echoes the highlighted excerpt** (so it can be verified, not stored as a code).
 
 ### 4.4 Export options (left panel)
@@ -380,8 +454,10 @@ UDP broadcast discovery works on most home/office Wi-Fi, but some routers drop b
 
 | Task | Format | Details |
 | --- | --- | --- |
-| Project backup & transfer | `.json` | Full export / import / merge |
-| External QDA projects (in **and** out) | `.qdpx` | REFI-QDA-2 export & import — codes, text sources, coded passages, images + coded regions, memos |
+| Project backup & transfer | `.json`, `.qdpx` | Export/import; choose originals or text-only documents. JSON project merge is also available. |
+| Codebook import | `.qdc` | Codes and definitions/memos, without source documents |
+| Extracted project import | `.qde` | Requires matching source files beside the XML |
+| External QDA projects (in **and** out) | `.qdpx` | REFI-QDA export & import — codes, text sources, coded passages, images + coded regions, memos |
 | Standard documents | `.txt`, `.docx`, `.pdf` | Direct import |
 | Scanned documents | `.pdf` | Local OCR |
 | Images | `.png`, `.jpg/.jpeg`, `.gif`, `.webp`, `.bmp` | Import, code regions, rename, star, export |
@@ -408,7 +484,11 @@ In **Codebook → Merge**, check the codes in **Select codes**, choose **Code to
 
 Open **Codebook → Export**, choose **Selected codes**, then check one or multiple codes in **Choose codes**, or click **Use current code**, optionally enable **Include their subcodes**, choose the existing scope, then click **CSV** or **DOCX**. Choose **All codes** for the whole codebook. The selection also applies to Starred Excerpts and Starred Images; REFI-QDA, Notes & Memos, and Manuscript Skeleton continue to use the whole project.
 
-Every CSV/DOCX scope includes **Document** names (image names for image coding). Codes-only output lists associated source names and definitions/memos in a table. Excerpt modes include both text quotes and image regions, coder identities and excerpt memos. Image coordinates are normalized from 0 to 1; DOCX also embeds the cropped image. CSV records the source, coordinates and memo rather than binary image content. Summary mode adds code summaries and definitions. Uncoded codes remain in the output with blank source/excerpt cells. **Codes + excerpts + summaries** supplies source attribution, so the former separate document-inclusive mode is removed. Existing option titles stay the same.
+Every CSV/DOCX scope includes **Document** names (image names for image coding). **DOCX uses no tables:** each source heading is followed by the full code path, then numbered excerpts on separate lines. Small muted labels show the excerpt count, coder and key-excerpt status; text keeps its line breaks, and image excerpts include a cropped preview, region position and memo. **Codes + excerpts + summaries** additionally includes code definitions, code summaries, source memos and document–code framework memos. **Codes only** lists source associations, counts, definitions and summaries without excerpt content. Uncoded codes appear in a separate section. Starred Excerpts and Starred Images use the same Word layout. Counts represent coding entries, including overlapping passages and separate coders; coverage percentages are omitted.
+
+**CSV remains tabular**, with source names, hierarchy, quotes or normalized image coordinates, coders and excerpt memos; summary mode adds code definitions/summaries. Uncoded codes have blank source/excerpt cells. CSV exports retain the importer-compatible headers. The redundant document-inclusive mode remains removed, and option titles stay the same.
+
+**Filenames:** a single-code export defaults to `Project name_Code name.docx` (or `.csv`); multiple selected names are joined with ` + `, and All codes uses `Project name_All codes`. Including descendants keeps the explicitly selected parent names in the filename. Starred exports add a descriptive suffix. Bengali and other Unicode names are preserved; invalid filename characters are replaced and long names shortened. Choose another name in the save dialog if needed. Available in v1.7.0.
 
 ### Reliability and consensus (v1.6.0–1.6.4)
 

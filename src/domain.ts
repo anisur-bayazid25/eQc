@@ -11,6 +11,14 @@ export interface Folder {
   parentId: ID | null;
 }
 
+export interface OriginalSource {
+  name: string;
+  format: 'docx' | 'pdf';
+  base64: string;
+  textHash: string; // SHA-256 of the coding text when this original was attached
+  textChanged?: boolean; // Original remains unchanged when the coding text is edited
+}
+
 export interface SourceDoc {
   id: ID;
   folderId: ID | null;
@@ -19,6 +27,7 @@ export interface SourceDoc {
   addedAt: number;
   sizeBytes: number;
   notes?: string;        // source-level memo (e.g. from REFI-QDA import)
+  original?: OriginalSource; // optional original binary; older text-only projects need no migration
 }
 
 export interface Code {
@@ -93,6 +102,7 @@ export interface ImageSource {
   addedAt: number;
   sizeBytes: number;
   notes?: string;          // whole-image memo, same idea as SourceDoc.notes
+  pdfPage?: { docId: ID; page: number; originalHash: string }; // snapshot used for PDF region coding/export
 }
 
 export interface CodedRegion {
@@ -125,6 +135,29 @@ export interface FrameworkCell {
   updatedAt: number;
 }
 
+export interface ResearchCase {
+  id: ID; name: string; kind: 'person' | 'organisation' | 'place' | 'other';
+  attributes: Record<string, string>;
+  links: Array<{ docId: ID; start?: number; end?: number }>;
+  notes?: string;
+}
+export interface ResearchGroup { id: ID; name: string; kind: 'documents' | 'codes'; memberIds: ID[] }
+export interface PassageAnnotation { id: ID; docId: ID; start: number; end: number; text: string; note: string; createdAt: number; author?: string }
+export interface ResearchMemo {
+  id: ID; title: string; text: string; kind: 'analytic' | 'methodological' | 'journal';
+  docIds: ID[]; codeIds: ID[]; caseIds: ID[]; segmentIds: ID[]; createdAt: number; updatedAt: number;
+}
+export interface ResearchQuery {
+  id: ID; name: string;
+  operator: 'any' | 'all' | 'without' | 'overlap' | 'near';
+  codeIds: ID[]; excludeCodeIds: ID[]; codeGroupIds: ID[]; descendants: boolean;
+  docIds: ID[]; documentGroupIds: ID[]; caseIds: ID[];
+  attribute?: { name: string; operator: 'equals' | 'contains' | 'gt' | 'lt'; value: string };
+  coder: string; text: string; distance: number; starredOnly: boolean;
+}
+export interface ActivityEntry { id: number; at: number; actor: string; summary: string }
+export interface ProjectSnapshot { id: number; at: number; label: string; automatic: boolean; sizeBytes: number }
+
 export interface Project {
   id: ID;
   name: string;
@@ -142,6 +175,11 @@ export interface Project {
   mapAnnotations?: MapAnnotation[]; // free-standing annotation shapes on the Code Map (not tied to codes)
   hiddenMapCodeIds?: ID[];  // codes deliberately removed from the Code Map canvas (still in the codebook)
   coderName?: string;   // this project's coder identity, stamped onto segments when merged into another project
+  cases?: ResearchCase[];
+  groups?: ResearchGroup[];
+  annotations?: PassageAnnotation[];
+  memos?: ResearchMemo[];
+  queries?: ResearchQuery[];
 }
 
 export interface ProjectSummary {

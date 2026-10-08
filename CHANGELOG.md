@@ -4,6 +4,44 @@ All notable changes to **eQc - Easy Qual Coding** are documented in this file.
 
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## Unreleased
+
+## 1.8.0 - 2026-10-09
+
+- Simplified offline Help: practical instructions and examples, without development notes, validation claims or comparisons with other applications.
+
+- Switching projects closes text and image coding inspectors and clears unfinished inspector notes. Deleted coding no longer appears from stale popup snapshots.
+
+- Word/PDF zoom controls scroll above the source content instead of sticking over document text.
+- Folder deletion keeps ordinary photos, PDF page snapshots and nested folders visible at the root; sources with older broken folder links remain accessible.
+- CSV round trips keep generic summaries and definitions on the row’s most specific code instead of attaching them to its parent.
+- QDPX import restores Description-only legacy code memos while retaining separate definitions/memos in modern archives and definitions in QDC codebooks.
+- Code Map clears selected nodes and drawing state when switching projects.
+- Project merges discard invalid research links; saved queries with missing filters require review before they can run.
+- Removed framework matrix entries whose document or code was deleted. Coder filters, claiming unattributed coding, research queries and coder cleanup now handle surrounding whitespace consistently.
+- Added data-integrity regression checks and included the usability browser check in the release workflow.
+
+- Reading font-size controls now share one row with an editable, remembered 8–48 px size field.
+- Fixed Reading menu clipping on alternating openings; controls now use the available window height consistently.
+- Moved profile/time storage to SQLite with automatic, duplicate-safe migration, a retained recovery copy, incremental session writes, separate photo storage and a save-before-close check. JSON profile/time import and export remain compatible.
+- Reduced renderer memory and background work: selected-profile daily summaries, released acknowledged session records, no clock-driven Workspace redraws, deferred viewer/OCR/export loading, bounded PDF/OCR canvases and explicit temporary resource cleanup.
+- Weekly time summaries now use Sunday–Saturday calendar weeks, matching a Sunday–Thursday workweek.
+- Kept Codes & Strips beside the Workspace viewer and removed the duplicate Reading toggle. Reading now supports preferred installed fonts with a remembered My fonts list.
+
+- Research tools Notes tab/menu renamed Memos/Notes for consistent wording.
+
+- Multiple profiles through a round top-right avatar; time on the left and My details on the right with a larger centred portrait at the top, responsive stacking, profile switching and confirmed deletion.
+- Profile/coder/LAN names share the latest edit; active LAN presence can refresh names while historical coding retains its authors.
+- JSON exports carry the selected profile and time sessions. Imports merge matching stable session IDs, retain newer and independent work, add unfamiliar profiles, and keep last-worked timestamps; legacy project backups remain supported.
+
+- Profile & time: optional local details/photo, active app/coding clocks, five-minute idle/foreground pause, daily/weekly/monthly/yearly totals, project breakdowns, first/last coding times, CSV export.
+
+- Help begins with the table of contents; previous release notes are integrated into relevant guide sections. Repaired section links open and scroll to the target even after a filtered search.
+- Document formats include Markdown (.md), imported as coding text including markup.
+- HEIC/HEIF iPhone main still photos convert locally to PNG for image coding and all exports. BMP is accepted by the image picker and drag-and-drop. Import failures are reported alongside successful images.
+- Research tools moved to the Workspace Sources panel with direct links to Cases, Groups, Review, Notes and History; CSV dataset/codebook import is also available under Add source.
+- Research tools, ICR and Consensus have clearer practical instructions and worked examples; the current guide is USER_GUIDE.md, with previous versioned guides retained.
+
 ## 1.7.0 - 2026-10-08
 
 ### Added

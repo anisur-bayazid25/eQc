@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { collectMappedNodes, mapFormattedText, MappedNode, originalBytes, TextMapping } from '../lib/formattedMapping';
-import PdfDocumentView from './PdfDocumentView';
+import { deferPanel } from './DeferredPanel';
+const PdfDocumentView=deferPanel(()=>import('./PdfDocumentView'),'PDF');
 import { hashSourceText } from '../lib/sourceOriginal';
 
 export type { PdfRegionSelection } from './formattedCoding';

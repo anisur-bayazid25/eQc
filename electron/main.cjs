@@ -9,12 +9,21 @@ const isDev = process.env.NODE_ENV === 'development';
 
 const JSZip = require('jszip');
 
+// Hoisted to module scope (not lazily inside the builders below): the
+// release test suite extracts buildTableDocx/buildOutlineDocx/
+// buildImageGalleryDocx by source slice and evaluates them in a vm context
+// that provides the docx exports as bare globals but has no `require`.
+// An in-function require('docx') breaks that contract (and CI).
+const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, ImageRun } = require('docx');
+
 const { autoUpdater } = require('electron-updater');
 const https = require('https');
 const setupLan = require('./lan.cjs');
 const { buildCodeReportDocx, safeFilename } = require('./codeReport.cjs');
 const { captureOriginalSource, decodeOriginalSource } = require('./sourceOriginal.cjs');
 const projectHistory = require('./projectHistory.cjs');
+const { createProfileTimeStore } = require('./profileTimeStore.cjs');
+let profileTime;
 
 // Prevents a second checkForUpdates() call (e.g. the "Check for Updates"
 // button on the About tab) from starting a duplicate download while one
@@ -35,6 +44,7 @@ function initDb() {
   db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
+  profileTime=createProfileTimeStore(db);
   projectHistory.installHistory(db);
   db.exec(`
     CREATE TABLE IF NOT EXISTS projects (
@@ -129,6 +139,13 @@ function deleteProjectRow(id) {
 // Window
 // ---------------------------------------------------------------------
 let mainWindow;
+let profileCloseAllowed=false,profileClosePending=false,profileCloseTimer;
+async function finishProfileClose(result){
+  if(!profileClosePending)return;
+  clearTimeout(profileCloseTimer);profileClosePending=false;
+  if(!result.ok){const answer=await dialog.showMessageBox(mainWindow,{type:'warning',title:'Time records could not be saved',message:'eQc could not confirm that the latest profile/time records were saved.',detail:result.message||'The app did not respond to the save request.',buttons:['Close anyway','Keep open'],defaultId:1,cancelId:1});if(answer.response!==0)return;}
+  profileCloseAllowed=true;mainWindow.close();
+}
 
 function createWindow() {
   // Add this single line right here to hide the menu:
@@ -145,6 +162,14 @@ function createWindow() {
       contextIsolation: true, 
       nodeIntegration: false
     }
+  });
+  profileCloseAllowed=false;
+  mainWindow.on?.('close',event=>{
+    if(profileCloseAllowed)return;
+    event.preventDefault();if(profileClosePending)return;
+    profileClosePending=true;
+    mainWindow.webContents.send('profiles:prepareClose');
+    profileCloseTimer=setTimeout(()=>{void finishProfileClose({ok:false});},3000);
   });
   
   if (isDev) {
@@ -171,6 +196,18 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+
+// Profile histories are separate from project data and LAN sharing.
+ipcMain.handle('profiles:open',(_e,legacy)=>{
+  if(legacy && profileTime.needsMigration()){
+    const backup=path.join(app.getPath('userData'),'profile-time-before-sqlite.json');
+    if(!fs.existsSync(backup))fs.writeFileSync(backup,JSON.stringify(legacy),'utf8');
+  }
+  return profileTime.open(legacy);
+});
+for(const method of ['write','select','create','delete','backup','validate','import'])ipcMain.handle(`profiles:${method}`,(_e,payload)=>profileTime[method](payload));
+ipcMain.on('profiles:flush',(_e,payload)=>{try{profileTime.write(payload);}catch(error){console.error('Profile time could not be saved during close:',error);}});
+ipcMain.on('profiles:closeReady',(event,result)=>{if(event.sender===mainWindow?.webContents)void finishProfileClose(result||{ok:false});});
 
 function isNewerVersion(latest, current) {
   const a = latest.split('.').map(Number);
@@ -309,6 +346,8 @@ ipcMain.handle('projects:delete', (_e, id) => {
   return true;
 });
 
+ipcMain.handle('contact:openEmail', () => require('electron').shell.openExternal('mailto:anisur.rahman.bayazid@gmail.com'));
+
 ipcMain.handle('update:check', () => checkForUpdates(false));
 
 ipcMain.handle('update:downloadAndInstall', async () => {
@@ -420,55 +459,15 @@ ipcMain.handle('docs:openOriginal', async (_event, original) => {
   if (error) throw new Error(error);
 });
 
+const { imageExtensions, importImages } = require('./imageImport.cjs');
 ipcMain.handle('images:pickAndEncode', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
-    title: 'Add images',
-    properties: ['openFile', 'multiSelections'],
-    filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }]
+    title: 'Add images', properties: ['openFile', 'multiSelections'],
+    filters: [{ name: 'Images', extensions: imageExtensions }]
   });
-  if (canceled) return [];
-
-  const mimeByExt = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
-
-  return filePaths.map(fp => {
-    const buffer = fs.readFileSync(fp);
-    const ext = path.extname(fp).toLowerCase();
-    const mime = mimeByExt[ext] || 'application/octet-stream';
-    return {
-      name: path.basename(fp),
-      dataUrl: `data:${mime};base64,${buffer.toString('base64')}`,
-      sizeBytes: buffer.length
-    };
-  });
+  return canceled ? [] : importImages(filePaths);
 });
-
-ipcMain.handle('images:extractDropped', async (event, paths) => {
-  if (!paths || paths.length === 0) return [];
-
-  const mimeByExt = { 
-    '.jpg': 'image/jpeg', 
-    '.jpeg': 'image/jpeg', 
-    '.png': 'image/png', 
-    '.gif': 'image/gif', 
-    '.webp': 'image/webp' 
-  };
-
-  return paths.map(fp => {
-    try {
-      const buffer = fs.readFileSync(fp);
-      const ext = path.extname(fp).toLowerCase();
-      const mime = mimeByExt[ext] || 'application/octet-stream';
-      return {
-        name: path.basename(fp),
-        dataUrl: `data:${mime};base64,${buffer.toString('base64')}`,
-        sizeBytes: buffer.length
-      };
-    } catch (e) {
-      console.error(`Failed to read dropped image ${fp}:`, e);
-      return null;
-    }
-  }).filter(Boolean); // removes any that failed to read
-});
+ipcMain.handle('images:extractDropped', (_event, paths) => importImages(paths));
 
 ipcMain.handle('export:saveImage', async (_e, payload) => {
   const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
@@ -528,9 +527,9 @@ ipcMain.handle('qdpx:export', async (_e, { fileName, qdeXml, sourceFiles, source
 // IPC: export a document as a .docx file
 // ---------------------------------------------------------------------
 
-const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, ImageRun } = require('docx');
 
 function contentToParagraphs(content) {
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, ImageRun } = require('docx');
   const blocks = content.split(/\n{2,}/);
   return blocks.map(block => {
     const lines = block.split(/\n/);
@@ -544,6 +543,7 @@ function contentToParagraphs(content) {
 }
 
 ipcMain.handle('docs:exportDocx', async (_e, { name, content }) => {
+  const {Document,Packer}=require('docx');
   const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
     title: 'Export document as Word file',
     defaultPath: `${name.replace(/\.[^/.]+$/, '').replace(/[^\w\- ]/g, '_')}.docx`,
@@ -649,7 +649,7 @@ function buildImageGalleryDocx(title, items) {
 }
 
 ipcMain.handle('export:docx', async (_e, payload) => {
-  console.log('export:docx payload received:', JSON.stringify(payload).slice(0, 2000));
+  const {Packer}=require('docx');
   const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
     title: 'Export as Word file',
     defaultPath: `${safeFilename(payload.filenameBase)}.docx`,

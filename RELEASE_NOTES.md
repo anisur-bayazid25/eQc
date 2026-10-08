@@ -1,19 +1,14 @@
-# eQc 1.7.0
+# eQc 1.8.0
 
-This release adds richer document coding and everyday research tools while keeping controls grouped and the reading workspace compact.
+This release adds personal profiles and active time tracking, improves source and reader controls, and simplifies offline Help.
 
-- **Word and PDF views:** retained source formatting, tables and original PDF pages; mapped text selections, PDF region coding, fit/percentage zoom and stable source lines in Plain text. Existing projects can attach originals without replacing coding.
-- **Eight research capabilities:** cases/attributes and FGD passage links, document/code groups, saved combined queries, contextual excerpt review, labelled coding stripes, linked memos and annotations, coding refinement, and local activity/recovery checkpoints.
-- **Codes & Strips:** a reader-toolbar button beside Portrait and Lines, narrow vertical code names with overlapping lanes, and wider coloured bars on hover/focus.
-- **Memo tools and simpler Review:** select/edit/copy/export standalone and attached memos, export selected memos, confirmed consolidation with text/link preservation, basic filters first and advanced combinations in a disclosure. Refinement instructions explain recoding, splitting and passage adjustment.
-- **Project import:** the existing Import action accepts JSON/QDPX projects, QDC codebooks and extracted QDE XML with matching adjacent sources.
-- **Project export:** Workspace Project tools offers JSON or QDPX, with original documents or smaller plain-text document data. Both retain coding, notes and image coding.
-- **Word reports:** table-free document → code → numbered excerpt layout, image crops, line ranges, source names and related memos. Filenames use Project name_Code name; coverage percentages are omitted.
-- **REFI-QDA compatibility:** standard namespace/schema, nested codes, valid source paths, coder references and Unicode positions; QDC import and original DOCX/PDF retention. Validated against the REFI-QDA schema and supplied ATLAS.ti exports; direct NVivo import still needs confirmation.
-- **Offline Help:** searchable complete user guide and application documentation, section dropdowns and full reading. Navigation is Workspace, Codebook, Auto-Code, Analysis, Code Map, Help, About. About remains one wide panel.
-- **ICR and Consensus:** scoped text/image coding labels and explicit assignment-versus-passage totals explain why the counts differ.
-- **Reliability:** prevent repeated Code Map saves and preserve coding/research links through edits and merges. HTML reports include all analysis, including ICR and consensus.
+- **Profiles and time:** choose among local profiles, add an optional photo and details, and review daily, weekly, monthly and yearly app/coding time by project. Tracking pauses after five idle minutes. Profile, coder and LAN names stay aligned. JSON backups preserve the selected profile and merge recorded time without duplicate totals.
+- **Source support:** import Markdown documents and HEIC/HEIF photos alongside existing formats. Original Word/PDF viewing and coding remain available.
+- **Reading:** choose preferred installed fonts, enter a font size directly, and use vertical Codes & Strips beside passages. Menus fit consistently; Word/PDF zoom controls no longer cover the document.
+- **Memos and Help:** find Research tools in Workspace, manage Memos/Notes, and use searchable offline instructions focused on what each function does.
+- **Data integrity:** preserve photos when deleting folders, keep summaries and definitions on the correct code during CSV imports, recover legacy QDPX memos, discard broken research links, remove deleted-document framework entries, and handle coder-name whitespace consistently. Queries with missing imported filters pause for review. Code Map selections and coding inspectors reset when changing projects.
+- **Performance:** smaller background updates, more efficient profile/time storage, and reduced temporary memory use during document viewing, OCR and image exports.
 
-Word pagination can differ from Microsoft Word. PDF text coding maps only matched text; unmatched passages use the Plain text fallback. PDF regions travel as image page snapshots. QDPX carries advanced eQc records as notes/appendix rather than guaranteeing native cases/groups/queries in other applications. Local recovery history remains on this computer; use regular project backups.
+Existing project files remain supported. Use JSON exports for complete eQc project backups; choose originals or smaller plain-text document data as needed.
 
 Acknowledgments: the CARE project and BRAC James P Grant School of Public Health, BRAC University.

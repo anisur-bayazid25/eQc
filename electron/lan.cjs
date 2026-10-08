@@ -283,6 +283,10 @@ function stopHost() {
         }
       } else if (msg.type === 'ACTION_DISPATCH' && authed && state.host) {
         acceptDispatch({ coderName: ws.coderName, project: msg.project, senderWs: ws, notifyHostRenderer: true });
+      } else if (msg.type === 'SET_CODER_NAME' && authed && state.host) {
+        const name=String(msg.name || 'Coder').trim().slice(0,200) || 'Coder';
+        ws.coderName=name;const info=state.host.clients.get(ws);if(info) info.coderName=name;
+        broadcastPresence();
       } else if (msg.type === 'SET_ACTIVE_DOC' && authed && state.host) {
         // Presence: a client tells the host which document/image it is
         // currently viewing. The host stores it and re-broadcasts PRESENCE
@@ -549,6 +553,7 @@ function stopHost() {
           }
 
           if (msg.type === 'PRESENCE') {
+            if(msg.payload?.myName)client.coderName=msg.payload.myName;
             pushToRenderer('lan:sessionState', msg.payload);
           }
         });
@@ -664,6 +669,15 @@ function stopHost() {
     return { ok: false, error: 'Not connected to a LAN session' };
   }
 
+  ipcMain.handle('lan:updateName', (_e, raw) => {
+    const name=String(raw || 'Coder').trim().slice(0,200) || 'Coder';
+    if(state.role==='host' && state.host) { state.host.hostName=name;broadcastPresence(); }
+    else if(state.role==='client' && state.client) {
+      state.client.coderName=name;
+      if(state.client.ws?.readyState===1)sendMsg(state.client.ws,{type:'SET_CODER_NAME',name});
+    }
+    return {ok:true};
+  });
   ipcMain.handle('lan:startHost', async (_e, config) => {
     try {
       return await startHost(config || {});

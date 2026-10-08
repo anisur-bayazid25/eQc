@@ -1,4 +1,3 @@
-const { Document, Paragraph, TextRun, ImageRun, HeadingLevel, Footer, PageNumber } = require('docx');
 
 function safeFilename(value) {
   let name = String(value || 'Export').replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim();
@@ -7,6 +6,7 @@ function safeFilename(value) {
 }
 
 function buildCodeReportDocx(report) {
+  const { Document, Paragraph, TextRun, ImageRun, HeadingLevel, Footer, PageNumber } = require('docx');
   const children = [];
   const heading = (text, level) => children.push(new Paragraph({ text, heading: level, keepNext: true }));
   const metadata = (text, keepNext = true) => children.push(new Paragraph({ children: [new TextRun({ text, size: 19, color: '526475' })], spacing: { after: 120 }, keepNext }));

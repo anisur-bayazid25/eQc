@@ -19,10 +19,12 @@ export async function cropRegionToPng(
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(sw));
   canvas.height = Math.max(1, Math.round(sh));
+  try {
   const ctx = canvas.getContext('2d')!;
   ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
   const out = canvas.toDataURL('image/png');
   return { base64: out.split(',')[1], width: canvas.width, height: canvas.height };
+  } finally {canvas.width=0;canvas.height=0;img.onload=null;img.onerror=null;img.src='';}
 }
 
 export async function renderCodedImagePng(
@@ -33,6 +35,7 @@ export async function renderCodedImagePng(
   const canvas = document.createElement('canvas');
   canvas.width = img.naturalWidth;
   canvas.height = img.naturalHeight;
+  try {
   const ctx = canvas.getContext('2d')!;
   ctx.drawImage(img, 0, 0);
 
@@ -55,4 +58,5 @@ export async function renderCodedImagePng(
     ctx.fillText(r.label, x + padding, labelY + 14);
   }
   return canvas.toDataURL('image/png');
+  } finally {canvas.width=0;canvas.height=0;img.onload=null;img.onerror=null;img.src='';}
 }

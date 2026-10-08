@@ -270,9 +270,10 @@ function ImageRow(props: Props & { image: ImageSource; depth: number }) {
 }
 
 export default function DocTree(props: Props) {
-  const rootFolders = props.folders.filter(f => f.parentId === null);
-  const rootDocs = sortDocs(props.docs.filter(d => d.folderId === null), props.sortBy, props.codedCount);
-  const rootImages = (props.images || []).filter(img => !img.folderId);
+  const folderIds = new Set(props.folders.map(f => f.id));
+  const rootFolders = props.folders.filter(f => !f.parentId || !folderIds.has(f.parentId));
+  const rootDocs = sortDocs(props.docs.filter(d => !d.folderId || !folderIds.has(d.folderId)), props.sortBy, props.codedCount);
+  const rootImages = (props.images || []).filter(img => !img.folderId || !folderIds.has(img.folderId));
 
   return (
     <div 

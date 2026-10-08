@@ -1,8 +1,14 @@
+import ReaderFontSize from './components/ReaderFontSize';
+import { deferPanel } from './components/DeferredPanel';
+import ReaderFontPicker from './components/ReaderFontPicker';
+const ProfilePanel=deferPanel(()=>import('./components/ProfilePanel'),'profile');
+import { useTimeTracking } from './lib/useTimeTracking';
+import type { LocalProfile } from './lib/timeTracking';
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import {
   Project, ProjectSummary, Folder, SourceDoc, Code, CodedSegment, FrameworkCell, CodeRelationNote,
   ID, uid, newProject, colorForNewCode, childCodes, descendantCodeIds, codeAncestorPath,
-  CodedRegion, UNATTRIBUTED_CODER,
+  CodedRegion, UNATTRIBUTED_CODER, normalizeCoderName,
   MapEdgeStyle, MapAnnotation, ImageSource
 } from './domain';
 import CodeTree from './components/CodeTree';
@@ -11,12 +17,16 @@ import ToolMenu from './components/ToolMenu';
 import CodeSearch from './components/CodeSearch';
 import DocTree, { SortKey } from './components/DocTree';
 import DocEditor from './components/DocEditor';
-import ResearchWorkspace from './components/ResearchWorkspace';
+const ResearchWorkspace=deferPanel(()=>import('./components/ResearchWorkspace'),'research tools');
 import CodingMargin from './components/CodingMargin';
-import HelpPanel from './components/HelpPanel';
-import ProjectExportDialog from './components/ProjectExportDialog';
+const HelpPanel=deferPanel(()=>import('./components/HelpPanel'),'help');
+const ProjectExportDialog=deferPanel(()=>import('./components/ProjectExportDialog'),'export options');
+import { GrowingCodeTree, WorkspaceCritter, CaptureBall, PikachuCourier, PatienceSnorlax } from './components/EasterEggs';
+import { workspaceSurprises, WorkspaceSurprise } from './lib/easterEggs';
+const ZoroSlash=deferPanel(()=>import('./components/ZoroSlash'),'animation');
 import { cleanResearchLinks, resizeExcerpt, relocateResearchAfterEdit } from './lib/research';
-import FormattedDocView, { PdfRegionSelection } from './components/FormattedDocView';
+import type { PdfRegionSelection } from './components/FormattedDocView';
+const FormattedDocView=deferPanel(()=>import('./components/FormattedDocView'),'document');
 import { getSelectionOffsets, SelectionOffsets } from './lib/textOffsets';
 import { relocateSegmentsAfterEdit } from './lib/relocateSegments';
 import { importCsvDataset } from './lib/csvImport';
@@ -29,15 +39,14 @@ import { codingFrequency, codeDocumentMatrix, codeCooccurrenceMatrix } from './l
 import { collectIcrCoders, scopedCoderCounts, computePairwiseIcr, computeFleissIcr, computeBinaryAlpha, computeCuAlpha, buildCodingUnits, formatIcrValue, kappaInterpretation } from './lib/icr';
 import { buildReportHtml, ReportExtras } from './lib/report';
 import { AUTO_CODE_LANGUAGES, CaptureBoundary, AutoCodeMatchMode, runAutoCode } from './lib/autoCode';
-import { extractBengaliTextFromPDF } from './lib/pdfExtractor';
 import { buildScopedExport, ExportScope, SCOPE_LABELS } from './lib/exportBuilders';
 import { buildCodeReport, codeExportFilename, CodeReport } from './lib/codeReport';
 import { sourceLineRange } from './lib/sourceLines';
 import { retainOriginalFile, hashSourceText } from './lib/sourceOriginal';
 import pkg from '../package.json';
-import ImageEditor from './components/ImageEditor';
+const ImageEditor=deferPanel(()=>import('./components/ImageEditor'),'image viewer');
 import { cropRegionToPng, renderCodedImagePng } from './lib/imageCrop';
-import CodeMap from './components/CodeMap';
+const CodeMap=deferPanel(()=>import('./components/CodeMap'),'code map');
 import DocumentPortrait from './components/DocumentPortrait';
 import LanModal from './components/LanModal';
 import type { LanHostInfo, LanSessionState, LanSyncProgress, LanRemoteProject, LanRole, LanCoder } from './global';
@@ -125,7 +134,7 @@ function DebouncedCodeText({ value, onCommit, multiline }: { value: string; onCo
   return React.createElement(el, commonProps);
 }
 
-type Tab = 'workspace' | 'codebook' | 'codemap' | 'autocode' | 'analysis' | 'help' | 'about';
+type Tab = 'workspace' | 'codebook' | 'codemap' | 'autocode' | 'analysis' | 'help' | 'about' | 'profile';
 
 // Coder filter predicate shared by the Workspace and Codebook lists. A
 // segment matches when it is explicitly stamped with the chosen coder, or —
@@ -133,7 +142,7 @@ type Tab = 'workspace' | 'codebook' | 'codemap' | 'autocode' | 'analysis' | 'hel
 // Untagged items therefore show up under BOTH "Everyone" and "Unattributed",
 // never under a named coder, exactly matching what the UI displays.
 function matchesCoder(coder: string | undefined, filter: string): boolean {
-  return filter === 'all' || coder === filter || (filter === UNATTRIBUTED_CODER && !coder);
+  return filter === 'all' || normalizeCoderName(coder) === normalizeCoderName(filter);
 }
 
 function describeLanDiff(prev: Project, next: Project): string {
@@ -316,6 +325,57 @@ export default function App() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [project, setProject] = useState<Project | null>(null);
   const [tab, setTab] = useState<Tab>('workspace');
+  const timeTracking = useTimeTracking(project,tab==='profile');
+  const workspaceAnimationsRef=useRef(timeTracking.profile.workspaceAnimations===true);
+  workspaceAnimationsRef.current=timeTracking.profile.workspaceAnimations===true;
+  const tabRef = useRef(tab); tabRef.current = tab;
+  const [workspaceEggs, setWorkspaceEggs] = useState<Array<{kind:WorkspaceSurprise;id:number}>>([]);
+  const eggSequence = useRef(0);
+  const [treeOpen, setTreeOpen] = useState(false), [captureOpen, setCaptureOpen] = useState(false);
+  const headerClicks = useRef({count:0,last:0}), aboutClicks = useRef({count:0,last:0});
+  const [mailCourier, setMailCourier] = useState<{x:number;y:number}|null>(null);
+  const mailBusy = useRef(false);
+  const [zoroSlash,setZoroSlash]=useState<{id:number;name:string;kind:'file'|'code'|'project'}|null>(null);
+  const zoroSequence=useRef(0);
+  function sliceDeleted(name:string,kind:'file'|'code'|'project') { if(workspaceAnimationsRef.current)setZoroSlash({id:++zoroSequence.current,name,kind}); }
+  useEffect(()=>{if(timeTracking.profile.workspaceAnimations)void import('./components/ZoroSlash');setWorkspaceEggs([]);setZoroSlash(null);},[timeTracking.profileId,timeTracking.profile.workspaceAnimations]);
+  const [snorlaxOrigin, setSnorlaxOrigin] = useState<{x:number;y:number}|null>(null);
+  const rapidClicks = useRef<{button:Element|null;count:number;start:number;cooldownUntil:number}>({button:null,count:0,start:0,cooldownUntil:0});
+  useEffect(() => {
+    const listen = (event: MouseEvent) => {
+      if (!(event.target instanceof Element) || event.detail === 0) return;
+      const button = event.target.closest('button, [role="button"]');
+      if (!button || button.closest('.patience-snorlax, .brand-egg-button, .milestone-overlay, .milestone-collection') || button.hasAttribute('disabled') || button.getAttribute('aria-disabled') === 'true') return;
+      const now = Date.now(), clicks = rapidClicks.current;
+      if (now < clicks.cooldownUntil) return;
+      if (button !== clicks.button || now - clicks.start > 2000) { clicks.button=button; clicks.count=0; clicks.start=now; }
+      clicks.count++;
+      if (clicks.count === 5) { setSnorlaxOrigin({x:event.clientX,y:event.clientY}); clicks.count=0; clicks.cooldownUntil=now+20000; }
+    };
+    document.addEventListener('click',listen,true);
+    return () => document.removeEventListener('click',listen,true);
+  }, []);
+  useEffect(() => { setWorkspaceEggs([]); headerClicks.current.count = 0; aboutClicks.current.count = 0; setTreeOpen(false); }, [tab, project?.id]);
+  function logoClick(which:'header'|'about') {
+    const record = which === 'header' ? headerClicks.current : aboutClicks.current, now=Date.now();
+    record.count = now - record.last > 5000 ? 1 : record.count + 1; record.last = now;
+    if (record.count >= (which === 'header' ? 5 : 3)) {
+      record.count = 0;
+      if (which === 'header') setCaptureOpen(true); else setTreeOpen(true);
+    }
+  }
+  function startContactEmail(event: React.MouseEvent<HTMLAnchorElement>) {
+    event.preventDefault(); if (mailBusy.current) return;
+    mailBusy.current = true;
+    const box = event.currentTarget.getBoundingClientRect();
+    setMailCourier({x:box.left,y:box.top});
+  }
+  function finishContactEmail() {
+    if (!mailBusy.current) return;
+    mailBusy.current = false; setMailCourier(null);
+    void window.qv.openContactEmail().catch(() => showToast('Could not open your mail app. Contact: anisur.rahman.bayazid@gmail.com'));
+  }
+
   const [toast, setToast] = useState<string | null>(null);
   const [readerTheme, setReaderTheme] = useState<ReaderTheme>(() => {
     return (localStorage.getItem('qda-reader-theme') as ReaderTheme) || 'paperwhite';
@@ -509,14 +569,7 @@ useEffect(() => {
   const [lanHosts, setLanHosts] = useState<LanHostInfo[]>([]);
   const [lanSync, setLanSync] = useState<LanSyncProgress | null>(null);
   const [lanJoining, setLanJoining] = useState(false);
-  const [lanMyName, setLanMyName] = useState(() => localStorage.getItem('qda-lan-name') || 'Coder');
-  // The LAN identity defaults to this project's Coder Name (set in Project
-  // Settings) the moment a project loads, so hosted/joined sessions display
-  // it by default. It stays editable from the LAN dialog for that session.
-  useEffect(() => {
-    if (project?.id) setLanMyName(project.coderName || 'Coder');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project?.id]);
+  const [lanMyName, setLanMyName] = useState(() => timeTracking.profile.name || localStorage.getItem('qda-lan-name') || '');
   // Offline-edit conflict waiting on a user decision after joining a host that
   // serves the same project we edited while disconnected. The host snapshot is
   // NOT applied until one of the three resolutions runs.
@@ -865,6 +918,13 @@ useEffect(() => {
     // so they never advance the marker.
     const stamped: Project = { ...cleanResearchLinks(next), updatedAt: Date.now() };
     const previous = projectRef.current;
+    if (tabRef.current === 'workspace' && workspaceAnimationsRef.current) {
+      const surprises = workspaceSurprises(previous, stamped);
+      if (surprises.length) {
+        const fresh = surprises.map(kind => ({ kind, id: ++eggSequence.current }));
+        setWorkspaceEggs(current => [...current.filter(egg => !surprises.includes(egg.kind)), ...fresh]);
+      }
+    }
     if(previous && previous.id === stamped.id) {
       setPast(p => [...p,previous].slice(-HISTORY_LIMIT));
       setFuture([]);
@@ -873,6 +933,43 @@ useEffect(() => {
     setProject(stamped);
     saveToDisk(stamped).catch(() => {});
   }, [saveToDisk]);
+
+  const localProfileRef=useRef(timeTracking.profile);localProfileRef.current=timeTracking.profile;
+  function saveUnifiedProfile(next: LocalProfile) {
+    const changed=next.name!==localProfileRef.current.name;
+    const updated=changed ? {...next,identityUpdatedAt:Date.now()} : next;
+    localProfileRef.current=updated;
+    timeTracking.setProfile(updated);
+    if(changed) { setLanMyName(next.name);setProjectCoderDraft(next.name);localStorage.setItem('qda-lan-name',next.name); }
+  }
+  function setIdentityName(name:string) { saveUnifiedProfile({...localProfileRef.current,name}); }
+  // Bootstrap legacy identity once; imported or remote project metadata never
+  // takes precedence over a local name that the user has explicitly updated.
+  useEffect(()=>{
+    if(!timeTracking.ready)return;
+    const profile=localProfileRef.current;
+    if(!profile.identityUpdatedAt && !profile.name) {
+      const legacy=project?.coderName || localStorage.getItem('qda-lan-name');
+      if(legacy && legacy!=='Coder')setIdentityName(legacy);
+    }
+  },[project?.id,timeTracking.ready]);
+  useEffect(()=>{
+    if(!timeTracking.ready)return;
+    const name=timeTracking.profile.name;
+    setLanMyName(name);setProjectCoderDraft(name);
+    localStorage.setItem('qda-lan-name',name);
+    const timer=setTimeout(()=>{
+      const current=projectRef.current, normalized=name.trim();
+      // A guest's shared project belongs to the host; use the local identity
+      // for future coding without overwriting the host's project metadata.
+      if(current && !isLanSharedProjectLocked && (current.coderName||'')!==normalized)
+        persist({...current,coderName:normalized || undefined});
+      if(lanSessionRef.current && window.qv.lan.updateName)
+        window.qv.lan.updateName(normalized || 'Coder').catch(()=>showToast('Your name was saved locally. Reconnect LAN to refresh the session name.'));
+    },500);
+    return()=>clearTimeout(timer);
+  },[timeTracking.profile.name,project?.id,lanSession?.role,timeTracking.ready]);
+
 
   function manualSave() {
     if (!project) return;
@@ -957,6 +1054,15 @@ useEffect(() => {
   const [pendingRegion, setPendingRegion] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   useEffect(() => { setPendingPdfRegion(null); setPendingSelection(null); setPendingRegion(null); }, [selectedDocId, selectedImageId, project?.id, documentView]);
   const [regionPopup, setRegionPopup] = useState<{ regions: CodedRegion[]; x: number; y: number } | null>(null);
+  // All project replacements (switch, import, LAN, new/delete project) clear inspectors.
+  useEffect(() => {
+    setSegmentPopup(null);
+    setRegionPopup(null);
+    setEditingNoteFor(null);
+    setNoteDraft('');
+    setEditingRegionNoteFor(null);
+    setRegionNoteDraft('');
+  }, [project?.id]);
   const [imageZoom, setImageZoom] = useState(1);
 
   const selectedImage = useMemo(
@@ -972,7 +1078,7 @@ useEffect(() => {
     if (!project) return;
     const picked = await window.qv.pickAndEncodeImages();
     if (!picked || picked.length === 0) return;
-    const newImages: ImageSource[] = picked.map((p: any) => ({
+    const newImages: ImageSource[] = picked.filter((p: any) => p.ok !== false).map((p: any) => ({
       id: uid('img'),
       folderId,
       name: p.name,
@@ -980,8 +1086,9 @@ useEffect(() => {
       addedAt: Date.now(),
       sizeBytes: p.sizeBytes
     }));
-    persist({ ...project, images: [...(project.images || []), ...newImages] });
-    showToast(`Added ${newImages.length} image(s)`);
+    if (newImages.length) persist({ ...project, images: [...(project.images || []), ...newImages] });
+    const failures = picked.filter((p: any) => p.ok === false).map((p: any) => `${p.name}: ${p.error}`);
+    showToast(failures.length ? `Added ${newImages.length} image(s). Some files could not be imported: ${failures.join('; ')}` : `Added ${newImages.length} image(s)`);
   }
 
 async function handleExportStarredImages() {
@@ -1032,6 +1139,7 @@ async function handleExportCodedImage() {
       ...(activeCoderName ? { coder: activeCoderName } : {})
     };
     persist({ ...project, codedRegions: [...(project.codedRegions || []), region] });
+    timeTracking.markCoding();
     setPendingRegion(null);
     showToast(`Applied "${code.name}" to region`);
   }
@@ -1196,7 +1304,7 @@ function openProjectSettings() {
     if (!project) return;
     const trimmed = projectNameDraft.trim();
     const coderTrimmed = projectCoderDraft.trim();
-    if (trimmed) persist({ ...project, name: trimmed, coderName: coderTrimmed || undefined });
+    if (trimmed) { setIdentityName(coderTrimmed); persist({ ...project, name: trimmed, coderName: coderTrimmed || undefined }); }
     setProjectModalOpen(false);
   }
 
@@ -1211,8 +1319,8 @@ function openProjectSettings() {
     if (!name) return;
     persist({
       ...project,
-      codedSegments: project.codedSegments.map(s => (s.coder ? s : { ...s, coder: name })),
-      codedRegions: (project.codedRegions || []).map(r => (r.coder ? r : { ...r, coder: name }))
+      codedSegments: project.codedSegments.map(s => (normalizeCoderName(s.coder) !== UNATTRIBUTED_CODER ? s : { ...s, coder: name })),
+      codedRegions: (project.codedRegions || []).map(r => (normalizeCoderName(r.coder) !== UNATTRIBUTED_CODER ? r : { ...r, coder: name }))
     });
     showToast(`Assigned ${unattributedCount} Unattributed item(s) to ${name}`);
   }
@@ -1233,16 +1341,16 @@ function openProjectSettings() {
       showToast('Name did not match, cancelled');
       return;
     }
-    const segCount = (project.codedSegments ?? []).filter(s => s.coder === targetCoder).length;
-    const regCount = (project.codedRegions ?? []).filter(r => r.coder === targetCoder).length;
+    const segCount = (project.codedSegments ?? []).filter(s => normalizeCoderName(s.coder) === targetCoder).length;
+    const regCount = (project.codedRegions ?? []).filter(r => normalizeCoderName(r.coder) === targetCoder).length;
     if (segCount === 0 && regCount === 0) {
       showToast(`No items found for coder: ${targetCoder}`);
       return;
     }
     const next: Project = {
       ...project,
-      codedSegments: (project.codedSegments ?? []).filter(s => s.coder !== targetCoder),
-      codedRegions: (project.codedRegions ?? []).filter(r => r.coder !== targetCoder)
+      codedSegments: (project.codedSegments ?? []).filter(s => normalizeCoderName(s.coder) !== targetCoder),
+      codedRegions: (project.codedRegions ?? []).filter(r => normalizeCoderName(r.coder) !== targetCoder)
     };
     // persist stamps updatedAt: Date.now() (so LAN offline-edit tracking
     // recognizes this deletion as a real local change) and writes the
@@ -1303,6 +1411,7 @@ function openProjectSettings() {
     if (!project) return;
     if (isLanSharedProjectLocked) { showToast('The session-shared project can’t be deleted — switch to a different project to manage it'); setDeleteStep(0); setProjectModalOpen(false); return; }
     await window.qv.deleteProject(project.id);
+    sliceDeleted(project.name,'project');
     setProjectModalOpen(false);
     setDeleteStep(0);
 
@@ -1329,6 +1438,7 @@ function openProjectSettings() {
       if (!data) return;
       let imported: Project;
       let message = 'Project imported.';
+      let profileToImport:unknown;
       let omissions = '';
       if ('format' in data && data.format === 'refi') {
         imported = newProject(data.payload.fileName.replace(/\.(qdpx|qdc|qde)$/i, ''));
@@ -1337,10 +1447,13 @@ function openProjectSettings() {
         message = `Imported ${summary.codesCreated} codes, ${summary.docsCreated} documents and ${summary.imagesCreated} images.`;
         if (summary.sourcesSkipped.length || summary.segmentsSkipped) omissions = ['Some items could not be imported:', ...summary.sourcesSkipped, summary.segmentsSkipped ? summary.segmentsSkipped + ' coding entries skipped.' : ''].filter(Boolean).join('\n');
       } else {
-        const backup = data as Project;
-        imported = { ...backup, id: uid('proj'), name: `${backup.name} (imported)` };
+        const backup = data as Project & { researchProfile?: unknown };
+        const { researchProfile, ...researchProject } = backup;
+        if (researchProfile) { await timeTracking.validateProfileImport(researchProfile);profileToImport=researchProfile; }
+        imported = { ...researchProject, id: uid('proj'), name: `${backup.name} (imported)` };
       }
       await saveToDisk(imported);
+      if(profileToImport) {const added=await timeTracking.importProfile(profileToImport);message += added ? ' A new profile was added.' : ' Profile time records were merged without duplicate sessions.';}
       projectRef.current = imported;
       setPast([]); setFuture([]); setSelectedDocId(null); setSelectedImageId(null);
       setProject(imported); setTab('workspace');
@@ -1414,12 +1527,12 @@ function openProjectSettings() {
   function deleteFolder(folder: Folder) {
     if (!project) return;
     setConfirmDialog({
-      message: `Delete folder "${folder.name}"? Documents inside will move to the root level.`,
+      message: `Delete folder "${folder.name}"? Documents and images inside will move to the root level.`,
       confirmText: 'Delete',
       onConfirm: () => {
-        const folders = project.folders.filter(f => f.id !== folder.id);
+        const folders = project.folders.filter(f => f.id !== folder.id).map(f => f.parentId === folder.id ? { ...f, parentId: null } : f);
         const docs = project.docs.map(d => (d.folderId === folder.id ? { ...d, folderId: null } : d));
-        const images = project.images?.map(i => i.pdfPage && i.folderId === folder.id ? { ...i, folderId: null } : i);
+        const images = project.images?.map(i => i.folderId === folder.id ? { ...i, folderId: null } : i);
         persist({ ...project, folders, docs, images });
       },
     });
@@ -1493,8 +1606,9 @@ async function importDroppedImages(paths: string[], folderId: ID | null) {
   const images = await window.qv.extractDroppedImages(paths); 
   if (images.length === 0) return;
   
-  // Create the image objects exactly like you do in your normal 'addImages' function
-  const newImages = images.map(img => ({
+  const failures = images.filter(img => img.ok === false);
+  if (failures.length) showToast('Some images could not be imported: ' + failures.map(img => `${img.name}: ${img.error}`).join('; '));
+  const newImages = images.filter(img => img.ok !== false).map(img => ({
     id: uid('img'), // Assuming you use uid() for IDs like in documents
     folderId,
     name: img.name,
@@ -1530,6 +1644,7 @@ async function addScannedPdf(folderId: ID | null) {
         
         try {
           // Send progress messages directly to your UI's showToast banner
+          const { extractBengaliTextFromPDF }=await import('./lib/pdfExtractor');
           const content = await extractBengaliTextFromPDF(f, (message) => {
             // Converts "Reading page 1 of 11..." to "Scanning page 1 of 11..."
             const statusMsg = message.replace(/^Reading/i, 'Scanning');
@@ -1581,6 +1696,7 @@ async function addScannedPdf(folderId: ID | null) {
         const pageIds = new Set(project.images?.filter(i => i.pdfPage?.docId === doc.id).map(i => i.id));
         persist({ ...project, docs, codedSegments, images: project.images?.filter(i => !pageIds.has(i.id)), codedRegions: project.codedRegions?.filter(r => !pageIds.has(r.imageId)) });
         if (selectedDocId === doc.id) setSelectedDocId(null);
+        sliceDeleted(doc.name,'file');
       },
     });
   }
@@ -1595,6 +1711,7 @@ function executeDeleteImage() {
   if (!project || !pendingDeleteImageId) return;
   
   const id = pendingDeleteImageId;
+  const deletedImage = project.images?.find(image => image.id === id);
   const newImages = project.images?.filter(img => img.id !== id) ?? [];
   const newRegions = project.codedRegions?.filter(r => r.imageId !== id) ?? [];
   
@@ -1610,6 +1727,7 @@ function executeDeleteImage() {
   
   // Close the modal
   setPendingDeleteImageId(null);
+  if (deletedImage) sliceDeleted(deletedImage.name,'file');
 }
 
 function renameImage(id: ID, newName: string) {
@@ -1843,6 +1961,7 @@ async function handleExportDocx() {
           hiddenMapCodeIds
         });
         if (codebookSelectedCodeId && ids.has(codebookSelectedCodeId)) setCodebookSelectedCodeId(null);
+        sliceDeleted(code.name,'code');
       },
     });
   }
@@ -1976,6 +2095,7 @@ function moveDoc(docId: ID, targetFolderId: ID | null) {
       ...(activeCoderName ? { coder: activeCoderName } : {})
     };
     persist({ ...project, codedSegments: [...project.codedSegments, segment] });
+    timeTracking.markCoding();
     setPendingSelection(null);
     window.getSelection()?.removeAllRanges();
     showToast(`Applied "${code.name}"`);
@@ -1992,6 +2112,7 @@ function moveDoc(docId: ID, targetFolderId: ID | null) {
     }
     const region: CodedRegion = { id: uid('region'), imageId: image.id, codeId: code.id, x: selection.x, y: selection.y, width: selection.width, height: selection.height, createdAt: Date.now(), ...(activeCoderName ? { coder: activeCoderName } : {}) };
     persist({ ...project, images, codedRegions: [...(project.codedRegions || []), region] });
+    timeTracking.markCoding();
     setPendingPdfRegion(null);
     showToast(`Applied "${code.name}" to PDF page ${selection.page} region`);
   }
@@ -2223,6 +2344,7 @@ function handleRunAutoCode() {
       }
     }
     persist({ ...project, codedSegments: [...project.codedSegments, ...newSegments] });
+    if (newSegments.length) timeTracking.markCoding();
     const msg = `Applied to ${newSegments.length} new segment(s) across ${docsMatched} document(s).`;
     setAutoCodeResultText(msg);
     showToast(msg);
@@ -2455,8 +2577,8 @@ function openDocxCommentImport() {
   const coderOptions = useMemo(() => {
     const names = new Set<string>();
     let untagged = false;
-    for (const s of project?.codedSegments ?? []) { if (s.coder) names.add(s.coder); else untagged = true; }
-    for (const r of project?.codedRegions ?? []) { if (r.coder) names.add(r.coder); else untagged = true; }
+    for (const s of project?.codedSegments ?? []) { const name = normalizeCoderName(s.coder); if (name !== UNATTRIBUTED_CODER) names.add(name); else untagged = true; }
+    for (const r of project?.codedRegions ?? []) { const name = normalizeCoderName(r.coder); if (name !== UNATTRIBUTED_CODER) names.add(name); else untagged = true; }
     const out: string[] = ['all', ...Array.from(names).sort((a, b) => a.localeCompare(b))];
     if (untagged) out.push(UNATTRIBUTED_CODER);
     return out;
@@ -2465,7 +2587,7 @@ function openDocxCommentImport() {
   // How many coded items have no coder stamp yet — powers the "Unattributed"
   // filter group and the one-click claim button in Project Settings.
   const unattributedCount = useMemo(
-    () => (project?.codedSegments ?? []).filter(s => !s.coder).length + (project?.codedRegions ?? []).filter(r => !r.coder).length,
+    () => (project?.codedSegments ?? []).filter(s => normalizeCoderName(s.coder) === UNATTRIBUTED_CODER).length + (project?.codedRegions ?? []).filter(r => normalizeCoderName(r.coder) === UNATTRIBUTED_CODER).length,
     [project?.codedSegments, project?.codedRegions]
   );
 
@@ -2474,15 +2596,15 @@ function openDocxCommentImport() {
   // untagged legacy data must never be bulk-deletable via a name match.
   const activeCoders = useMemo(() => {
     const names = new Set<string>();
-    for (const s of project?.codedSegments ?? []) { if (s.coder && s.coder !== UNATTRIBUTED_CODER) names.add(s.coder); }
-    for (const r of project?.codedRegions ?? []) { if (r.coder && r.coder !== UNATTRIBUTED_CODER) names.add(r.coder); }
+    for (const s of project?.codedSegments ?? []) { const name = normalizeCoderName(s.coder); if (name !== UNATTRIBUTED_CODER) names.add(name); }
+    for (const r of project?.codedRegions ?? []) { const name = normalizeCoderName(r.coder); if (name !== UNATTRIBUTED_CODER) names.add(name); }
     return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [project?.codedSegments, project?.codedRegions]);
 
   // The name stamped onto newly created coded segments/regions: the LAN
   // session identity when collaborating live, otherwise the project's own
   // coder identity (if set). Unknown attribution stays unset.
-  const activeCoderName = lanRoleRef.current ? lanMyName : (project?.coderName || undefined);
+  const activeCoderName = timeTracking.profile.name.trim() || undefined;
 
   const codebookExcerpts = useMemo(
     () => (codebookCode
@@ -2523,13 +2645,13 @@ function openDocxCommentImport() {
     }
   }, [project?.codes, sortOrder, codeCodedCounts]);
 
-  if (!project || !minLoadingElapsed) {
+  if (!project || !minLoadingElapsed || !timeTracking.ready) {
     return (
       <div className="loading-screen">
         <img src="./eqc-logo.png" alt="eQc" className="loading-logo" />
         <div className="loading-title">eQc — Easy Qual Coding</div>
         <div className="loading-spinner" />
-        <div className="loading-subtitle">Loading your projects…</div>
+        <div className="loading-subtitle">{timeTracking.error||'Loading your projects…'}</div>{timeTracking.error&&<button onClick={timeTracking.retry}>Retry profile storage</button>}
       </div>
     );
   }
@@ -2634,7 +2756,7 @@ function openDocxCommentImport() {
                   onKeyDown={e => { if (e.key === 'Enter') saveProjectName(); }}
                 />
                 <label style={{ display: 'block', fontSize: 12, color: 'var(--text-dim)', margin: '8px 0 4px' }}>
-                  Coder name (used when this project is merged into another)
+                  Coder name (shared with Profile and LAN)
                 </label>
                 <input
                   className="modal-input"
@@ -2659,8 +2781,8 @@ function openDocxCommentImport() {
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       {activeCoders.map(c => {
-                        const sCount = (project?.codedSegments ?? []).filter(s => s.coder === c).length;
-                        const rCount = (project?.codedRegions ?? []).filter(r => r.coder === c).length;
+                        const sCount = (project?.codedSegments ?? []).filter(s => normalizeCoderName(s.coder) === c).length;
+                        const rCount = (project?.codedRegions ?? []).filter(r => normalizeCoderName(r.coder) === c).length;
                         return (
                           <div key={c} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span style={{ flex: 1, fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c}</span>
@@ -2791,11 +2913,11 @@ function openDocxCommentImport() {
           
           {/* Brand Logo & Name */}
           <div className="brand" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <img 
+            <button className="brand-egg-button" aria-label="eQc logo" onClick={() => logoClick('header')}><img
               src="./eqc-logo.png" 
               alt="EQC Logo" 
-              style={{ width: 'auto', height: '40px', objectFit: 'contain' }} 
-            />
+              style={{ width: 'auto', height: '40px', objectFit: 'contain' }}
+            /></button>
           </div>
 
           {/* Navigation Tabs */}
@@ -2812,6 +2934,8 @@ function openDocxCommentImport() {
               </button>
             ))}
           </nav>
+          <button className="profile-avatar-button" title="Profile & time" aria-label="Profile & time" onClick={()=>{timeTracking.refresh();setTab('profile');}}>{timeTracking.profile.photo?<img src={timeTracking.profile.photo} alt=""/>:<span>{timeTracking.profile.name.trim().split(/\s+/).filter(Boolean).slice(0,2).map(n=>n[0]).join('').toUpperCase()||'👤'}</span>}</button>
+
         </div>
 
         {/* SECOND LINE: Project Controls & Action Buttons */}
@@ -2828,7 +2952,6 @@ function openDocxCommentImport() {
             ? <button className="icon-btn" title="The session-shared project can't be renamed" disabled>✏️</button>
             : <button className="icon-btn" title="Rename project" onClick={openProjectSettings}>✏️</button>}
           <ToolMenu label="Project tools">
-          <button onClick={() => setResearchOpen(true)}>Research tools</button>
           <button className="icon-btn" title="Export project as JSON or QDPX" onClick={() => setProjectExportOpen(true)}>⬇️ Export</button>
           <button className="icon-btn" title="Import a JSON/QDPX project or QDC/QDE file" onClick={e => { e.currentTarget.closest('details')?.removeAttribute('open'); void handleImportBackup(); }}>⬆️ Import</button>
           <button className="icon-btn" title="Merge project(s) into current" onClick={handleMerge}>🔀 Merge</button>
@@ -2861,34 +2984,8 @@ function openDocxCommentImport() {
           <button className="icon-btn-sm" title="Redo (Ctrl+Shift+Z)" disabled={future.length === 0} onClick={redo}>↷</button>
           <span className="header-divider" style={{ margin: '0 8px', borderLeft: '1px solid #ccc', height: '20px' }} />
           <ToolMenu label="Reading">
-          <label><input type="checkbox" checked={codingStripes} onChange={e => toggleCodingStripes(e.target.checked)} />Coding stripes</label>
-          <select
-            title="Reading font"
-            value={readerFontFamily}
-            onChange={e => setReaderFontFamily(e.target.value)}
-            style={{ padding: '3px 4px', fontSize: '12px', maxWidth: '210px' }}
-          >
-            <option value="">Font (default)</option>
-            <optgroup label="English">
-              <option value="Cambria, Georgia, 'Times New Roman', serif">Cambria</option>
-              <option value="'Caladea', Cambria, Georgia, serif">Caladea (open-source Cambria)</option>
-              <option value="Georgia, serif">Georgia</option>
-              <option value="'Times New Roman', serif">Times New Roman</option>
-              <option value="Arial, sans-serif">Arial</option>
-              <option value="Verdana, sans-serif">Verdana</option>
-              <option value="Calibri, sans-serif">Calibri</option>
-              <option value="'Courier New', monospace">Courier New</option>
-            </optgroup>
-            <optgroup label="বাংলা (Bangla)">
-              <option value="'Kalpurush', 'SolaimanLipi', 'Nirmala UI', 'Segoe UI', sans-serif">Kalpurush</option>
-              <option value="'SolaimanLipi', 'Kalpurush', 'Nirmala UI', 'Segoe UI', sans-serif">SolaimanLipi</option>
-              <option value="'Siyam Rupali', 'Kalpurush', 'SolaimanLipi', 'Nirmala UI', sans-serif">Siyam Rupali</option>
-              <option value="'Nikosh', 'Kalpurush', 'SolaimanLipi', 'Nirmala UI', sans-serif">Nikosh</option>
-            </optgroup>
-          </select>
-          <button className="icon-btn" title="Decrease font size" onClick={() => setReaderFontSize(s => Math.max(8, s - 1))}>A−</button>
-          <span title="Font size (px)" style={{ fontSize: '12px', minWidth: '30px', textAlign: 'center' }}>{readerFontSize}px</span>
-          <button className="icon-btn" title="Increase font size" onClick={() => setReaderFontSize(s => Math.min(48, s + 1))}>A+</button>
+          <ReaderFontPicker value={readerFontFamily} onChange={setReaderFontFamily}/>
+          <ReaderFontSize value={readerFontSize} onChange={setReaderFontSize}/>
 
           </ToolMenu>
           <button className="icon-btn" title="Toggle light/dark theme" onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}>
@@ -2921,6 +3018,10 @@ function openDocxCommentImport() {
                 <button onClick={() => addDocs(null)}>+ Doc</button>
                 <button onClick={() => addScannedPdf(null)}>+ Scanned PDF (OCR)</button>
                 <button onClick={() => addImages(null)}>+ Add Image</button>
+                <button onClick={handleCsvImport}>CSV dataset / codebook</button>
+              </ToolMenu>
+              <ToolMenu label="Research tools">
+                {[['cases', 'Cases & attributes'], ['groups', 'Document & code groups'], ['review', 'Excerpt review & queries'], ['notes', 'Memos/Notes'], ['history', 'History & recovery']].map(([id, label]) => <button key={id} onClick={e => { e.currentTarget.closest('details')?.removeAttribute('open'); setResearchSection(id); setResearchOpen(true); }}>{label}</button>)}
               </ToolMenu>
               <button aria-expanded={contentSearchOpen} onClick={() => setContentSearchOpen(v => !v)}>Search text</button>
             </div>
@@ -3043,11 +3144,11 @@ function openDocxCommentImport() {
     // 1. Separate the images from the documents
     const docPaths = fileArray
       .map(f => (f as File & { path: string }).path)
-      .filter(path => !path.match(/\.(png|jpe?g|gif|webp)$/i));
+      .filter(path => !path.match(/\.(png|jpe?g|gif|webp|bmp|heic|heif)$/i));
       
     const imagePaths = fileArray
       .map(f => (f as File & { path: string }).path)
-      .filter(path => path.match(/\.(png|jpe?g|gif|webp)$/i));
+      .filter(path => path.match(/\.(png|jpe?g|gif|webp|bmp|heic|heif)$/i));
       
     // 2. Send them to their respective functions!
     if (docPaths.length > 0) {
@@ -3255,10 +3356,10 @@ function openDocxCommentImport() {
                     <button onClick={async () => {
                       const name = await customPrompt('Create a code from the selected words', pendingSelection.text.trim().slice(0,100), 'Create and apply'); if (!name?.trim()) return;
                       const code: Code = { id: uid('code'), name: name.trim(), parentId: null, color: colorForNewCode(project.codes,null,project.codes.length), summary: '', createdAt: Date.now() };
-                      persist({ ...project, codes: [...project.codes,code], codedSegments: [...project.codedSegments,{ id:uid('seg'),docId:selectedDoc.id,codeId:code.id,start:pendingSelection.start,end:pendingSelection.end,text:selectedDoc.content.slice(pendingSelection.start,pendingSelection.end),createdAt:Date.now(),source:'manual',coder:activeCoderName }] }); setPendingSelection(null);
+                      persist({ ...project, codes: [...project.codes,code], codedSegments: [...project.codedSegments,{ id:uid('seg'),docId:selectedDoc.id,codeId:code.id,start:pendingSelection.start,end:pendingSelection.end,text:selectedDoc.content.slice(pendingSelection.start,pendingSelection.end),createdAt:Date.now(),source:'manual',coder:activeCoderName }] }); timeTracking.markCoding(); setPendingSelection(null);
                     }}>Create in-vivo code</button>
                     <details><summary>Apply multiple codes</summary><div className="selection-code-list">{project.codes.map(c => <label key={c.id}><input type="checkbox" checked={multiCodes.includes(c.id)} onChange={e => setMultiCodes(e.target.checked ? [...multiCodes,c.id] : multiCodes.filter(id => id !== c.id))}/>{c.name}</label>)}</div><button disabled={!multiCodes.length} onClick={() => {
-                      persist({ ...project,codedSegments:[...project.codedSegments,...multiCodes.filter(id => codesById.has(id)).map(codeId => ({ id:uid('seg'),docId:selectedDoc.id,codeId,start:pendingSelection.start,end:pendingSelection.end,text:selectedDoc.content.slice(pendingSelection.start,pendingSelection.end),createdAt:Date.now(),source:'manual' as const,coder:activeCoderName }))] });setMultiCodes([]);setPendingSelection(null);
+                      persist({ ...project,codedSegments:[...project.codedSegments,...multiCodes.filter(id => codesById.has(id)).map(codeId => ({ id:uid('seg'),docId:selectedDoc.id,codeId,start:pendingSelection.start,end:pendingSelection.end,text:selectedDoc.content.slice(pendingSelection.start,pendingSelection.end),createdAt:Date.now(),source:'manual' as const,coder:activeCoderName }))] });if (multiCodes.some(id => codesById.has(id))) timeTracking.markCoding();setMultiCodes([]);setPendingSelection(null);
                     }}>Apply selected codes</button></details>
                     {refiningSegmentId && project.codedSegments.find(s => s.id === refiningSegmentId)?.docId === selectedDoc.id && <button onClick={() => { try { persist(resizeExcerpt(project,refiningSegmentId,pendingSelection.start,pendingSelection.end));setRefiningSegmentId(null);setPendingSelection(null);showToast('Coded passage updated.'); } catch(e) { showToast(String(e)); } }}>Update passage</button>}
                   </ToolMenu>}
@@ -3367,14 +3468,15 @@ function openDocxCommentImport() {
               >
               <div className="segment-popup-title">Codes applied here</div>
               {segmentPopup.segments.map(snapshotSeg => {
-                const s = project.codedSegments.find(cs => cs.id === snapshotSeg.id) || snapshotSeg;
+                const s = project.codedSegments.find(cs => cs.id === snapshotSeg.id);
+                if (!s) return null;
                 return (
                 <div key={s.id} className="segment-popup-row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span className="code-swatch" style={{ background: codesById.get(s.codeId)?.color }} />
                     <span style={{ flex: 1 }}>
                       {codesById.get(s.codeId)?.name || 'Unknown code'}
-                      <span className="section-hint" style={{ marginLeft: 6, fontSize: 11 }}>Coded by: {s.coder || UNATTRIBUTED_CODER}</span>
+                      <span className="section-hint" style={{ marginLeft: 6, fontSize: 11 }}>Coded by: {normalizeCoderName(s.coder)}</span>
                     </span>
                     <button className="mini-btn" onClick={() => toggleStarSegment(s.id)} title={s.starred ? 'Unstar' : 'Star as key quote'}>
                       {s.starred ? '⭐' : '☆'}
@@ -3431,14 +3533,15 @@ function openDocxCommentImport() {
               >
                 <div className="segment-popup-title">Codes applied to this region</div>
                 {regionPopup.regions.map(snapshotRegion => {
-                  const r = (project.codedRegions || []).find(cr => cr.id === snapshotRegion.id) || snapshotRegion;
+                  const r = (project.codedRegions || []).find(cr => cr.id === snapshotRegion.id);
+                  if (!r) return null;
                   return (
                     <div key={r.id} className="segment-popup-row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span className="code-swatch" style={{ background: codesById.get(r.codeId)?.color }} />
                         <span style={{ flex: 1 }}>
                           {codesById.get(r.codeId)?.name || 'Unknown code'}
-                        <span className="section-hint" style={{ marginLeft: 6, fontSize: 11 }}>Coded by: {r.coder || UNATTRIBUTED_CODER}</span>
+                        <span className="section-hint" style={{ marginLeft: 6, fontSize: 11 }}>Coded by: {normalizeCoderName(r.coder)}</span>
                         </span>
                         <button className="mini-btn" onClick={() => toggleStarRegion(r.id)} title={r.starred ? 'Unstar' : 'Star as key region'}>
                           {r.starred ? '⭐' : '☆'}
@@ -3752,7 +3855,7 @@ function openDocxCommentImport() {
                       </div>
                       <div className="excerpt-text" style={{ marginBottom: '8px', lineHeight: '1.5' }}>"{seg.text}"</div>
                       <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 4 }}>
-                        Coded by: {seg.coder || UNATTRIBUTED_CODER}
+                        Coded by: {normalizeCoderName(seg.coder)}
                       </div>
                       {editingNoteFor === seg.id ? (
                         <div style={{ marginBottom: 6 }}>
@@ -3829,7 +3932,7 @@ function openDocxCommentImport() {
           {image.name}
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 4 }}>
-          Coded by: {r.coder || UNATTRIBUTED_CODER}
+          Coded by: {normalizeCoderName(r.coder)}
         </div>
         
         {/* Editing Note UI for Images */}
@@ -4064,14 +4167,21 @@ function openDocxCommentImport() {
 </div>
 
 {importReport && <div className="research-overlay" onKeyDown={e => { if(e.key === 'Escape') setImportReport(null); if(e.key === 'Tab') e.preventDefault(); }}><section className="project-export-dialog" role="dialog" aria-modal="true" aria-labelledby="import-report-title"><h2 id="import-report-title">{importReport.title}</h2><p style={{whiteSpace:'pre-wrap'}}>{importReport.message}</p><button autoFocus onClick={() => setImportReport(null)}>Close import report</button></section></div>}
-{projectExportOpen && <ProjectExportDialog project={project} onClose={() => setProjectExportOpen(false)} onMessage={showToast} />}
+{projectExportOpen && <ProjectExportDialog getProfileBackup={timeTracking.exportProfile} project={project} onClose={() => setProjectExportOpen(false)} onMessage={showToast} />}
 {tab === 'help' && <HelpPanel />}
+{tab === 'profile' && <ProfilePanel {...timeTracking} setProfile={saveUnifiedProfile} onClose={() => setTab('workspace')}/>}
+{timeTracking.profile.workspaceAnimations && tab === 'workspace' && (['sources','codes'] as const).map(side => <div key={side} className={`workspace-surprises workspace-surprises-${side}`}>{workspaceEggs.filter(egg => (egg.kind === 'jiji') === (side === 'codes')).map(egg => <WorkspaceCritter key={egg.id} kind={egg.kind} onDone={() => setWorkspaceEggs(current => current.filter(item => item.id !== egg.id))}/>)}</div>)}
+{treeOpen && <GrowingCodeTree project={project} onClose={() => setTreeOpen(false)}/>}
+{captureOpen && <CaptureBall onDone={() => setCaptureOpen(false)}/>}
+{mailCourier && <PikachuCourier origin={mailCourier} onDone={finishContactEmail}/>}
+{snorlaxOrigin && <PatienceSnorlax origin={snorlaxOrigin} onDone={() => setSnorlaxOrigin(null)}/>}
+{timeTracking.profile.workspaceAnimations && zoroSlash && <ZoroSlash key={zoroSlash.id} name={zoroSlash.name} kind={zoroSlash.kind} onDone={() => setZoroSlash(current => current?.id === zoroSlash.id ? null : current)}/>}
 {tab === 'about' && (
   <main className="panel about-panel">
     <div className="about-layout">
       <section className="about-intro">
         <div className="about-heading">
-          <img src="./eqc-logo.png" alt="eQc logo" />
+          <button className="brand-egg-button" aria-label="About eQc logo" onClick={() => logoClick('about')}><img src="./eqc-logo.png" alt="eQc logo" /></button>
           <div><h1>Easy Qual Coding</h1><span className="version-badge">Version {pkg.version}</span></div>
         </div>
         <p>A local-first environment for qualitative research. Organize sources, code text and images, develop memos, and explore your analysis.</p>
@@ -4084,7 +4194,7 @@ function openDocxCommentImport() {
         <dl>
           <dt>Created by</dt><dd>Anisur Rahman Bayazid <em>(with help from borrowed intellect)</em></dd>
           <dt>Acknowledgments</dt><dd>eQc gratefully acknowledges the contributions of the CARE project and BRAC James P Grant School of Public Health, BRAC University, to its development.</dd>
-          <dt>Contact</dt><dd><a href="mailto:anisur.rahman.bayazid@gmail.com">anisur.rahman.bayazid@gmail.com</a></dd>
+          <dt>Contact</dt><dd><a href="mailto:anisur.rahman.bayazid@gmail.com" onClick={startContactEmail} aria-busy={!!mailCourier}>anisur.rahman.bayazid@gmail.com</a></dd>
           <dt>License</dt><dd>MIT License — free for commercial and non-commercial use.</dd>
           <dt>Year</dt><dd>2026</dd>
         </dl>
@@ -4150,7 +4260,7 @@ function openDocxCommentImport() {
     joining={lanJoining}
     myName={lanMyName}
     initialTab={lanSession ? (lanSession.role === 'host' ? 'host' : 'join') : 'host'}
-    onMyNameChange={setLanMyName}
+    onMyNameChange={setIdentityName}
     onStartHost={handleLanStartHost}
     onStopHost={handleLanStopHost}
     onJoin={handleLanJoin}
@@ -4886,7 +4996,7 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
             With 3+ coders: Fleiss' κ. Binary alpha uses the same source/code scope; Cu-Alpha uses text passage groups only.
           </div>
           {renderIcrScopePicker()}
-          <details className="analysis-counts"><summary>What the ICR counts mean</summary><p>Coder labels show text coding entries and image regions in the current scope. Several codes on one passage create several entries. The agreement table instead counts one source–code pair once per coder, even if that coder used the code many times in the source.</p><p>Percent agreement includes pairs neither coder coded. With many unused source–code pairs, this percentage can be high while Holsti or κ is low. Consensus counts grouped text passages and excludes image regions, so its totals will differ.</p></details>
+          <details className="analysis-counts"><summary>How to use ICR, with an example</summary><p>ICR compares independent coding to identify where your coding rules need clarification. Select the same sources and coders, then choose Coder A and Coder B. Review both agreement percentages and chance-corrected coefficients; use Consensus to discuss passage-level differences.</p><p><strong>Example:</strong> Amina applies Water access to five passages in Interview 1; Ravi applies it to two. For the occurrence table, both marked the same one source–code item. If only Amina applies Cost in that interview, that item is a disagreement. These totals do not measure how closely the selected words match.</p><p>Coder labels show text coding entries and image regions in the current scope. Several codes on one passage create several entries. The agreement table instead counts one source–code pair once per coder, even if that coder used the code many times in the source.</p><p>Percent agreement includes pairs neither coder coded. With many unused source–code pairs, this percentage can be high while Holsti or κ is low. Consensus counts grouped text passages and excludes image regions, so its totals will differ.</p></details>
           {icrSelCoders.length < 2 ? (
             <div className="empty-hint">Select at least two coders in scope above. Need a second coder? Merge another coder's project, or check coder names in Project Settings.</div>
           ) : icrScope.docIds.length === 0 && !icrScope.includeImages ? (
@@ -5092,11 +5202,12 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
         <section>
           <div className="section-hint" style={{ marginBottom: '8px' }}>
             Adjudication: quotes that at least two of the scoped coders coded are grouped so you can compare them side
-            by side and keep the winner. <strong>Agreement</strong> means every coder who coded a quote gave it the
+            by side and decide which coding to retain. <strong>Agreement</strong> means every coder who coded a quote gave it the
             same single code; a coder who never touched that quote is not counted either way. Removing here is the
             same as the Workspace inspector's Remove (undo with Ctrl+Z). Image regions are not part of this
             review — see them in the Codebook excerpts.
           </div>
+          <details className="analysis-counts"><summary>How to review Consensus, with an example</summary><p>Select the coders and documents they reviewed independently. Open a jointly coded passage, compare the code names and surrounding text, and discuss which interpretation follows your code definitions. Keep the chosen coder’s coding, remove individual entries, or leave the passage unchanged. Save a recovery checkpoint before substantial changes.</p><p><strong>Example:</strong> Amina labels “The pump is too far away” as Water access; Ravi labels overlapping words as Transport. The passage appears as one disagreement group. If both use only Water access, it is an agreement. A third coder who did not code that passage is excluded. One-coder passages and image regions are outside this review.</p><p>Consensus decisions change your project. Export ICR results before adjudication if you need a record of independent agreement; Undo reverses coding removal.</p></details>
           {renderIcrScopePicker()}
           <div className="analysis-counts" role="status"><strong>{consensusAllUnits.reduce((count,unit)=>count+unit.segmentIds.length,0)} text coding entries → {consensusAllUnits.length} passage groups</strong><p>{consensusUnits.length} groups coded by two or more people are available for review; {consensusSoloCount} single-coder groups are hidden. Overlapping entries, including several codes on the same words, form one passage group. Image regions are excluded.</p><details><summary>Counts by coder in the current scope</summary>{icrSelCoders.map(name=>{const counts=scopedCoderCounts(project,name,icrScope.docIds,icrScope.includeImages);return <p key={name}>{name}: {counts.segments} text coding entries; {counts.regions} image regions included in ICR only.</p>;})}</details></div>
           {icrSelCoders.length < 2 ? (

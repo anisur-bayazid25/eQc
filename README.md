@@ -1,505 +1,57 @@
-<img width="1831" height="692" alt="eqc-logo" src="https://github.com/user-attachments/assets/19529f94-981d-4cca-8ffe-77da3bd66f91" />
-
 # eQc — Easy Qual Coding
 
-Version **1.7.0** adds formatted Word/PDF coding, cases and attributes, groups, queries, review, memo tools, recovery history, table-free Word reports, improved REFI-QDA exchange and searchable offline Help.
-## What's New in v1.6.5
+**Version 1.8.0** · A local desktop app for qualitative research.
 
-A tidier interface: Codebook task tabs, grouped Workspace and header tools, analysis navigation under Coding/Text/Team, compact Code Map menus with automatic Fit, and a wider single-panel About layout. All existing functions remain available. Standard desktop controls fit without unnecessary scrolling; smaller windows and long content retain scrolling.
+Import interviews, field notes, documents and images; code passages and regions; organise your codebook; write memos; and explore your analysis. No account or cloud upload is required.
 
-## Help, project exports and everyday coding (v1.7.0)
+## Downloads and Help
 
-The top navigation is **Workspace → Codebook → Auto-Code → Analysis → Code Map → Help → About**. **Help** works offline: search the complete user guide or application documentation, open a section from its dropdown, or choose **Read complete documentation** to expand all sections. Search matches section titles and content; use a short phrase or keywords. Light/Dark controls remain outside tabs; About remains one wide panel.
+- [Latest release](https://github.com/anisur-bayazid25/eQc/releases/latest)
+- [Complete user guide](USER_GUIDE.md)
+- [Application reference](DOCUMENTATION.md)
+- [Release notes](RELEASE_NOTES.md)
+- [Changelog](CHANGELOG.md)
 
-### Export a project
+The **Help** tab includes the complete guide and application reference offline. Search a function or open a section to find instructions and examples.
 
-Open **Project tools → Export**, choose **JSON — eQc backup** or **QDPX — REFI-QDA exchange**, then choose **Original documents and coding text** or **Plain text only — smaller file**. Original attachments are included by default. The smaller option omits retained Word/PDF binary files while keeping coding text, codes, memos, cases, groups, queries, annotations and image coding, including coded PDF page snapshots. It does not change the open project or erase its originals. JSON is the full eQc project backup; QDPX exchanges supported sources and coding, with advanced eQc research records carried as notes/appendix. Local activity and recovery checkpoints do not travel with either format. Cancel the save dialog to leave the export unfinished.
+## What's new in 1.8.0
 
-### Import a project or codebook
+- Local profiles with an optional photo and details, shared coder/LAN names, active app/coding time, period summaries and project breakdowns.
+- Profile and time history in JSON backups, with duplicate-safe import and efficient local storage.
+- Markdown documents and HEIC/HEIF photos, alongside existing text, Word, PDF and image formats.
+- Preferred installed reading fonts and an editable font size, compact vertical coding stripes, and zoom controls that do not cover the document.
+- Memos/Notes and Research tools in Workspace, with clearer instructions and examples.
+- Fixes for folder/source visibility, CSV summary/definition routing, legacy QDPX memos, research links, framework cells, coder-name whitespace and project-switch inspector state.
 
-The existing **Project tools → Import** accepts **JSON**, **QDPX**, **QDC** and **QDE** in one file dialog and creates a separate project. JSON restores an eQc backup; QDPX is the packaged project exchange format and is the preferred choice for ATLAS.ti/NVivo transfers. QDC transfers the codebook only, without documents or excerpts. QDE is unpacked project XML: keep it beside the matching `sources` folder, or select the original QDPX archive. Referenced files that are missing cannot be recovered from XML alone. An import with unavailable/unsupported sources reports the omissions; if no referenced source can be imported, it stops without creating an incomplete project. Source-folder links outside the selected QDE directory are not followed. **Codebook → Import → REFI-QDA** remains available to add exchanged coding to the current project.
+## Research workflow
 
-### Codes & Strips
+1. Create a project and add sources in **Workspace**.
+2. Create codes, select a passage or image region, and apply a code.
+3. Use **Codebook** for definitions, summaries, merge and export.
+4. Open **Workspace → Research tools** for cases, groups, queries, memos and recovery history.
+5. Use **Analysis** for frequencies, matrices, framework analysis, text searches, ICR and Consensus. **Code Map** diagrams the codebook.
+6. Export selected coding, analysis reports and regular JSON project backups.
 
-Select a document and click **Codes & Strips**, beside **Portrait** and **Lines** in the reader toolbar. This remembered toggle shows narrow vertical coloured bars and vertical code names beside coded passages, with separate lanes for overlapping coding. Hover or focus a bar to widen its colour by 3 pixels; click the bar or label to jump to its excerpt. Long names and short passage labels may be truncated: the tooltip gives the full code name and coder. Stripes follow rendered text in Plain text and mapped Word/PDF views; PDF shows coding for the displayed page. The Reading menu also offers the toggle. Labels and hover/focus styling follow the document viewer’s Paperwhite, White or Dark setting independently of the app theme.
+## Files and sharing
 
-### A simple excerpt-review workflow
+Documents: TXT, Markdown, DOCX and PDF; scanned PDFs support local OCR. Images: PNG, JPEG, GIF, WebP, BMP and HEIC/HEIF. Structured CSV datasets, codebooks and Word-comment coding can also be imported.
 
-Open **Project tools → Research tools → Review**. Choose **Query codes** and/or **Sources**, optionally enter words in **Find in excerpts or notes**, then click **Run query**. Empty selections retrieve all coding. Read the highlighted excerpt with surrounding text, or choose **Open source**. Export the results to CSV or Word. Check individual cards only when you want to export or refine a subset; without checks, export includes all retrieved results. **Advanced filters and combined queries** contains code combinations, code/document groups, cases, attributes, coder, child codes and key-excerpt filters. Save a named query for repeat use. Changing filters clears old results so they cannot be mistaken for the new query.
+Project import accepts JSON, QDPX, QDC and extracted QDE files with their matching sources. Project export offers JSON or QDPX, with original attachments or smaller plain-text document data. Selected coding and memos export to Word and CSV; analysis reports export to HTML. JSON is the complete eQc backup format and can include the selected profile and time history.
 
-### Memo tools
+LAN collaboration shares research projects with colleagues on a trusted local network. Profiles and personal time records are kept separate from LAN sessions.
 
-In **Research tools → Notes**, create and search linked analytic, methodological or journal memos. Each memo has **Copy memo text**, **Export memo Word** and **Export memo CSV**. Select memo checkboxes and expand **Export or merge selected memos** to export a subset or merge into a selected destination. Merging retains the destination title, purpose and creation date, appends other memo texts under their original titles, and combines document/code/case/excerpt links without duplicates. A confirmation explains removal of the other standalone memos; close Research tools and use Undo to restore them if needed. Passage annotations and attached source/code/excerpt/framework memos also have selection, copy and export controls; attached memos can be edited in Notes. **Export research records** still exports all research notes and other research collections.
+## Development
 
-### Selecting and merging existing memos
+Install dependencies with `npm install`. `npm run dev` starts the development app, `npm run check` checks TypeScript, `npm run build` creates the web bundle, and `npm run pack -- --publish never` packages Windows without publishing.
 
-All nonempty source, code, excerpt, image, region, case, framework and relationship memos appear with selection checkboxes and individual edit/copy/export controls in Notes. Passage annotations can also be selected for export or consolidation. **Select all memos** includes these attached memos as well as standalone memos. For a merge, choose **New combined memo** and enter its title, or choose a selected standalone memo as the destination. The combined memo retains all text under its original memo titles and combines source/code/case/excerpt links. Confirmation explains that selected attached memo fields will be cleared and selected standalone memos consolidated; the underlying sources, codes, coding and annotations remain. Use Undo after closing Research tools to restore the originals.
+Feature checks: `node --test tests/data-integrity.cjs tests/release-1.6.4.cjs tests/release-1.7.0.cjs tests/code-report.cjs tests/formatted-mapping.cjs tests/source-lines.cjs`.
 
-### Understanding ICR and Consensus counts
+For browser checks without starting Electron, install Playwright and its Chromium browser, set `EQC_BROWSER_CHANNEL=chromium`, and run `node tests/run-browser-checks.cjs`. The runner starts and stops a temporary Vite server. Without the browser-channel setting, it uses installed Microsoft Edge.
 
-The team-analysis tab is **ICR** (inter-coder reliability). Its coder selectors show **text coding entries** and **image regions** for the current scope. A passage assigned three codes creates three coding entries. The agreement table uses a different unit: one source–code pair, counted once per coder even when a code appears several times in a source. Percent agreement includes pairs neither coder used; many unused pairs can produce a high percentage alongside low Holsti or κ.
+Implementation history is in [AI changelog](AI_CHANGELOG.md).
 
-**Consensus** groups overlapping text coding entries into passage groups, including multiple codes on the same words. It shows the total text entries, total passage groups, jointly coded groups available for review and single-coder groups hidden. Image regions are excluded. For example, 62 text entries plus 6 image regions for one coder do not imply 68 consensus passages: the text entries may form 30 overlapping groups, and only a few groups may have a second coder. Open **Counts by coder in the current scope** to compare the underlying entries. Changing coders or documents changes both views' scope. These measures describe different units; their totals are not expected to match.
+## Author and acknowledgments
 
-### History in an updated app
+Created by Anisur Rahman Bayazid. eQc gratefully acknowledges the contributions of the CARE project and BRAC James P Grant School of Public Health, BRAC University.
 
-History and recovery require the current desktop app process. If the app asks you to restart these tools after an update, first save your project, fully close eQc and open it again. Reloading a document or switching tabs does not load the updated desktop process. Your saved projects remain on this computer.
-
-### Coding refinement: where to find each action
-
-1. **Reassign existing coding:** in Review, Run query, check the relevant cards, open **Refine selected coding**, choose the destination code and click **Reassign coding**. This moves those coding entries; it does not add a second copy.
-2. **Split a code:** retrieve one code, check the excerpts that belong in a separate concept, open **Refine selected coding**, enter **New code name for selected excerpts**, then **Split into new code**. The new code is a sibling of the original; unchecked excerpts stay under the original. Text and image coding are supported, but selected entries must come from one code.
-3. **Adjust a text boundary:** choose **Adjust passage** on an excerpt card. In the source's Plain text view, select the replacement words, then **Selection actions → Update passage**. The same coding entry retains its memo, coder, creation date and key-excerpt status. Cancel adjustment to keep the old passage. Image regions are reviewed using their existing image controls.
-4. **Create an in-vivo code:** select words in the reader, choose **Selection actions → Create in-vivo code**, review the suggested name, then **Create and apply**.
-5. **Apply several codes at once:** select text, open **Selection actions → Apply multiple codes**, check codes and choose **Apply selected codes**.
-6. **Merge codes:** open **Codebook → Merge**, select the codes and a survivor, review the merge, then apply it. Related coding and research links follow the survivor. Use a named History checkpoint before substantial reorganisation.
-
-## Research tools
-
-**Project tools → Research tools** opens one workspace: **Cases, Groups, Review, Notes and History**. Adds participants/attributes and FGD passage links, overlapping groups, saved scoped queries, contextual text/image review and case counts, annotations and a memo library, bulk recoding/splitting, passage adjustment, in-vivo/multiple-code actions, and local activity/recovery checkpoints. **Codes & Strips** in the reader toolbar is optional. Research exports include source names; full HTML reports include the new records. See [the user guide](USER_GUIDE_v1.7.0.md#research-tools) for query semantics, retention and exchange limits.
-
-## Formatted Word and PDF coding
-
-Documents with retained originals now offer **Original view** and **Plain text** in Workspace. Original view is the initial preference; your last view choice is remembered. Text-only documents still use Plain text. Attach a missing original through **Original → Attach original** to enable formatted viewing.
-
-- **Word:** view document styles, headings, tables, lists, headers/footers and embedded images. Select body text (including table cells), then click or drag a code from the existing legend/search. Existing and overlapping coding is highlighted; click a highlight to inspect, memo, star or remove its coding. Zoom starts at **Fit width** and follows the available space. Word pagination and advanced layout can differ from Microsoft Word; the retained file remains unchanged.
-- **PDF:** view original pages with **Previous/Next**, a page selector, **Fit width** and percentage zoom. **Text** mode selects the PDF text layer and saves excerpts against the existing source text. **Region** mode draws a rectangle on a page, then applies a code. Scans without a text layer support Region coding; their OCR text stays codeable in Plain text. Text selections are made within one displayed PDF page at a time.
-- **Reliable locations:** formatted selections map to existing UTF-16 source offsets; repeated quotations keep their own occurrences. Only whitespace and heading casing are normalized during matching. A selection with unmatched/altered text is rejected with a Plain text fallback instead of guessing an excerpt position. Generated header/footer/footnote markers are view-only when absent from the coding text. Text edits or a mismatched attachment disable text coding in Original view; original PDF region coding remains available. **Edit text** changes the coding text, not the Word/PDF original. Source line numbers and reading-font controls apply to Plain text; original views use source formatting and zoom.
-- **PDF region exports:** the first region coding on a page stores a linked PNG page snapshot, labelled with the document name and PDF page number. Further regions reuse that snapshot regardless of zoom. These regions participate in existing image coding, memos/stars, analysis and all image-capable CSV/DOCX/HTML/QDPX exports. QDPX transfers them as standard PictureSource/PictureSelection entries alongside the original PDF, rather than native PDF-region selections. **Go to Image** opens the retained page snapshot. JSON backups/LAN retain page links; merges remap document IDs and reuse linked pages. Renaming/moving the document updates linked page names/folders; deleting it also removes linked snapshots and regions after confirmation. Original attachments replaced later do not overwrite older coded page snapshots.
-
-Rendering stays local; original documents are not uploaded. Broken/encrypted/unsupported originals show a recoverable message and leave Plain text available. Saving through **Original → Save original** preserves exact source bytes; narrative excerpt reports keep their established table-free export layout.
-
-## Source lines and REFI-QDA compatibility
-
-Version 1.7.0 retains original Word/PDF files alongside the plain text used for coding. New regular, dropped, scanned-PDF and Word-comment imports retain their originals. **Workspace → Original** opens a copy in your system viewer, saves the exact imported file, or attaches/replaces an original for an older text-only document. Attaching an original does not replace your coding text. Text edits leave the original unchanged; the menu indicates a mismatch. Original bytes travel with JSON backups, LAN project data and project merges, so these projects/backups are larger than text-only ones. Existing projects continue to work without re-importing; attach an original if formatting is needed.
-
-**Lines** shows stable, one-based source-line numbers in the text reader. Blank lines count; screen wrapping, fonts and window size do not change the numbers. Codebook excerpt cards and text-excerpt CSV/DOCX exports include the corresponding line range. Editing the source text can change those ranges. These numbers refer to eQc’s coding text, not Word’s layout-dependent native page lines or inferred PDF text lines. Native numbering, tables, fonts and original page layout stay in the retained file. Formatted Word/PDF coding is available in Original view.
-
-**REFI-QDA export** now follows the standard Project 1.0 schema (also used by the supplied ATLAS.ti export): valid nested codes, attributes, memo files, lowercase `sources/` paths, coder references and Unicode-codepoint coding positions. Images are exported as JPEG/PNG; other supported image formats convert to a static PNG. Corrupt coding or unreadable images stop export with an explanation instead of being silently dropped. Use **Codebook → Import → REFI-QDA (QDPX / QDC)** to import a full project or standalone codebook; legacy eQc files remain readable.
-
-When the coding text still matches the retained original, QDPX includes the original DOCX through `richTextPath`, or the original PDF with its plain-text `Representation`. If the text was edited or an attached file has different extracted text, QDPX exports the current coding text without pairing it with that outdated original; the original remains available locally and in backups. Previously imported text-only documents cannot recover formatting until you attach the original file. Interoperability still depends on the receiving application: [NVivo’s REFI-QDA documentation](https://help-nv.qsrinternational.com/14/win/Content/projects-teamwork/refi-qda%20standard.htm) lists PDF text coding, framework matrices, maps and source-folder structures among transfer limitations. These changes have passed schema and ATLAS.ti-reference round-trip checks; a direct NVivo import is still to be verified.
-
-## Layout and navigation in v1.6.5
-
-All existing functions are retained. Frequently used controls stay visible, with secondary controls grouped by task. Work surfaces fill the space below the header; long source/code lists, long analysis results, expanded tools and small windows still scroll as needed.
-
-- **Header:** choose a project, create/rename it, use LAN, undo/redo and save directly. **Project tools** contains project backup export/import and merging other projects. **Reading** contains the reading font and A−/A+ size controls. Light/Dark stays directly available on the toolbar; document Paperwhite/White/Dark controls also remain visible. Menus close on Escape or clicking outside.
-- **Workspace:** use **Add source** for root folders, documents, OCR PDFs and images. **Search text** searches source content; document-name search stays above the tree. Expand **Sort & coder filter** to change ordering or coder scope. Sidebars are responsive and still manually resizable.
-- **Codebook:** the left sidebar has **Details**, **Merge**, **Export** and **Import** tabs. Details edits the selected code’s name, color, definition and memo, including Pull Subcode Summaries. Merge has a searchable code picker and survivor selector. Export chooses **All codes** or **Selected codes**, contents and CSV/DOCX; selected exports optionally include descendants. Merge and Export share their selection, which is separate from the code being viewed. **Project exports** expands to show complete-project QDPX, codebook-only QDPX, all notes/memos and Manuscript Skeleton. Starred Excerpts and Starred Images remain available. Import offers CSV, REFI-QDA and Word-comment import. Switch task tabs with Left/Right arrows, Home or End. Draft fields remain mounted when switching sidebar tasks.
-- **Analysis:** **Coding** contains Frequency, Documents, Co-occurrence and Framework; **Text** contains Word frequencies and KWIC; **Team** contains Reliability and Consensus. Full analysis names appear in tooltips. In Reliability/Consensus, expand **Scope** to select coders/documents/images; the collapsed summary displays the active selection, which still applies to the HTML report. All eight views and their existing analysis/export actions remain available.
-- **Code Map:** **View** contains folding/view modes, child limits, co-occurrence thresholds, re-layout and legend. **Draw** contains edge drawing and all annotation shapes. **Canvas** contains page presets, custom dimensions and orientation. **Codes** contains add/remove-from-map actions. **Export** contains legend inclusion and SVG/PNG/JPEG downloads. **Help** explains interaction. **Fit** initially shows the full canvas and follows window resizing; using the slider, +/− or **100%** switches to manual zoom. Select Fit again to resume automatic fitting. Fullscreen and Esc remain available. Screen zoom does not change the logical canvas or export dimensions; full code names are available on hover.
-- **About:** app details and project information share one wide panel, with compact information rows that stack at narrow widths. Creator, CARE/BRAC acknowledgment, contact, license, release link and update check remain available.
-
-Standard desktop layouts (1920×1080, 1366×768, 1200×800 and 1024×720) were checked with representative source and code data. Layouts were also checked at 800×600 and 640×480, including natural scrolling, popup bounds and map fitting. Larger datasets and longer memos may require scrolling even on large screens.
-
-## What's New in v1.6.4
-
-Merge selected codes while preserving quotes, image coding, memos and analysis. Export one or multiple codes, optionally with subcodes, to CSV and DOCX. Every codebook mode includes source names; DOCX includes cropped image excerpts. HTML reports now include scoped ICR, consensus summaries and image coding alongside the existing analyses. About acknowledges the CARE project and BRAC James P Grant School of Public Health, BRAC University.
-
-See [CHANGELOG.md](CHANGELOG.md), [USER_GUIDE_v1.7.0.md](USER_GUIDE_v1.7.0.md), and [DOCUMENTATION.md](DOCUMENTATION.md). Earlier v1.6 releases introduced coder/document scope, Cohen’s and Fleiss’ κ, Holsti, Krippendorff’s α, consensus adjudication, coding definitions and fixes preserving analysis during merges and code deletion.
-
-## What's New in v1.5.9
-
-- Logo has been changed
-- Some minor improvements of Codemap Option
-
-## Complete User Guide & Documentation (v1.7.0)
-
-eQc is a lightweight, **local-first** qualitative data analysis (QDA) desktop application built with Electron, React, and SQLite. All project data — documents, codes, memos, matrices — is stored **locally on your device**. Nothing leaves your computer (except, optionally, the project backups you choose to export or share).
-
-📘 **Full step-by-step manual:** see **[USER_GUIDE_v1.7.0.md](USER_GUIDE_v1.7.0.md)** — covers everything from your first project, to the Code Map, LAN team sessions, and every analysis mode.
-
----
-
-## What's New in v1.5.8
-
-- **🧹 Cleaner document reader** — the left-margin coding stripe (code-name labels and vertical colour bars beside the text) is gone from the Workspace document editor. Coded passages still highlight in the text, the right-edge **Document Portrait** minimap is unchanged, and clicking a passage still opens the code menu.
-
----
-
-## What's New in v1.5.7
-
-- **📊 Complete HTML report** — the Analysis tab's **⬇️ HTML Report** now includes **every** analysis: the Framework Matrix, plus the **Word Frequencies** list and the **KWIC** (keyword-in-context) results you last generated/searched — with the searched keyword and context window noted in the report.
-- **✏️ Code Map annotations** — draw free-standing shapes and notes (**rectangle, circle, arrow, text**) on the map canvas, and style edge **width**.
-- **🙈 Code Map hidden codes** — **✕** removes a code from the canvas; **➕ Add codes** brings it back.
-- **🔎 KWIC search fix** — the keyword you type and the keyword that actually gets searched are now separate: typing alone never re-runs a search, and the results table shows **how many matches** were found for your term.
-- **🔤 Garbled arrows fixed** — the move-code dropdown's tree arrows no longer render as `â†³`/`â†±` mojibake.
-- **⏱️ “Add codes” hint** — when every code is already on the canvas, the notice auto-dismisses after a couple of seconds instead of lingering.
-
----
-
-## What's New in v1.5.6
-
-- **🗺️ Code Map is now a real canvas** — choose the canvas size (**Map, A5, A4, Letter, Legal**, or a fully **Custom** W×H) and zoom from **10–400%**. The map is rendered as a paper with true pixel dimensions; zooming in scrolls the viewport instead of stretching the drawing. Changing size instantly rescales every node to fit the new bounds, so nothing is ever cropped off the paper.
-- **🎨 Style the map** — right-click any node to switch shape (**circle / square / diamond**); click any edge to set **solid/dashed/dotted**, straight or **curved**, **arrowheads**, **colors**, and **labels**. Styled and custom edges persist with the project. “**✏️ Draw edge**” connects any two nodes, and co-occurrence edges (codes that share documents) can be shown or hidden.
-- **📊 Vertical coding strip** — the Document Portrait is now a minimap running down the right edge of the document. **Click any colored band to jump straight to that passage** in the text; bands **widen on hover** so even one-line codings are easy to click.
-- **🔍 Code while you search** — select a passage in the document, click the code search box and type: the selection stays put, and a **click (or a drag) on any search result applies that code** to the selected text. You can also drag a code from the legend straight onto the document.
-- **↕️ Drag-reorder the code legend** — drag codes onto each other to **reorder** siblings, **reparent**, or drop them into empty space to move to root; the order is remembered.
-- **🧹 Clean redundant codings** — merges overlapping double-codings of the same code in the same document into one clean passage, so counts are never inflated.
-- **🎨 60 more code colors** — a “🎨 More colors…” palette joins the Codebook's swatches.
-- **⬇️ Codebook-only REFI-QDA export** — export just the code tree (hierarchy, colors, memos) as a compact `.qdpx` archive for sharing the codebook itself.
-- **🖼️ Drag images between folders** in the document tree.
-- **📁 Safer folder deletion** — deleting a folder moves its documents to the project root rather than deleting them.
-
----
-
-## What's New in v1.5.5
-
-- **🧹 Clean up duplicate coder names** — Project Settings now has a **“Manage Coders (Cleanup)”** section listing every coder that has coded items, with their segment/region counts and a 🗑️ button. Deleting asks you to **type the exact coder name**, so a typos (like `bayazid-dev` instead of `bayazid_dev`) that duplicated your work can be safely erased in one shot — nothing is ever removed by accident. (Untagged **Unattributed** items are shielded and can't be bulk-deleted this way.)
-- **🔘 Tidy header buttons** — Undo, Redo, and Save are now compact icon-only buttons (label in the tooltip).
-- **🌗 Dark-mode fix** — the Codebook “Sort by” dropdown (and a couple of other controls) were nearly invisible in dark mode; they now follow the light/dark theme correctly.
-- **📏 Cleaner settings modal** — Project Settings scrolls on shorter screens so all controls stay reachable.
-
----
-
-## What's New in v1.5.4
-
-- **🧭 Multitask freely during LAN sessions** — you can now open, view, and edit **any** local project while a live session runs in the background. Only the session-shared project syncs over the network; everything else stays local and private.
-- **🟢 / ⚪ Quiet status chip** — the old alarm-style “project mismatch” banner is gone. A small chip next to the 🌐 LAN button now just tells you what's happening: **🟢 Synced** when you're on the shared project, or **⚪ Local only (not synced)** when you're on another one. The shared project also gets a 🟢 dot in the project dropdown so it's always easy to find.
-- **📦 Background syncing** — while you work on another project, incoming edits from teammates are saved silently to the database **without switching your screen**, and are never mistaken for “offline edits” later.
-- **🚪 Kick a member (host)** — each connected coder's chip in the LAN panel now has an ✕ button so you can disconnect that specific person; they see a clear “You were disconnected by the host” message.
-- **🛠️ Manage your other projects freely** — LAN clients can rename/delete their own non-shared projects during a session; only the session-shared project stays locked.
-- **🔒 Hard project-lock fix** — sessions are now locked to exactly one project id at every layer, fixing a bug where switching to a different local project mid-session could leak its edits into the session or mix up saved data.
-
----
-
-## What's New in v1.5.3
-
-- **👥 Coder attribution** — every coded passage and image region records **who coded it** (manual, auto-code, or merged). Names are stamped at the moment the item is created and are **never changed later**.
-- **🎛️ Filter by coder** — new **Coder** dropdowns in the Workspace (doc tree panel) and Codebook (Excerpts header) let you view only one coder's work, or **Everyone**. Scan adds an **Unattributed** group so nothing is hidden.
-- **🧍 Coder-name disentanglement** — when one PC is shared by several coders, changing the Coder Name in Project Settings only affects codes made *afterward*; earlier codes keep their original attribution. Older/imported items with no stamp show as **Unattributed**, and you can assign them in one click via **Project Settings → “Assign N Unattributed item(s) to this coder.”**
-- **📤 Coder column in exports** — scoped CSV exports and Starred Quotes include a **Coder** column; Word exports show the same attribution beside each excerpt (per-segment stamp, or "Unattributed").
-- **🟢 Live presence (LAN)** — in a shared session, the document tree shows colored dots next to documents/images that teammates are currently viewing, with a "Viewing: …" tooltip; the host is notified with a toast when someone joins.
-- **🔎 Clearer "Coded by" everywhere** — described tags now appear on text excerpts, image-region cards, and in both click-popups in the workspace.
-
----
-
-## What's New in v1.5.2
-
-- **🧠 Smarter auto-coding** — the Auto-Coder now has two matching modes: **Literal** (exact substring, e.g. `tree` also finds it inside `street`) and **Word roots & variants** (`green` → `greens`, `greenery`; `tree` → `trees`). Root mode is word-boundary aware, so `tree` no longer fires inside `street`/`treehouse`.
-- **⚡ Live match preview** — before you execute, the Auto-Coder shows exactly how many **new** passages it would code across how many documents (debounced while you type), so you can tune the query before committing.
-- **🌐 LAN client fixes** — joining a session now correctly shows you as the *client* (with the **Disconnect** button) instead of a phantom host, and the connection panel opens on the right tab and names the actual host.
-- **📝 Smoother codebook editing** — typing in the code **name** / **summary** fields no longer saves-and-re-renders the whole app on every keystroke; it debounces and commits on blur/Enter.
-- **⚡ Performance** — document/index tree badges, codebook excerpt lookups, and code-tree sorting are precomputed maps instead of per-row scans.
-- **🐛 Fixes** — LAN presence re-broadcast reliability, and various small stability refinements.
-
----
-
-## What's New in v1.5.0
-
-Since the previous guide, eQc has grown these major capabilities:
-
-- **🌐 LAN Collaboration** — host a live, password-protected coding session on your local network and sync edits, coding, and image-coding in real time between several computers (or two eQc windows on one PC).
-- **🖼️ Image sources & image coding** — add images to your project, draw *coded regions* on them, rename them, zoom, see how many regions each image has, and export starred regions.
-- **⬇️ REFI-QDA (.qdpx) export** — export the whole project (codebook, text sources, coded passages, images and their coded regions) so NVivo / MAXQDA / ATLAS.ti can open it. `.qdpx` **image import** now also brings images and their coded regions in.
-- **📄 DOCX comment import** — import codes and passages written as **Word comments**, including spreadsheet-style separator and speaker-echo options.
-- **🔤 Reader font controls** — change the reading font family and size (`A−` / `A+`, 8–48 px) in the header; settings are remembered on each machine.
-- **🎨 Code colors** — new root codes get a palette color, subcodes automatically inherit their parent's color (still overridable), and merge assigns each coder a stable, distinct color.
-- **🔍 Search text inside documents** directly from the Workspace panel.
-- Tighter analysis exports (each dashboard view exports what's on screen) and a cleaner Codebook export layout.
-
----
-
-## Table of Contents
-
-1. [Overview & Architecture](#1-overview--architecture)
-2. [Header Bar & Project Management](#2-header-bar--project-management)
-3. [The Workspace Tab (Document Editor & Manual Coding)](#3-the-workspace-tab)
-4. [The Codebook Manager (Codebook Tab)](#4-the-codebook-manager)
-5. [The Auto-Coder Tab](#5-the-auto-coder-tab)
-6. [The Analysis Dashboard Tab](#6-the-analysis-dashboard-tab)
-7. [LAN Collaboration](#7-lan-collaboration)
-8. [The About Tab](#8-the-about-tab)
-9. [Summary Table of Supported File Types](#9-summary-table-of-supported-file-types)
-
----
-
-## 1. Overview & Architecture
-
-### Key highlights
-
-- **Local-first & secure** — everything lives in a local SQLite database on your machine.
-- **Dual theme** — Light "paperwhite" mode (default for new installs) and Dark mode, toggled from the header.
-- **Flexible workspace** — resizable, draggable panels throughout.
-- **Multiformat support** — `.txt`, `.docx`, `.pdf`, scanned PDFs (via local OCR), **images** (`.png`, `.jpg/.jpeg`, `.gif`, `.webp`, `.bmp`), structured `.csv` datasets, Word comment files, and REFI-QDA `.qdpx` projects (NVivo, MAXQDA, ATLAS.ti, Taguette) — in **both** directions (import **and** export).
-- **Live collaboration** — host or join a LAN coding session (see [Section 7](#7-lan-collaboration)).
-- **Branded loading screen** shown while a project is opening.
-
-![Workspace tab](screenshots/eQc_Workspace.png)
-
----
-
-## 2. Header Bar & Project Management
-
-The header has two rows: the top row holds the **brand and the main tabs** (Workspace · Codebook · Auto-Code · Analysis · About); the bottom row holds **project controls**, the **LAN button**, **Undo/Redo**, reading **font controls**, the **theme toggle**, and **Save**.
-
-![Workspace dark variant](screenshots/eQc_Workspace_dark_white.png)
-
-### 2.1 Project operations
-
-- **➕ New project** — create a fresh local project.
-- **✏️ Rename project** — opens the project settings dialog (also where deletion lives).
-- **Project tools → Export / Import** — export JSON/QDPX with original or text-only documents; import JSON/QDPX projects, QDC codebooks or extracted QDE files with matching sources.
-- **🔀 Merge** — combine another project's `.json` into the active one (useful for multi-coder collaboration). When merging, each coder is assigned a stable, distinct color.
-- **Project dropdown** — switch between projects; the header save indicator shows auto-save status (`✓ Saved` / `Saving…` / `⚠ Save failed`).
-
-### 2.2 LAN collaboration
-
-The **`🌐 LAN`** button opens the collaboration window. After the corresponding session state is active (`·Hosting` or `·Joined`), the button lights up green. See [Section 7](#7-lan-collaboration) for the full workflow.
-
-### 2.3 Undo / Redo
-
-Reverts coding, code-tree, memo, image-coding, and note changes (`Ctrl+Z`, `Ctrl+Shift+Z`).
-
-### 2.4 Reader font controls
-
-Next to Undo/Redo: a **font-family** picker (Georgia, Times New Roman, Arial, Verdana, Calibri, Courier New, or the default) and **`A−` / `A+`** size buttons (8–48 px, shown as `Npx`). These only change how you *read* documents; they persist per machine in `localStorage`.
-
-### 2.5 Deleting a project
-
-There is **no separate delete icon** — it's tucked inside the rename dialog on purpose, so it isn't one accidental click away. Click **✏️** next to the project name, then **"🗑 Delete this project…"** at the bottom of that dialog. Deletion requires two confirmations in a row ("Are you sure?" → "This cannot be reverted") before anything happens, and the safe option (No / Keep) is always the green button.
-
----
-
-## 3. The Workspace Tab
-
-### 3.1 Documents panel (left)
-
-- **Folders** — `+ Add Root Folder` / `+ Doc` / `+ Scanned PDF (OCR)` / `+ Add Image`. Nested folders are supported.
-- **Document types** — `.txt`, `.docx`, `.pdf`, and image PDFs turned into selectable text via local OCR.
-- **Images** — added with `+ Add Image` and shown inside the tree, with a **coded-region count badge** on each image row and a **✏️ rename** button.
-- **Sort documents** — by name, date added, size, or amount coded.
-- **🔍 Search Text** — search inside the content of all documents at once; click a result to jump to that passage.
-- A **document name filter** narrows the tree as you type.
-
-### 3.2 Document editor (center)
-
-- Select text and apply codes by **drag-and-drop** onto a code in the legend, or by **clicking a code** while the passage is selected.
-- **Overlapping and nested coding** is supported: select a sub-portion of already-coded text and apply a different code to just that inner piece. Both codes render, with a *solid* underline marking multi-coded text. Clicking a highlighted passage shows **every** code applied there.
-- Click a highlighted passage to open the **code inspector**, where you can:
-  - **Remove** a code from that passage.
-  - **Star / Unstar** it as a key quote for manuscript writing.
-  - Add or edit a short **note** on that specific coded excerpt.
-- **📝 Notes** (next to "Edit text") — a document-level memo field for whole-case interpretation or observations that apply to the transcript as a whole. A filled-in note shows a bullet marker on the button.
-
-### 3.3 Image coding
-
-Images behave like a unit of "text": open an image and use the **image editor** to draw a rectangle over a region, then apply a code to it. The editor provides zoom controls (`−` / `+`, a 10%-step slider, and Reset). Coded regions appear in the codebook's collated excerpts and count toward the analysis dashboard; **starred regions** can be exported together with a screenshot (see [Section 4.4](#44-export-options-codebook)).
-
-![Codebook tab](screenshots/eQc_Codebook.png)
-
-### 3.4 Code legend (right)
-
-The complete coding hierarchy: **`+ Root Code`**, **`+ Subcode`** (unlimited nesting), rename, recolor, move, expand/collapse.
-
-**Colors:** new root codes get a color from a 15-color palette; **subcodes automatically inherit their parent's color** so a code family reads as one color. Each code's color can be overridden at any time via the swatch picker (Codebook → Code Details).
-
----
-
-## 4. The Codebook Manager
-
-![Codebook overview](screenshots/eQc_Codebook.png)
-
-### 4.1 Code details (left panel, when a code is selected)
-
-- **Code name** — rename inline.
-- **Color** — choose from a 15-swatch palette (overrides inherited color).
-- **Summary / memo** — write operational definitions, theories, or thematic summaries per code. **⚡ Pull Child Summaries** appends every subcode's memo into the parent's.
-
-### 4.2 Collated excerpts (center panel)
-
-Select a code to see **every** excerpt coded to it, across every document. Sort the list: *Default order*, *Notes First*, or *Starred First*. Each excerpt has **⭐ Star / remove** controls and its per-excerpt note.
-
-### 4.3 Import options (left panel)
-
-- **CSV dataset / codebook** — import pre-coded tabular data (see [4.5](#45-importing-coded-datasets-csv)).
-- **REFI-QDA project (QDPX)** — import a project exported from NVivo, MAXQDA, ATLAS.ti, Taguette, or another REFI-QDA-compliant tool. Brings in the **code hierarchy**, **text sources and coded passages**, **images and their coded regions**, and memos (both code-level and source-level). Non-text/media sources that can't be represented are reported by name rather than silently dropped. Re-importing the same file is safe — it won't create duplicates.
-- **Word comments (DOCX)** — import **Word comments** as coded passages (works with the "New Comment" feature in Word). Configure the **separator** used to split structured comment text into fields (e.g. `;`), whether the **first field is the speaker**, and whether the **last field echoes the highlighted excerpt** (so it can be verified, not stored as a code).
-
-### 4.4 Export options (left panel)
-
-- **⬇️ REFI-QDA** — export the complete project as a `.qdpx` archive: codebook (hierarchy, colors, memos), text documents and their coded passages, images and their coded regions. Open it in NVivo/MAXQDA/ATLAS.ti or keep it as an interoperable backup.
-- **📄 Manuscript Skeleton** — generate a `.docx` outline of your codebook: every code that has a written memo becomes a **heading**, its memo text sits underneath, and any **starred quotes** coded to that exact code appear as indented, italicized lines with source attribution below. Codes *without* a memo are skipped, so the skeleton only shows what you've actually written up.
-- **Scope selector** — choose what to export:
-  - *Codes only (codebook)*
-  - *Codes + excerpts*
-  - *Codes + excerpts + summaries*
-  - *Starred Excerpts* — every starred quote across the project, with its code and source document, formatted for pasting straight into a manuscript.
-- **⬇️ CSV / ⬇️ DOCX** — export the selected scope in either format. The spreadsheets use the same header names your CSV importer recognizes, so exports can be re-imported into another project if you ever want to.
-- **⭐ Starred Images (DOCX)** — export every starred image region with its code and a screenshot of the region.
-
-### 4.5 Importing coded datasets (CSV)
-
-| Category          | Accepted headers                      | Required |
-| ----------------- | ------------------------------------- | -------- |
-| Document name     | Participant, Document, Source         | Yes      |
-| Excerpt / quote   | Quote, Quotes, Excerpt, Text          | Yes      |
-| Parent code       | Parent Node, Parent                   | Optional |
-| Child code 1      | Child Node 1, Child 1                 | Optional |
-| Child code 2      | Child Node 2, Child 2                 | Optional |
-| Summaries / memos | Summary of Parent, Child 1 Summary    | Optional |
-
-CSVs are read as **UTF-8** by default, with an automatic **Windows-1252 fallback** when UTF-8 decoding fails — this specifically fixes smart quotes/apostrophes turning into the `�` replacement character when a file was exported from Excel's plain "CSV" option rather than "CSV UTF-8". For best results when exporting from Excel, use **"CSV UTF-8 (Comma delimited)"**.
-
----
-
-## 5. The Auto-Coder Tab
-
-Scans the whole project for a keyword or phrase and applies a code automatically:
-
-1. Enter a keyword or phrase (e.g. `climate change`).
-2. Choose the capture boundary: **Exact match** or **Enclosing sentence** (with language selection for correct sentence-boundary parsing).
-3. Choose the **word matching** mode:
-   - **Literal** — exact substring matching (`tree` also matches inside `street`).
-   - **Word roots & variants** — word-boundary aware with light English inflection matching, so `green` also matches `greens` / `greenery`, but `tree` no longer fires inside `street`. Non-English words (e.g. Bangla) fall back to whole-word matching.
-4. Choose the target code. As you type, a **live preview** shows how many *new* passages would be coded across how many documents (it excludes passages already coded with the target code).
-5. Click **Execute Auto-Code Job**.
-
-![Auto-Coder tab](screenshots/eQc_Autocode.png)
-
----
-
-## 6. The Analysis Dashboard Tab
-
-The dashboard uses the full window width. Every sub-tab has **its own sort controls and its own ⬇️ CSV / ⬇️ DOCX export** — exports always reflect whatever is currently on screen (current sort order, current filters).
-
-![Analysis Dashboard](screenshots/eQc_Analysis.png)
-
-### 6.1 Coding Frequency
-
-Bar chart of coded-segment volume per code, with **parent/theme roll-up**: a parent code's total includes its own direct codings plus every descendant subcode's, shown as *(N direct + M nested)*. Eight sort modes: **Grouped** (hierarchy preserved, siblings ordered) A→Z / Z→A / highest→lowest / lowest→highest, and **Flat** (hierarchy ignored, every code ranked together) highest→lowest / lowest→highest / A→Z / Z→A.
-
-### 6.2 Code × Document Matrix
-
-Codes vs. documents, cell = coded-segment count. Rows (codes) and columns (documents) sort independently — by name (A→Z / Z→A) or by total coded volume (highest→lowest / lowest→highest).
-
-### 6.3 Code Co-occurrence Matrix
-
-Shows how often two different codes are applied to **overlapping (or identical)** text spans — genuine partial overlap counts, not just exact duplicates. Only codes that co-occur with at least one other code are shown, so a large codebook doesn't become an unreadable grid of mostly-zero cells.
-
-Click any cell to open a **three-panel view**:
-- the matrix on the left (it shrinks to make room),
-- the **shared excerpts** in the middle, and
-- a **relationship memo** on the right — a place to write analytic notes on *why* two categories relate, not just that they do (useful for grounded theory's axial coding).
-
-All three panels are independently resizable with the same drag-handle behavior as the Workspace panels. Relationship memos get their **own CSV/DOCX export**, separate from the numeric matrix export, and both are included in the HTML report.
-
-![Co-occurrence detail](screenshots/eQc_Analysis_3.png)
-
-### 6.4 Framework Matrix
-
-A **case (document) × theme (top-level code)** grid where each cell is a short, directly editable text summary — not a count. Rows and columns each sort independently, by name or by how many cells are filled in. This one is different from the others on purpose: it's for writing structured per-case analytic summaries (the classic "Framework Matrix" workflow from applied/policy qualitative research).
-
-### 6.5 HTML Report
-
-**⬇️ HTML Report** generates a single, self-contained file covering all of the above — coding frequency, code × document matrix, code co-occurrence matrix, relationship notes, and code memos — for sharing or archiving outside the app.
-
----
-
-## 7. LAN Collaboration
-
-LAN collaboration lets you and your colleagues work on the **same project at the same time over your local network**. It is built for small, trusted research teams: anyone with the session password can join, and every participant keeps a full local copy of the project.
-
-> **How the model works (short version):** the host is the single source of truth. Every accepted state gets a sequence number and is broadcast live to all connected peers. Whoever edits last "wins" in a simultaneous-edit race. Rejoining peers automatically receive only the newest state when their copy is stale.
-
-### 7.1 Host a session
-
-1. Open the project you want to share (Workspace tab).
-2. Click **`🌐 LAN`** in the header, then the **🖥️ Host a Session** tab.
-3. Enter your **name** (shown to joiners) and optionally set a **session password** ("Require a session password").
-4. Click **▶ Start Hosting**. The host listens on port **8080** and advertises itself on the network (UDP port **8082**).
-5. The session panel shows the list of **connected coders**. When someone joins, their name appears as a chip.
-
-### 7.2 Join a session
-
-1. Click **`🌐 LAN`**, then the **📡 Join a Session** tab.
-2. eQc scans the network and lists every host it finds (name, project, address). If the host requires a password, you'll be asked for it.
-3. Select a host and click **🔗 Join Session**. The project downloads in chunks with a **progress bar**, then your document tree is populated with the shared project.
-4. When you leave, click **⏹ Disconnect**; your copy of the project stays saved on your machine.
-
-### 7.3 Discovery fallbacks
-
-UDP broadcast discovery works on most home/office Wi-Fi, but some routers drop broadcast packets. Two fallbacks are built in:
-
-- **Find by IP** — type the host's IP address (e.g. `192.168.1.24`) into the "Host IP" field on the Join tab and click **🔍 Find by IP**; if a host is listening there, it appears in the list.
-- **Same-PC testing** — running two eQc windows on one computer works too: the app probes `127.0.0.1` directly, so a second instance automatically finds the host running on the same machine.
-
-### 7.4 What syncs
-
-- All **edits, coding, un-coding, renaming, recolor, image region coding**, memos, folder/doc structure — anything that changes the project — is broadcast and applied on every connected peer.
-- A small **toast** shows what changed and who made it (e.g. `[Coder] +2 coded passages, +1 code`).
-- **Presence chips** in the LAN window show who is connected at any moment; hosts are pruned from the join list if they stop advertising (about 6 seconds).
-
-### 7.5 Practical tips
-
-- Both machines must be on the **same network** (same Wi-Fi or LAN). Ports **8080 (WebSocket)** and **8082 (UDP discovery)** must be open in any local firewall.
-- The host PC should stay on and awake while the session is running.
-- Rejoining an up-to-date peer is instant (no resync); a stale peer only downloads the newly changed state.
-- LAN sessions are **unencrypted on the wire** — fine for trusted internal networks; don't share sensitive data over untrusted Wi-Fi without a VPN.
-
----
-
-## 8. The About Tab
-
-- **Application:** eQc — Easy Qual Coding
-- **Version:** read live from the app's own build metadata (always accurate — never manually maintained)
-- **Author:** Anisur Rahman Bayazid
-- **License:** MIT
-
-![About tab](screenshots/eQc_About.png)
-
----
-
-## 9. Summary Table of Supported File Types
-
-| Task | Format | Details |
-| --- | --- | --- |
-| Project backup & transfer | `.json`, `.qdpx` | Export/import; choose originals or text-only documents. JSON project merge is also available. |
-| Codebook import | `.qdc` | Codes and definitions/memos, without source documents |
-| Extracted project import | `.qde` | Requires matching source files beside the XML |
-| External QDA projects (in **and** out) | `.qdpx` | REFI-QDA export & import — codes, text sources, coded passages, images + coded regions, memos |
-| Standard documents | `.txt`, `.docx`, `.pdf` | Direct import |
-| Scanned documents | `.pdf` | Local OCR |
-| Images | `.png`, `.jpg/.jpeg`, `.gif`, `.webp`, `.bmp` | Import, code regions, rename, star, export |
-| Structured datasets | `.csv` | Tabular import into docs + codebook |
-| Coded comments | `.docx` | Word-comment import as codes/passages |
-| Starred quotes | `.csv`, `.docx` | Manuscript-ready excerpt export |
-| Starred image regions | `.docx` | Screenshots of starred regions |
-| Manuscript skeleton | `.docx` | Auto-structured Results-section draft |
-| Any analysis view | `.csv`, `.docx` | Per-view export, matches on-screen sort/filter |
-| Analysis report | `.html` | Self-contained shareable report |
-| LAN collaboration | UDP + WebSocket | Live multi-coder sessions on a local network |
-
----
-
-*eQc — Easy Qual Coding · MIT License · local-first qualitative data analysis.*
-
-## Current codebook and analysis workflows
-
-### Merging codes
-
-In **Codebook → Merge**, check the codes in **Select codes**, choose **Code to keep after merge**, then click **Merge selected codes** and confirm. For example, select three sibling codes and keep one to reduce ten child codes to eight. Rename the retained code in Code Details if needed. The retained code keeps its identity, color and position. Its definitions and summaries incorporate the other codes’ text with origin labels. Descendant codes move under the retained code; their own coding stays on those descendants. Text and image coding keeps coder attribution, notes and stars. Framework cells and relationship memos combine; map references follow the retained code, while internal self-links disappear and their relationship memos move into the retained summary. Coding records are preserved individually, including overlapping records, to retain coder history and notes. Use **Ctrl+Z** to undo the merge. An ancestor cannot merge into its descendant; keep the ancestor instead.
-
-### Exporting one or several codes
-
-Open **Codebook → Export**, choose **Selected codes**, then check one or multiple codes in **Choose codes**, or click **Use current code**, optionally enable **Include their subcodes**, choose the existing scope, then click **CSV** or **DOCX**. Choose **All codes** for the whole codebook. The selection also applies to Starred Excerpts and Starred Images; REFI-QDA, Notes & Memos, and Manuscript Skeleton continue to use the whole project.
-
-Every CSV/DOCX scope includes **Document** names (image names for image coding). **DOCX uses no tables:** each source heading is followed by the full code path, then numbered excerpts on separate lines. Small muted labels show the excerpt count, coder and key-excerpt status; text keeps its line breaks, and image excerpts include a cropped preview, region position and memo. **Codes + excerpts + summaries** additionally includes code definitions, code summaries, source memos and document–code framework memos. **Codes only** lists source associations, counts, definitions and summaries without excerpt content. Uncoded codes appear in a separate section. Starred Excerpts and Starred Images use the same Word layout. Counts represent coding entries, including overlapping passages and separate coders; coverage percentages are omitted.
-
-**CSV remains tabular**, with source names, hierarchy, quotes or normalized image coordinates, coders and excerpt memos; summary mode adds code definitions/summaries. Uncoded codes have blank source/excerpt cells. CSV exports retain the importer-compatible headers. The redundant document-inclusive mode remains removed, and option titles stay the same.
-
-**Filenames:** a single-code export defaults to `Project name_Code name.docx` (or `.csv`); multiple selected names are joined with ` + `, and All codes uses `Project name_All codes`. Including descendants keeps the explicitly selected parent names in the filename. Starred exports add a descriptive suffix. Bengali and other Unicode names are preserved; invalid filename characters are replaced and long names shortened. Choose another name in the save dialog if needed. Available in v1.7.0.
-
-### Reliability and consensus (v1.6.0–1.6.4)
-
-**Analysis → Inter-Coder Reliability** compares attributed coders. Select coders, documents and whether to include images; choose two distinct coders for percent agreement, Cohen’s κ and Holsti’s index. Occurrence metrics use one source × code item; multiple quotes with the same code in that source count as one positive occurrence. Fleiss’ κ is available with three or more coders. Krippendorff’s c-Alpha-binary uses present/absent ratings and Cu-Alpha uses overlapping text passages with uncoded ratings included. κ and α are chance-corrected; Holsti is an uncorrected ratio. Undefined coefficients appear as **—**. Unattributed records are excluded and disclosed; assign them a coder in Project Settings if appropriate.
-
-**Analysis → Consensus** reviews overlapping text passages coded by at least two selected coders. Agreement requires the coders who actually coded the passage to assign the same single code. A third coder who did not touch the passage does not turn agreement into disagreement; single-coder passages are counted separately and excluded from review. Filter agreements/disagreements, keep a coder’s coding, delete all coding on a passage, or remove individual segments. Use Ctrl+Z to undo adjudication. Consensus reviews text; the images toggle affects source-occurrence ICR.
-
-The **HTML Report** includes every dashboard analysis, the currently selected ICR scope and pair, all available coefficients and per-code results, the complete consensus summary and coder assignments, and cropped image coding. Consensus exports both statuses regardless of its current filter and describes the current state, not an adjudication audit history. Word frequencies and KWIC use the last generated list/search; sections explicitly state when those have not been run. A KWIC search with no matches is reported as zero matches.
-
-Codes also have a separate **Definition** field for coding rules. CSV import, project merge, REFI-QDA round-trips and reports retain definitions. Merging another coder’s project also preserves images, regions, framework cells, relationship memos and map edge styles; conflicting analysis text is retained. Deleting a code removes its dependent matrix cells, relationship notes and hidden-map entries. v1.6.2–1.6.3 corrected these data-integrity and consensus behaviors.
-
-### Acknowledgments
-
-eQc gratefully acknowledges the contributions of the CARE project and BRAC James P Grant School of Public Health, BRAC University, to its development.
+MIT License — see [LICENSE](LICENSE).

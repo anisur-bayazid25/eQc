@@ -20,6 +20,7 @@ export default function PdfDocumentView(props: FormattedProps) {
   const [box, setBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const drag = useRef<{ x: number; y: number } | null>(null);
   const root = useRef<HTMLDivElement>(null), canvas = useRef<HTMLCanvasElement>(null), sheet = useRef<HTMLDivElement>(null);
+  useEffect(()=>{const surface=canvas.current;return()=>{if(surface){surface.width=0;surface.height=0;}};},[]);
   const pages = useRef<PageText[]>([]), fullMapping = useRef<TextMapping | null>(null);
   const rawHtml = useRef(''), indexed = useRef<{ nodes: MappedNode[]; mapping: TextMapping } | null>(null);
   const linkedImage = props.images?.find(i => i.pdfPage?.docId === props.doc.id && i.pdfPage.page === page && i.pdfPage.originalHash === originalHash);
@@ -65,8 +66,8 @@ export default function PdfDocumentView(props: FormattedProps) {
       if (cancelled || !canvas.current || !root.current) return;
       const viewport = source.getViewport({ scale: zoom });
       setPageWidth(source.getViewport({ scale: 1 }).width);
-      const ratio = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.current.width = Math.ceil(viewport.width * ratio); canvas.current.height = Math.ceil(viewport.height * ratio);
+      const ratio = Math.min(window.devicePixelRatio || 1, 2, Math.sqrt(8000000 / (viewport.width * viewport.height)));
+      canvas.current.width = Math.max(1, Math.floor(viewport.width * ratio)); canvas.current.height = Math.max(1, Math.floor(viewport.height * ratio));
       canvas.current.style.width = `${viewport.width}px`; canvas.current.style.height = `${viewport.height}px`;
       setSize({ width: viewport.width, height: viewport.height });
       root.current.replaceChildren(); root.current.style.setProperty('--scale-factor', String(zoom));

@@ -121,6 +121,7 @@ export interface LanRejectedNotice {
 }
 
 export interface LanBridge {
+  updateName: (name: string) => Promise<{ ok: boolean }>;
   startHost: (config: LanStartHostConfig) => Promise<{ ok: boolean; error?: string; wsPort?: number; ip?: string }>;
   stopHost: () => Promise<{ ok: boolean }>;
   kickClient: (clientId: string) => Promise<{ ok: boolean; error?: string }>;
@@ -139,7 +140,9 @@ export interface LanBridge {
 }
 
 export interface QvBridge {
+  profileTime?: import('./lib/profileRepository').ProfileRepositoryBridge;
   exportImage: any;
+  openContactEmail(): Promise<void>;
   pickAndEncodeImages: any;
   listProjects(): Promise<ProjectSummary[]>;
   loadProject(id: string): Promise<Project | null>;
@@ -158,9 +161,9 @@ export interface QvBridge {
   onUpdateReady: (cb: () => void) => void;
   onUpdateProgress: (cb: (percent: number) => void) => void;
 
-  pickAndEncodeImages: () => Promise<Array<{ name: string; dataUrl: string; sizeBytes: number }>>;
+  pickAndEncodeImages: () => Promise<Array<{ name: string; dataUrl: string; sizeBytes: number; ok?: boolean; error?: string }>>;
   exportImage: (payload: { title: string; defaultName: string; base64: string }) => Promise<string | null>;
-  extractDroppedImages(paths: string[]): Promise<Array<{ name: string; dataUrl: string; sizeBytes: number }>>;
+  extractDroppedImages(paths: string[]): Promise<Array<{ name: string; dataUrl: string; sizeBytes: number; ok?: boolean; error?: string }>>;
 
   pickAndExtractDocs(): Promise<ExtractedDoc[]>;
   openOriginalSource(original: OriginalSource): Promise<void>;

@@ -68,7 +68,7 @@ function matchSummaryTarget(
   if (n.includes('child 2') || n.includes('child node 2')) return child2Code;
   if (n.includes('child 1') || n.includes('child node 1')) return child1Code;
   if (n.includes('parent')) return parentCode;
-  return parentCode; // generic "Summary" column defaults to the parent code
+  return child2Code || child1Code || parentCode; // generic columns describe this row’s leaf code
 }
 
 // Same level-routing as summaries, but a definition is a single codebook
@@ -93,7 +93,7 @@ function matchDefinitionTarget(
   if (n.includes('child 2') || n.includes('child node 2')) return child2Code;
   if (n.includes('child 1') || n.includes('child node 1')) return child1Code;
   if (n.includes('parent')) return parentCode;
-  return parentCode; // generic "Definition" column defaults to the parent code
+  return child2Code || child1Code || parentCode; // generic columns describe this row’s leaf code
 }
 
 // Mirrors the manual-coding limitation already noted for this app: the

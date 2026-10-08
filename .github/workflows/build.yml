@@ -34,7 +34,7 @@ jobs:
         run: npm install @rollup/rollup-darwin-arm64@4.62.2 --no-save
 
       - name: Run feature regression tests
-        run: node --test tests/release-1.6.4.cjs
+        run: node --test tests/release-1.6.4.cjs tests/release-1.7.0.cjs tests/code-report.cjs tests/formatted-mapping.cjs tests/source-lines.cjs
 
       - name: Build React App (Vite)
         run: npm run build
@@ -56,7 +56,7 @@ jobs:
             release/*.exe
             release/*.dmg
             release/*.blockmap
-            release/*.yml
+            release/latest*.yml
           if-no-files-found: warn
 
   release:

@@ -4,7 +4,10 @@ contextBridge.exposeInMainWorld('qv', {
   // Projects
   listProjects: () => ipcRenderer.invoke('projects:list'),
   loadProject: id => ipcRenderer.invoke('projects:load', id),
-  saveProject: project => ipcRenderer.invoke('projects:save', project),
+  saveProject: (project, metadata) => ipcRenderer.invoke('projects:save', project, metadata),
+  projectHistory: id => ipcRenderer.invoke('projects:history', id),
+  createCheckpoint: (id, label) => ipcRenderer.invoke('projects:checkpoint', id, label),
+  readSnapshot: (projectId, id) => ipcRenderer.invoke('projects:readSnapshot', projectId, id),
   deleteProject: id => ipcRenderer.invoke('projects:delete', id),
 
 // Updates
@@ -19,6 +22,9 @@ onUpdateProgress: (cb) => ipcRenderer.on('update:progress', (_e, pct) => cb(pct)
 
   // Documents
   pickAndExtractDocs: () => ipcRenderer.invoke('docs:pickAndExtract'),
+  openOriginalSource: (original) => ipcRenderer.invoke('docs:openOriginal', original),
+  pickOriginalSource: () => ipcRenderer.invoke('docs:pickOriginal'),
+  saveOriginalSource: (original) => ipcRenderer.invoke('docs:saveOriginal', original),
   extractDroppedDocs: (paths) => ipcRenderer.invoke('docs:extractDropped', paths),
   pickAndParseDocxComments: () => ipcRenderer.invoke('docxComments:pickAndParse'),
   exportDocAsDocx: (payload) => ipcRenderer.invoke('docs:exportDocx', payload),

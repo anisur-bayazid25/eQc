@@ -12,6 +12,9 @@ const JSZip = require('jszip');
 const { autoUpdater } = require('electron-updater');
 const https = require('https');
 const setupLan = require('./lan.cjs');
+const { buildCodeReportDocx, safeFilename } = require('./codeReport.cjs');
+const { captureOriginalSource, decodeOriginalSource } = require('./sourceOriginal.cjs');
+const projectHistory = require('./projectHistory.cjs');
 
 // Prevents a second checkForUpdates() call (e.g. the "Check for Updates"
 // button on the About tab) from starting a duplicate download while one
@@ -32,6 +35,7 @@ function initDb() {
   db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
+  projectHistory.installHistory(db);
   db.exec(`
     CREATE TABLE IF NOT EXISTS projects (
       id TEXT PRIMARY KEY,
@@ -90,8 +94,11 @@ function loadProject(id) {
   return row ? JSON.parse(row.data) : null;
 }
 
-function saveProject(project) {
+function saveProject(project, metadata) {
   const now = Date.now();
+  db.transaction(() => {
+  const before = loadProject(project.id);
+  projectHistory.recordSave(db, before, project, metadata, now);
   db.prepare(`
     INSERT INTO projects (id, name, created_at, data, updated_at)
     VALUES (@id, @name, @createdAt, @data, @updatedAt)
@@ -106,11 +113,16 @@ function saveProject(project) {
     data: JSON.stringify(project),
     updatedAt: now
   });
+  })();
   return project;
 }
 
 function deleteProjectRow(id) {
-  db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+  db.transaction(() => {
+    db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+    db.prepare('DELETE FROM project_activity WHERE project_id = ?').run(id);
+    db.prepare('DELETE FROM project_snapshots WHERE project_id = ?').run(id);
+  })();
 }
 
 // ---------------------------------------------------------------------
@@ -284,7 +296,14 @@ async function extractText(filePath) {
 // ---------------------------------------------------------------------
 ipcMain.handle('projects:list', () => listProjects());
 ipcMain.handle('projects:load', (_e, id) => loadProject(id));
-ipcMain.handle('projects:save', (_e, project) => saveProject(project));
+ipcMain.handle('projects:save', (_e, project, metadata) => saveProject(project, metadata));
+ipcMain.handle('projects:history', (_e, id) => projectHistory.readHistory(db, id));
+ipcMain.handle('projects:checkpoint', (_e, id, label) => {
+  const project = loadProject(id); if (!project) throw new Error('Project not found.');
+  projectHistory.snapshot(db, project, String(label || 'Named recovery point').slice(0, 160));
+  return projectHistory.readHistory(db, id);
+});
+ipcMain.handle('projects:readSnapshot', (_e, projectId, id) => projectHistory.readSnapshot(db, projectId, id));
 ipcMain.handle('projects:delete', (_e, id) => {
   deleteProjectRow(id);
   return true;
@@ -329,6 +348,7 @@ ipcMain.handle('docs:pickAndExtract', async () => {
       out.push({
         name: path.basename(fp),
         content: text,
+        original: captureOriginalSource(fs.readFileSync(fp), path.basename(fp), path.extname(fp).slice(1).toLowerCase(), text),
         sizeBytes: stat.size,
         ok: true
       });
@@ -350,6 +370,7 @@ ipcMain.handle('docs:extractDropped', async (event, paths) => {
       out.push({
         name: path.basename(fp),
         content: text,
+        original: captureOriginalSource(fs.readFileSync(fp), path.basename(fp), path.extname(fp).slice(1).toLowerCase(), text),
         sizeBytes: stat.size,
         ok: true
       });
@@ -364,6 +385,39 @@ ipcMain.handle('docs:extractDropped', async (event, paths) => {
     }
   }
   return out;
+});
+
+ipcMain.handle('docs:saveOriginal', async (_event, original) => {
+  const buffer = decodeOriginalSource(original);
+  const name = `${safeFilename(path.basename(original.name, path.extname(original.name)))}.${original.format}`;
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+    title: 'Save original document', defaultPath: name,
+    filters: [{ name: original.format === 'docx' ? 'Word document' : 'PDF document', extensions: [original.format] }]
+  });
+  if (canceled || !filePath) return null;
+  fs.writeFileSync(filePath, buffer);
+  return filePath;
+});
+
+ipcMain.handle('docs:pickOriginal', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    title: 'Attach an original Word or PDF file', properties: ['openFile'],
+    filters: [{ name: 'Original documents', extensions: ['docx', 'pdf'] }]
+  });
+  if (canceled || !filePaths.length) return null;
+  const file = filePaths[0];
+  const text = await extractText(file);
+  return captureOriginalSource(fs.readFileSync(file), path.basename(file), path.extname(file).slice(1).toLowerCase(), text);
+});
+
+ipcMain.handle('docs:openOriginal', async (_event, original) => {
+  const buffer = decodeOriginalSource(original);
+  const dir = fs.mkdtempSync(path.join(app.getPath('temp'), 'eqc-original-'));
+  const name = `${safeFilename(path.basename(original.name, path.extname(original.name)))}.${original.format}`;
+  const filePath = path.join(dir, name);
+  fs.writeFileSync(filePath, buffer);
+  const error = await require('electron').shell.openPath(filePath);
+  if (error) throw new Error(error);
 });
 
 ipcMain.handle('images:pickAndEncode', async () => {
@@ -429,7 +483,7 @@ ipcMain.handle('export:saveImage', async (_e, payload) => {
 
 // ---------------------------------------------------------------------
 // IPC: REFI-QDA (.qdpx) import
-// .qdpx is a zip archive containing project.qde (XML, REFI-QDA-2 schema)
+// .qdpx is a zip archive containing project.qde (REFI-QDA project XML)
 // plus a Sources/ folder of referenced source files. We unzip and hand
 // back raw text here; the renderer (qdpxImport.ts) parses the XML and
 // merges it into the in-memory Project, same division of labor as CSV
@@ -439,53 +493,11 @@ ipcMain.handle('qdpx:pickAndParse', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
     title: 'Import REFI-QDA project (.qdpx)',
     properties: ['openFile'],
-    filters: [{ name: 'REFI-QDA project', extensions: ['qdpx'] }]
+    filters: [{ name: 'REFI-QDA project or codebook', extensions: ['qdpx', 'qdc', 'qde'] }]
   });
   if (canceled || filePaths.length === 0) return null;
 
-  const buffer = fs.readFileSync(filePaths[0]);
-  const zip = await JSZip.loadAsync(buffer);
-
-  // project.qde is usually at the archive root, but be tolerant of it
-  // being nested (some tools wrap it in a subfolder).
-  const qdeEntry = Object.values(zip.files).find(
-    f => !f.dir && f.name.toLowerCase().endsWith('.qde')
-  );
-  if (!qdeEntry) {
-    throw new Error('No project.qde file found inside this .qdpx archive.');
-  }
-  const qdeXml = await qdeEntry.async('string');
-
-  // Pull every file under Sources/ as text. Binary source types (audio,
-  // video, images, PDFs) are intentionally skipped for now — MVP only
-  // imports TextSource content, which covers the common case of
-  // transcripts/interviews/documents coded as plain text.
-  const sourceFiles = {};
-  const sourceBytes = {};
-  const sourceEntries = Object.values(zip.files).filter(
-    f => !f.dir && /(^|\/)sources\//i.test(f.name)
-  );
-  const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp)$/i;
-  for (const entry of sourceEntries) {
-    if (IMAGE_EXT_RE.test(entry.name)) {
-      // Image file — hand back raw base64 so the renderer can rebuild a
-      // data URL and import it as a PictureSource / image coding region.
-      sourceBytes[entry.name] = await entry.async('base64');
-      continue;
-    }
-    try {
-      sourceFiles[entry.name] = await entry.async('string');
-    } catch {
-      // Binary, non-image file (e.g. embedded audio/PDF) — skip.
-    }
-  }
-
-  return {
-    fileName: path.basename(filePaths[0]),
-    qdeXml,
-    sourceFiles,
-    sourceBytes
-  };
+  return require('./projectExchange.cjs').readExchangeFile(filePaths[0]);
 });
 
 // IPC: REFI-QDA (.qdpx) export. The renderer (qdpxExport.ts) builds the
@@ -551,7 +563,7 @@ ipcMain.handle('docs:exportDocx', async (_e, { name, content }) => {
 ipcMain.handle('export:saveText', async (_e, { title, defaultName, content, extension, filterName }) => {
   const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
     title: title || 'Export',
-    defaultPath: defaultName,
+    defaultPath: `${safeFilename(String(defaultName).endsWith('.'+extension) ? String(defaultName).slice(0,-extension.length-1) : defaultName)}.${extension}`,
     filters: [{ name: filterName || 'File', extensions: [extension || 'txt'] }]
   });
   if (canceled || !filePath) return null;
@@ -640,12 +652,14 @@ ipcMain.handle('export:docx', async (_e, payload) => {
   console.log('export:docx payload received:', JSON.stringify(payload).slice(0, 2000));
   const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
     title: 'Export as Word file',
-    defaultPath: `${payload.filenameBase.replace(/[^\w\- ]/g, '_')}.docx`,
+    defaultPath: `${safeFilename(payload.filenameBase)}.docx`,
     filters: [{ name: 'Word document', extensions: ['docx'] }]
   });
   if (canceled || !filePath) return null;
 
-  const doc = payload.kind === 'outline'
+  const doc = payload.kind === 'codeReport'
+    ? buildCodeReportDocx(payload)
+    : payload.kind === 'outline'
     ? buildOutlineDocx(payload.title, payload.outline)
     : payload.kind === 'imageGallery'
     ? buildImageGalleryDocx(payload.title, payload.items)
@@ -687,7 +701,8 @@ ipcMain.handle('docxComments:pickAndParse', async () => {
   return {
     fileName: path.basename(filePaths[0]),
     documentXml,
-    commentsXml
+    commentsXml,
+    originalBase64: buffer.toString('base64')
   };
 });
 
@@ -792,12 +807,14 @@ ipcMain.handle('backup:export', async (_e, project) => {
 
 ipcMain.handle('backup:import', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
-    title: 'Import project backup',
+    title: 'Import project or codebook',
     properties: ['openFile'],
-    filters: [{ name: 'eQc backup', extensions: ['json'] }]
+    filters: [{ name: 'eQc / REFI-QDA project or codebook', extensions: ['json', 'qdpx', 'qdc', 'qde'] }]
   });
-  if (canceled || filePaths.length === 0) return null;
+  if (canceled || !filePaths.length) return null;
+  if (!/\.json$/i.test(filePaths[0])) return { format: 'refi', payload: await require('./projectExchange.cjs').readExchangeFile(filePaths[0]) };
   const data = JSON.parse(fs.readFileSync(filePaths[0], 'utf-8'));
+  if (!data || typeof data.name !== 'string' || !Array.isArray(data.docs) || !Array.isArray(data.codes) || !Array.isArray(data.codedSegments)) throw new Error('This JSON file is not an eQc project backup.');
   return data;
 });
 

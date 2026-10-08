@@ -10,9 +10,10 @@ declare module '*.js?url' {
   export default url;
 }
 
-import type { Project, ProjectSummary } from './domain';
+import type { Project, ProjectSummary, OriginalSource } from './domain';
 
 export interface ExtractedDoc {
+  original?: OriginalSource;
   name: string;
   content: string;
   sizeBytes: number;
@@ -142,7 +143,10 @@ export interface QvBridge {
   pickAndEncodeImages: any;
   listProjects(): Promise<ProjectSummary[]>;
   loadProject(id: string): Promise<Project | null>;
-  saveProject(project: Project): Promise<Project>;
+  saveProject(project: Project, metadata?: { actor?: string; action?: string }): Promise<Project>;
+  projectHistory(id: string): Promise<{ activity: import('./domain').ActivityEntry[]; snapshots: import('./domain').ProjectSnapshot[] }>;
+  createCheckpoint(id: string, label: string): Promise<{ activity: import('./domain').ActivityEntry[]; snapshots: import('./domain').ProjectSnapshot[] }>;
+  readSnapshot(projectId: string, id: number): Promise<Project>;
   deleteProject(id: string): Promise<boolean>;
 
   checkForUpdates: () => Promise<void>;
@@ -159,20 +163,24 @@ export interface QvBridge {
   extractDroppedImages(paths: string[]): Promise<Array<{ name: string; dataUrl: string; sizeBytes: number }>>;
 
   pickAndExtractDocs(): Promise<ExtractedDoc[]>;
+  openOriginalSource(original: OriginalSource): Promise<void>;
+  pickOriginalSource(): Promise<OriginalSource | null>;
+  saveOriginalSource(original: OriginalSource): Promise<string | null>;
   extractDroppedDocs(paths: string[]): Promise<ExtractedDoc[]>;
   pickAndParseCsv(): Promise<CsvParseResult | null>;
   pickAndParseQdpx: () => Promise<QdpxParsePayload | null>;
   exportQdpx: (payload: QdpxExportPayload) => Promise<string | null>;
-  pickAndParseDocxComments: () => Promise<{ fileName: string; documentXml: string; commentsXml: string } | null>;
+  pickAndParseDocxComments: () => Promise<{ fileName: string; documentXml: string; commentsXml: string; originalBase64?: string } | null>;
 
   exportBackup(project: Project): Promise<string | null>;
-  importBackup(): Promise<Project | null>;
+  importBackup(): Promise<Project | { format: 'refi'; payload: import('./lib/qdpxImport').QdpxParsePayload } | null>;
   pickMultipleForMerge(): Promise<Project[]>;
 
   exportDocAsDocx(payload: { name: string; content: string }): Promise<string | null>;
   
   exportText(payload: { title: string; defaultName: string; content: string; extension: string; filterName: string }): Promise<string | null>;
   exportDocxTable: (payload:
+    | import('./lib/codeReport').CodeReport
     | { kind: 'table'; title: string; headers: string[]; rows: (string | number)[][]; imageCells?: Array<{ row: number; column: number; base64: string; width: number; height: number }>; filenameBase: string }
     | { kind: 'outline'; title: string; outline: Array<{ name: string; depth: number; summary?: string; definition?: string; quotes?: string[]; imageQuotes?: Array<{ base64: string; width: number; height: number; caption: string }> }>; filenameBase: string }
   ) => Promise<string | null>;

@@ -56,7 +56,7 @@ function attr(el: Element, name: string): string | null {
 // Walks word/document.xml in document order, building the same kind of
 // plain-text string your doc.content already uses, while recording the
 // character offset at every commentRangeStart/End marker.
-function extractDocXmlTextAndCommentRanges(documentXmlText: string): {
+export function extractDocXmlTextAndCommentRanges(documentXmlText: string): {
   plainText: string;
   commentRanges: Map<string, { start: number; end: number }>;
 } {

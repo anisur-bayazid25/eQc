@@ -11,20 +11,29 @@ import ToolMenu from './components/ToolMenu';
 import CodeSearch from './components/CodeSearch';
 import DocTree, { SortKey } from './components/DocTree';
 import DocEditor from './components/DocEditor';
+import ResearchWorkspace from './components/ResearchWorkspace';
+import CodingMargin from './components/CodingMargin';
+import HelpPanel from './components/HelpPanel';
+import ProjectExportDialog from './components/ProjectExportDialog';
+import { cleanResearchLinks, resizeExcerpt, relocateResearchAfterEdit } from './lib/research';
+import FormattedDocView, { PdfRegionSelection } from './components/FormattedDocView';
 import { getSelectionOffsets, SelectionOffsets } from './lib/textOffsets';
 import { relocateSegmentsAfterEdit } from './lib/relocateSegments';
 import { importCsvDataset } from './lib/csvImport';
 import { importQdpx } from './lib/qdpxImport';
 import { buildQdpxExport, buildQdpxCodebookExport } from './lib/qdpxExport';
-import { importDocxComments } from './lib/docxCommentImport';
+import { importDocxComments, extractDocXmlTextAndCommentRanges } from './lib/docxCommentImport';
 import { mergeProjectInto } from './lib/merge';
 import { mergeCodes } from './lib/mergeCodes';
 import { codingFrequency, codeDocumentMatrix, codeCooccurrenceMatrix } from './lib/analysis';
-import { collectIcrCoders, computePairwiseIcr, computeFleissIcr, computeBinaryAlpha, computeCuAlpha, buildCodingUnits, formatIcrValue, kappaInterpretation } from './lib/icr';
+import { collectIcrCoders, scopedCoderCounts, computePairwiseIcr, computeFleissIcr, computeBinaryAlpha, computeCuAlpha, buildCodingUnits, formatIcrValue, kappaInterpretation } from './lib/icr';
 import { buildReportHtml, ReportExtras } from './lib/report';
 import { AUTO_CODE_LANGUAGES, CaptureBoundary, AutoCodeMatchMode, runAutoCode } from './lib/autoCode';
 import { extractBengaliTextFromPDF } from './lib/pdfExtractor';
 import { buildScopedExport, ExportScope, SCOPE_LABELS } from './lib/exportBuilders';
+import { buildCodeReport, codeExportFilename, CodeReport } from './lib/codeReport';
+import { sourceLineRange } from './lib/sourceLines';
+import { retainOriginalFile, hashSourceText } from './lib/sourceOriginal';
 import pkg from '../package.json';
 import ImageEditor from './components/ImageEditor';
 import { cropRegionToPng, renderCodedImagePng } from './lib/imageCrop';
@@ -33,14 +42,14 @@ import DocumentPortrait from './components/DocumentPortrait';
 import LanModal from './components/LanModal';
 import type { LanHostInfo, LanSessionState, LanSyncProgress, LanRemoteProject, LanRole, LanCoder } from './global';
 
-function IsolatedPromptModal({ isOpen, message, buttonText, onResolve }: any) {
-  const [val, setVal] = React.useState('');
+function IsolatedPromptModal({ isOpen, message, buttonText, defaultValue, onResolve }: any) {
+  const [val, setVal] = React.useState(defaultValue || '');
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   // Auto-focus and clear text when opened
   React.useEffect(() => {
     if (isOpen) {
-      setVal('');
+      setVal(defaultValue || '');
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [isOpen]);
@@ -56,6 +65,7 @@ function IsolatedPromptModal({ isOpen, message, buttonText, onResolve }: any) {
       <div className="modal" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 9999, backgroundColor: '#ffffff', color: '#0f172a', padding: '24px', borderRadius: '8px', minWidth: '300px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
         <h3 style={{ marginTop: 0 }}>{message}</h3>
         <input 
+          aria-label={message}
           ref={inputRef}
           type="text" 
           value={val} 
@@ -115,7 +125,7 @@ function DebouncedCodeText({ value, onCommit, multiline }: { value: string; onCo
   return React.createElement(el, commonProps);
 }
 
-type Tab = 'workspace' | 'codebook' | 'codemap' | 'autocode' | 'analysis' | 'about';
+type Tab = 'workspace' | 'codebook' | 'codemap' | 'autocode' | 'analysis' | 'help' | 'about';
 
 // Coder filter predicate shared by the Workspace and Codebook lists. A
 // segment matches when it is explicitly stamped with the chosen coder, or —
@@ -322,6 +332,7 @@ export default function App() {
 );
   const [showDocNotes, setShowDocNotes] = useState(false);
   const [showDocPortrait, setShowDocPortrait] = useState(false);
+  const [showLineNumbers, setShowLineNumbers] = useState(() => localStorage.getItem('qda-source-lines') !== 'false');
   const [docNotesDraft, setDocNotesDraft] = useState('');
   const [editingNoteFor, setEditingNoteFor] = useState<ID | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
@@ -363,7 +374,17 @@ useEffect(() => {
 
   // Workspace state
   const [selectedDocId, setSelectedDocId] = useState<ID | null>(null);
+  const [documentView, setDocumentView] = useState<'formatted' | 'text'>(() => localStorage.getItem('qda-document-view') === 'text' ? 'text' : 'formatted');
+  const [pendingPdfRegion, setPendingPdfRegion] = useState<PdfRegionSelection | null>(null);
   const [sortBy, setSortBy] = useState<SortKey>('name');
+  const [researchOpen, setResearchOpen] = useState(false);
+  const [researchSection, setResearchSection] = useState('cases');
+  const [refiningSegmentId, setRefiningSegmentId] = useState<string | null>(null);
+  const [multiCodes, setMultiCodes] = useState<string[]>([]);
+  const [codingStripes, setCodingStripes] = useState(() => localStorage.getItem('qda-coding-stripes') === 'true');
+  const [projectExportOpen, setProjectExportOpen] = useState(false);
+  const [importReport, setImportReport] = useState<{ title: string; message: string } | null>(null);
+  function toggleCodingStripes(value: boolean) { setCodingStripes(value); localStorage.setItem('qda-coding-stripes', String(value)); }
   const [pendingSelection, setPendingSelection] = useState<SelectionOffsets | null>(null);
   const [segmentPopup, setSegmentPopup] = useState<{ segments: CodedSegment[]; x: number; y: number } | null>(null);
   const [editingDocId, setEditingDocId] = useState<ID | null>(null);
@@ -447,6 +468,7 @@ useEffect(() => {
     isOpen: boolean;
     message: string;
     buttonText: string;
+    defaultValue?: string;
     resolve: ((value: string | null) => void) | null;
   }>({ isOpen: false, message: '', buttonText: '', resolve: null });
 
@@ -461,7 +483,7 @@ useEffect(() => {
 
   const customPrompt = (message: string, defaultValue: string = '', buttonText: string = 'Create'): Promise<string | null> => {
     return new Promise((resolve) => {
-      setPromptConfig({ isOpen: true, message, buttonText, resolve });
+      setPromptConfig({ isOpen: true, message, defaultValue, buttonText, resolve });
     });
   };
 
@@ -822,7 +844,7 @@ useEffect(() => {
 
   const saveToDisk = useCallback((p: Project) => {
     setSaveStatus('saving');
-    return window.qv.saveProject(p).then(() => {
+    return window.qv.saveProject(p, { actor: lanRoleRef.current ? lanMyName : p.coderName || 'Unspecified' }).then(() => {
       setSaveStatus('saved');
       setProjects(prev => {
         const others = prev.filter(x => x.id !== p.id);
@@ -833,7 +855,7 @@ useEffect(() => {
       showToast(`Save failed: ${err}`);
       throw err;
     });
-  }, [showToast]);
+  }, [showToast, lanMyName]);
 
   const persist = useCallback((next: Project) => {
     // Stamping `updatedAt` here (rather than at every call site) records the
@@ -841,17 +863,14 @@ useEffect(() => {
     // "edits made while disconnected" apart from "already synced state".
     // Remote applications bypass persist (setProject + saveProject directly),
     // so they never advance the marker.
-    const stamped: Project = { ...next, updatedAt: Date.now() };
-    setProject(prevProj => {
-      if (prevProj && prevProj.id === stamped.id) {
-        setPast(p => {
-          const updated = [...p, prevProj];
-          return updated.length > HISTORY_LIMIT ? updated.slice(updated.length - HISTORY_LIMIT) : updated;
-        });
-        setFuture([]);
-      }
-      return stamped;
-    });
+    const stamped: Project = { ...cleanResearchLinks(next), updatedAt: Date.now() };
+    const previous = projectRef.current;
+    if(previous && previous.id === stamped.id) {
+      setPast(p => [...p,previous].slice(-HISTORY_LIMIT));
+      setFuture([]);
+    }
+    projectRef.current = stamped;
+    setProject(stamped);
     saveToDisk(stamped).catch(() => {});
   }, [saveToDisk]);
 
@@ -897,6 +916,7 @@ useEffect(() => {
 
   // Portrait strip click → scroll the document to the clicked passage.
   function handleJumpToSegment(segment: CodedSegment) {
+    setGotoTarget({ segId: segment.id, nonce: Date.now() });
     // Attempt 1: exact chunk lookup (DocEditor renders chunks with data-seg-ids)
     const chunk = document.querySelector(`[data-seg-ids~="${segment.id}"]`) as HTMLElement | null;
     if (chunk) {
@@ -935,6 +955,7 @@ useEffect(() => {
 
   const [selectedImageId, setSelectedImageId] = useState<ID | null>(null);
   const [pendingRegion, setPendingRegion] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  useEffect(() => { setPendingPdfRegion(null); setPendingSelection(null); setPendingRegion(null); }, [selectedDocId, selectedImageId, project?.id, documentView]);
   const [regionPopup, setRegionPopup] = useState<{ regions: CodedRegion[]; x: number; y: number } | null>(null);
   const [imageZoom, setImageZoom] = useState(1);
 
@@ -972,21 +993,13 @@ async function handleExportStarredImages() {
       showToast('No starred image regions yet.');
       return;
     }
-    const items: Array<{ base64: string; width: number; height: number; caption: string }> = [];
-    for (const r of starredRegions) {
-      const image = (project.images || []).find(i => i.id === r.imageId);
-      if (!image) continue;
-      const cropped = await cropRegionToPng(image.dataUrl, r);
-      const codeName = codesById.get(r.codeId)?.name || 'Unknown code';
-      items.push({ ...cropped, caption: `${codeName} — ${image.name}${r.note ? ` — ${r.note}` : ''}` });
-    }
-    const path = await window.qv.exportDocxTable({
-      kind: 'imageGallery',
-      title: `${project.name} — Starred Image Regions`,
-      items,
-      filenameBase: `${project.name.replace(/[^\w\- ]/g, '_')}_starred_images`
-    } as any);
-    if (path) showToast(`Exported ${items.length} starred image(s) to ${path}`);
+    const codeIds = new Set(starredRegions.map(r => r.codeId));
+    const report = buildCodeReport({ ...project, codedSegments: [], codedRegions: starredRegions }, 'codesExcerptsSummaries', codeIds);
+    report.title = 'Starred image excerpts';
+    report.filenameBase = `${codeExportFilename(project, codeIds)}_Starred images`;
+    await exportReportImages(report);
+    const path = await window.qv.exportDocxTable(report);
+    if (path) showToast(`Exported ${starredRegions.length} starred image(s) to ${path}`);
   }
 
 async function handleExportCodedImage() {
@@ -1112,8 +1125,9 @@ const contentSearchResults = useMemo(() => {
     [regionCountByImage]
   );
 
+useEffect(() => { setDocNotesDraft(selectedDoc?.notes || ''); }, [selectedDoc?.id, selectedDoc?.notes]);
+
 useEffect(() => {
-    setDocNotesDraft(selectedDoc?.notes || '');
     setShowDocNotes(false);
     // Clear navigation targets when switching documents
     setHighlightTarget(null);
@@ -1127,15 +1141,17 @@ useEffect(() => {
 
   // Clear navigation targets when switching tabs
   useEffect(() => {
-    setHighlightTarget(null);
-    setGotoTarget(null);
+    if (tab !== 'workspace') {
+      setHighlightTarget(null);
+      setGotoTarget(null);
+    }
   }, [tab]);
 
 useEffect(() => {
     setImageNotesDraft(selectedImage?.notes || '');
     setShowImageNotes(false);
     setImageZoom(1);
-  }, [selectedImage?.id]);
+  }, [selectedImage?.id, selectedImage?.notes]);
 
   // =================================================================
   // Project management
@@ -1307,39 +1323,37 @@ function openProjectSettings() {
     showToast('Project deleted.');
   }
 
-  async function handleExportBackup() {
-    if (!project) return;
-    const path = await window.qv.exportBackup(project);
-    if (path) showToast(`Backup exported to ${path}`);
-  }
-
   async function handleImportBackup() {
-    const data = await window.qv.importBackup();
-    if (!data) return;
-    const imported: Project = { ...data, id: uid('proj'), name: `${data.name} (imported)` };
-    await saveToDisk(imported).catch(() => {});
-    setProject(imported);
-    showToast('Project imported.');
+    try {
+      const data = await window.qv.importBackup();
+      if (!data) return;
+      let imported: Project;
+      let message = 'Project imported.';
+      let omissions = '';
+      if ('format' in data && data.format === 'refi') {
+        imported = newProject(data.payload.fileName.replace(/\.(qdpx|qdc|qde)$/i, ''));
+        const summary = await importQdpx(imported, data.payload);
+        if (!summary.docsCreated && !summary.imagesCreated && summary.sourcesSkipped.length) throw new Error('Source files could not be imported. Choose the original QDPX file, or keep project.qde beside its sources folder. ' + summary.sourcesSkipped.join('; '));
+        message = `Imported ${summary.codesCreated} codes, ${summary.docsCreated} documents and ${summary.imagesCreated} images.`;
+        if (summary.sourcesSkipped.length || summary.segmentsSkipped) omissions = ['Some items could not be imported:', ...summary.sourcesSkipped, summary.segmentsSkipped ? summary.segmentsSkipped + ' coding entries skipped.' : ''].filter(Boolean).join('\n');
+      } else {
+        const backup = data as Project;
+        imported = { ...backup, id: uid('proj'), name: `${backup.name} (imported)` };
+      }
+      await saveToDisk(imported);
+      projectRef.current = imported;
+      setPast([]); setFuture([]); setSelectedDocId(null); setSelectedImageId(null);
+      setProject(imported); setTab('workspace');
+      showToast(message);
+      if (omissions) setImportReport({ title:'Import report', message:message+'\n\n'+omissions });
+    } catch (error) { setImportReport({ title:'Import could not be completed', message:error instanceof Error ? error.message : String(error) }); }
   }
 
   async function handleMerge() {
     if (!project) return;
     const sources = await window.qv.pickMultipleForMerge();
     if (sources.length === 0) return;
-    let next = {
-      ...project,
-      folders: [...project.folders],
-      docs: [...project.docs],
-      codes: [...project.codes],
-      codedSegments: [...project.codedSegments],
-      // Clone the carried collections too, so the mutating merge never edits
-      // the arrays the current project state still references.
-      images: project.images ? [...project.images] : undefined,
-      codedRegions: project.codedRegions ? [...project.codedRegions] : undefined,
-      frameworkCells: project.frameworkCells ? [...project.frameworkCells] : undefined,
-      relationNotes: project.relationNotes ? [...project.relationNotes] : undefined,
-      mapEdgeStyles: project.mapEdgeStyles ? [...project.mapEdgeStyles] : undefined
-    };
+    const next: Project = structuredClone(project);
     let totalDocs = 0, totalMerged = 0, totalCodes = 0, totalSegs = 0;
     let totalImages = 0, totalRegions = 0, totalFw = 0, totalNotes = 0, totalEdges = 0;
     for (const src of sources) {
@@ -1405,7 +1419,8 @@ function openProjectSettings() {
       onConfirm: () => {
         const folders = project.folders.filter(f => f.id !== folder.id);
         const docs = project.docs.map(d => (d.folderId === folder.id ? { ...d, folderId: null } : d));
-        persist({ ...project, folders, docs });
+        const images = project.images?.map(i => i.pdfPage && i.folderId === folder.id ? { ...i, folderId: null } : i);
+        persist({ ...project, folders, docs, images });
       },
     });
   }
@@ -1427,7 +1442,8 @@ function openProjectSettings() {
         name: f.name,
         content: f.content,
         addedAt: Date.now(),
-        sizeBytes: f.sizeBytes
+        sizeBytes: f.sizeBytes,
+        ...(f.original ? { original: f.original } : {})
       });
     }
     if (newDocs.length > 0) {
@@ -1459,7 +1475,8 @@ async function importDroppedFiles(paths: string[], folderId: ID | null) {
       name: f.name,
       content: f.content,
       addedAt: Date.now(),
-      sizeBytes: f.sizeBytes
+      sizeBytes: f.sizeBytes,
+      ...(f.original ? { original: f.original } : {})
     });
   }
   
@@ -1525,7 +1542,8 @@ async function addScannedPdf(folderId: ID | null) {
             name: f.name,
             content: content,
             addedAt: Date.now(),
-            sizeBytes: f.size
+            sizeBytes: f.size,
+            original: await retainOriginalFile(f, content)
           });
         } catch (error: any) {
           failures.push(`${f.name}: ${error.message || 'OCR failed'}`);
@@ -1549,18 +1567,19 @@ async function addScannedPdf(folderId: ID | null) {
     if (!project) return;
     const name = await customPrompt('Rename document', doc.name, 'Rename');
     if (!name) return;
-    persist({ ...project, docs: project.docs.map(d => (d.id === doc.id ? { ...d, name } : d)) });
+    persist({ ...project, docs: project.docs.map(d => (d.id === doc.id ? { ...d, name } : d)), images: project.images?.map(i => i.pdfPage?.docId === doc.id ? { ...i, name: `${name} — PDF page ${i.pdfPage.page}` } : i) });
   }
 
   function deleteDoc(doc: SourceDoc) {
     if (!project) return;
     setConfirmDialog({
-      message: `Delete document "${doc.name}"? Its coded passages will also be removed.`,
+      message: `Delete document "${doc.name}"? Its coded passages and linked PDF page images/regions will also be removed.`,
       confirmText: 'Delete',
       onConfirm: () => {
         const docs = project.docs.filter(d => d.id !== doc.id);
         const codedSegments = project.codedSegments.filter(s => s.docId !== doc.id);
-        persist({ ...project, docs, codedSegments });
+        const pageIds = new Set(project.images?.filter(i => i.pdfPage?.docId === doc.id).map(i => i.id));
+        persist({ ...project, docs, codedSegments, images: project.images?.filter(i => !pageIds.has(i.id)), codedRegions: project.codedRegions?.filter(r => !pageIds.has(r.imageId)) });
         if (selectedDocId === doc.id) setSelectedDocId(null);
       },
     });
@@ -1622,22 +1641,23 @@ async function renameImageWithPrompt(img: ImageSource) {
     setDraftContent('');
   }
 
-  function saveEditDoc() {
+  async function saveEditDoc() {
     if (!project || !editingDocId) return;
     const doc = project.docs.find(d => d.id === editingDocId);
     if (!doc) return;
 
     const docSegs = project.codedSegments.filter(s => s.docId === editingDocId);
     const { segments: relocated, keptCount, droppedCount } = relocateSegmentsAfterEdit(doc.content, draftContent, docSegs);
+    const original = doc.original ? { ...doc.original, textChanged: doc.original.textHash !== await hashSourceText(draftContent) } : undefined;
 
     const docs = project.docs.map(d =>
-      d.id === editingDocId ? { ...d, content: draftContent, sizeBytes: draftContent.length } : d
+      d.id === editingDocId ? { ...d, content: draftContent, sizeBytes: draftContent.length, ...(original ? { original } : {}) } : d
     );
     const codedSegments = [
       ...project.codedSegments.filter(s => s.docId !== editingDocId),
       ...relocated
     ];
-    persist({ ...project, docs, codedSegments });
+    persist({ ...relocateResearchAfterEdit(project, doc.id, draftContent), docs, codedSegments });
     setEditingDocId(null);
     setDraftContent('');
 
@@ -1690,14 +1710,32 @@ async function handleExportDocDocx(doc: SourceDoc) {
     persist({ ...project, codes: [...project.codes, code] });
   }
 
-async function exportImageCells(data: ReturnType<typeof buildScopedExport>) {
-  const cells: Array<{ row: number; column: number; base64: string; width: number; height: number }> = [];
-  for (const item of data.imageRows || []) {
-    const image = project?.images?.find(i => i.id === item.region.imageId);
-    if (image) cells.push({ row: item.row, column: item.column, ...await cropRegionToPng(image.dataUrl, item.region) });
+async function exportReportImages(report: CodeReport) {
+  for (const source of report.sources) for (const code of source.codes) for (const excerpt of code.excerpts) {
+    if (!excerpt.region) continue;
+    const image = project?.images?.find(i => i.id === excerpt.region!.imageId);
+    if (image) excerpt.image = await cropRegionToPng(image.dataUrl, excerpt.region);
   }
-  return cells;
 }
+
+  async function handleOriginal(doc: SourceDoc, action: 'open' | 'save' | 'attach') {
+    if (!project) return;
+    try {
+      if (action === 'attach') {
+        const original = await window.qv.pickOriginalSource();
+        if (!original) return;
+        original.textChanged = original.textHash !== await hashSourceText(doc.content);
+        persist({ ...project, docs: project.docs.map(d => d.id === doc.id ? { ...d, original } : d) });
+        showToast(original.textChanged ? 'Original attached. Its extracted text differs from the coding text; existing coding is retained.' : 'Original attached with its formatting.');
+      } else if (doc.original) {
+        if (action === 'open') await window.qv.openOriginalSource(doc.original);
+        else {
+          const saved = await window.qv.saveOriginalSource(doc.original);
+          if (saved) showToast(`Original saved to ${saved}`);
+        }
+      }
+    } catch (error: any) { showToast(error.message || String(error)); }
+  }
 
 async function handleExportCsv() {
   if (!project) return;
@@ -1705,7 +1743,7 @@ async function handleExportCsv() {
   const { csv } = buildScopedExport(project, exportScope, exportIds());
   const path = await window.qv.exportText({
     title: 'Export CSV',
-    defaultName: `${project.name.replace(/[^\w\- ]/g, '_')}_${exportScope}.csv`,
+    defaultName: `${codeExportFilename(project, exportSelectedOnly ? new Set(selectedCodeIds) : undefined)}.csv`,
     content: csv,
     extension: 'csv',
     filterName: 'CSV file'
@@ -1716,31 +1754,26 @@ async function handleExportCsv() {
 async function handleExportDocx() {
   if (!project) return;
   if (exportSelectedOnly && !selectedCodeIds.length) { showToast('Select at least one code to export.'); return; }
-  const data = buildScopedExport(project, exportScope, exportIds());
-  const { headers, rows } = data;
-  const imageCells = await exportImageCells(data);
-  const path = await window.qv.exportDocxTable({
-    kind: 'table',
-    title: `${project.name} — ${SCOPE_LABELS[exportScope]}`,
-    headers,
-    rows,
-    imageCells,
-    filenameBase: `${project.name}_${exportScope}`
-  });
+  const report = buildCodeReport(project, exportScope, exportIds());
+  report.filenameBase = codeExportFilename(project, exportSelectedOnly ? new Set(selectedCodeIds) : undefined);
+  await exportReportImages(report);
+  const path = await window.qv.exportDocxTable(report);
   if (path) showToast(`Exported to ${path}`);
 }
 
   function updateCode(codeId: ID, patch: Partial<Code>) {
-    if (!project) return;
-    persist({ ...project, codes: project.codes.map(c => (c.id === codeId ? { ...c, ...patch } : c)) });
+    const current=projectRef.current; if (!current) return;
+    if(!current.codes.some(c=>c.id===codeId&&Object.entries(patch).some(([key,value])=>JSON.stringify(c[key as keyof Code])!==JSON.stringify(value))))return;
+    persist({ ...current, codes: current.codes.map(c => (c.id === codeId ? { ...c, ...patch } : c)) });
   }
 
   function updateCodesBatch(updates: Array<{ id: ID; patch: Partial<Code> }>) {
-    if (!project) return;
+    const current=projectRef.current; if (!current) return;
     const byId = new Map(updates.map(u => [u.id, u.patch]));
+    if(!current.codes.some(c=>byId.has(c.id)&&Object.entries(byId.get(c.id)!).some(([key,value])=>JSON.stringify(c[key as keyof Code])!==JSON.stringify(value))))return;
     persist({
-      ...project,
-      codes: project.codes.map(c => (byId.has(c.id) ? { ...c, ...byId.get(c.id)! } : c))
+      ...current,
+      codes: current.codes.map(c => (byId.has(c.id) ? { ...c, ...byId.get(c.id)! } : c))
     });
   }
 
@@ -1819,7 +1852,7 @@ function moveDoc(docId: ID, targetFolderId: ID | null) {
     const docs = project.docs.map(d =>
       d.id === docId ? { ...d, folderId: targetFolderId } : d
     );
-    persist({ ...project, docs });
+    persist({ ...project, docs, images: project.images?.map(i => i.pdfPage?.docId === docId ? { ...i, folderId: targetFolderId } : i) });
   }
 
   function moveImage(imageId: ID, targetFolderId: ID | null) {
@@ -1948,12 +1981,29 @@ function moveDoc(docId: ID, targetFolderId: ID | null) {
     showToast(`Applied "${code.name}"`);
   }
 
+  function applyCodeToPdfRegion(code: Code) {
+    if (!project || !selectedDoc || !pendingPdfRegion || pendingPdfRegion.docId !== selectedDoc.id) return;
+    const selection = pendingPdfRegion;
+    let image = project.images?.find(i => i.pdfPage?.docId === selectedDoc.id && i.pdfPage.page === selection.page && i.pdfPage.originalHash === selection.originalHash);
+    const images = [...(project.images || [])];
+    if (!image) {
+      image = { id: uid('img'), folderId: selectedDoc.folderId, name: `${selectedDoc.name} — PDF page ${selection.page}`, dataUrl: selection.dataUrl, addedAt: Date.now(), sizeBytes: Math.floor(selection.dataUrl.length * .75), pdfPage: { docId: selectedDoc.id, page: selection.page, originalHash: selection.originalHash } };
+      images.push(image);
+    }
+    const region: CodedRegion = { id: uid('region'), imageId: image.id, codeId: code.id, x: selection.x, y: selection.y, width: selection.width, height: selection.height, createdAt: Date.now(), ...(activeCoderName ? { coder: activeCoderName } : {}) };
+    persist({ ...project, images, codedRegions: [...(project.codedRegions || []), region] });
+    setPendingPdfRegion(null);
+    showToast(`Applied "${code.name}" to PDF page ${selection.page} region`);
+  }
+
   // Shared by the Code Legend tree and the code search box: apply to the
   // pending text selection if there is one, otherwise jump to that code's
   // detail view in the Codebook tab.
   function handleWorkspaceCodeClick(code: Code) {
     if (pendingSelection) {
       applyCodeToSelection(code);
+    } else if (pendingPdfRegion) {
+      applyCodeToPdfRegion(code);
     } else if (pendingRegion) {
       applyCodeToRegion(code);
     } else {
@@ -2020,8 +2070,13 @@ function toggleStarSegment(segId: ID) {
     const codeIds = new Set([...starred.map(s => s.codeId), ...regions.map(r => r.codeId)]);
     const data = buildScopedExport({ ...project, codedSegments: starred, codedRegions: regions }, 'codesExcerptsSummaries', codeIds);
     const { headers, rows } = data;
-    const imageCells = kind === 'docx' ? await exportImageCells(data) : undefined;
-    const filenameBase = `${project.name.replace(/[^\w\- ]/g, '_')}_starred_quotes`;
+    const filenameBase = `${codeExportFilename(project, codeIds)}_Starred excerpts`;
+    const report = kind === 'docx' ? buildCodeReport({ ...project, codedSegments: starred, codedRegions: regions }, 'codesExcerptsSummaries', codeIds) : undefined;
+    if (report) {
+      report.title = 'Starred excerpts';
+      report.filenameBase = filenameBase;
+      await exportReportImages(report);
+    }
 
     const path = kind === 'csv'
       ? await window.qv.exportText({
@@ -2031,14 +2086,7 @@ function toggleStarSegment(segId: ID) {
           extension: 'csv',
           filterName: 'CSV file'
         })
-      : await window.qv.exportDocxTable({
-          kind: 'table',
-          title: `${project.name} — Starred Quotes`,
-          headers,
-          rows,
-          imageCells,
-          filenameBase
-        });
+      : await window.qv.exportDocxTable(report!);
     if (path) showToast(`Exported ${starred.length + regions.length} starred excerpts to ${path}`);
   }
 
@@ -2214,6 +2262,7 @@ function handleRunAutoCode() {
       : []),
     [project?.codedSegments, selectedDoc, selectedCoderFilter]
   );
+  const formattedRegions = useMemo(() => project?.codedRegions?.filter(r => matchesCoder(r.coder, selectedCoderFilter)), [project?.codedRegions, selectedCoderFilter]);
 
   // =================================================================
   // CSV dataset import (Codebook tab)
@@ -2223,13 +2272,7 @@ function handleRunAutoCode() {
     const parsed = await window.qv.pickAndParseCsv();
     if (!parsed) return;
     try {
-      const draft: Project = {
-        ...project,
-        folders: [...project.folders],
-        docs: [...project.docs],
-        codes: [...project.codes],
-        codedSegments: [...project.codedSegments]
-      };
+      const draft: Project = structuredClone(project);
       const summary = importCsvDataset(draft, parsed);
       persist(draft);
       showToast(
@@ -2250,26 +2293,18 @@ function handleRunAutoCode() {
   // =================================================================
   async function handleQdpxImport() {
     if (!project) return;
-    const payload = await window.qv.pickAndParseQdpx();
-    if (!payload) return;
     try {
-      const draft: Project = {
-        ...project,
-        folders: [...project.folders],
-        docs: [...project.docs],
-        codes: [...project.codes],
-        codedSegments: [...project.codedSegments]
-      };
+      const payload = await window.qv.pickAndParseQdpx();
+      if (!payload) return;
+      const draft: Project = structuredClone(project);
       const summary = await importQdpx(draft, payload);
       persist(draft);
-      if (summary.sourcesSkipped.length > 0) {
-        console.log('qdpx import — skipped non-text sources:', summary.sourcesSkipped);
-      }
+      if (summary.sourcesSkipped.length || summary.segmentsSkipped) setImportReport({ title:'Import report', message:[summary.codesCreated+' codes, '+summary.docsCreated+' documents and '+summary.imagesCreated+' images added.', 'Some items could not be imported:', ...summary.sourcesSkipped, summary.segmentsSkipped ? summary.segmentsSkipped+' coding entries skipped.' : ''].filter(Boolean).join('\n') });
       showToast(
         `Imported ${payload.fileName}: +${summary.codesCreated} codes, +${summary.docsCreated} docs, ` +
         `+${summary.imagesCreated} images, +${summary.segmentsCreated} coded passages, ${summary.memosImported} memos` +
         (summary.segmentsSkipped ? ` (${summary.segmentsSkipped} selections skipped)` : '') +
-        (summary.sourcesSkipped.length ? ` — ${summary.sourcesSkipped.length} non-text source(s) skipped (see console)` : '')
+        (summary.sourcesSkipped.length ? ` — ${summary.sourcesSkipped.length} source(s) skipped (see import report)` : '')
       );
     } catch (e: any) {
       showToast(e.message || String(e));
@@ -2359,18 +2394,20 @@ function openDocxCommentImport() {
     if (!payload) return;
 
     try {
-      const draft: Project = {
-        ...project,
-        folders: [...project.folders],
-        docs: [...project.docs],
-        codes: [...project.codes],
-        codedSegments: [...project.codedSegments]
-      };
+      const draft: Project = structuredClone(project);
       const summary = importDocxComments(draft, payload, {
       separator,
       firstFieldIsSpeaker: docxFirstIsSpeaker,
       lastFieldIsExcerptEcho: docxLastIsExcerpt
     });
+    if (payload.originalBase64) {
+      const name = payload.fileName.replace(/\.docx$/i, '').trim().toLowerCase();
+      const text = extractDocXmlTextAndCommentRanges(payload.documentXml).plainText;
+      const textHash = await hashSourceText(text);
+      draft.docs = draft.docs.map(d => d.name.trim().toLowerCase() === name && !d.original ? {
+        ...d, original: { name: payload.fileName, format: 'docx' as const, base64: payload.originalBase64!, textHash, textChanged: d.content !== text }
+      } : d);
+    }
     persist(draft);
     showToast(
       `Imported ${payload.fileName}: +${summary.codesCreated} codes, +${summary.segmentsCreated} coded passages` +
@@ -2498,6 +2535,16 @@ function openDocxCommentImport() {
   }
   return (
     <div className="app-shell">
+      {researchOpen && <ResearchWorkspace project={project} section={researchSection} onSection={setResearchSection} onClose={() => setResearchOpen(false)} onChange={persist} actor={activeCoderName} selection={pendingSelection && selectedDoc ? { docId: selectedDoc.id, start: pendingSelection.start, end: pendingSelection.end } : null}
+        onNavigate={id => {
+          const seg = project.codedSegments.find(s => s.id === id);
+          if (seg) { goToExcerpt(seg); return; }
+          const annotation = project.annotations?.find(a => a.id === id);
+          if (annotation) { setTab('workspace'); setSelectedDocId(annotation.docId); setSelectedImageId(null); setHighlightTarget({ ...annotation, nonce: Date.now() }); return; }
+          const region = project.codedRegions?.find(r => r.id === id);
+          if (region) { setTab('workspace'); setSelectedDocId(null); setSelectedImageId(region.imageId); }
+        }}
+        onAdjust={id => { const seg = project.codedSegments.find(s => s.id === id); if (seg) { setRefiningSegmentId(id); setDocumentView('text'); goToExcerpt(seg); setPendingSelection(null); } }} />}
       {/* Transient status toast. showToast() clears it on a timer, so it never
           lingers; message and duration are supplied by the caller. */}
       {toast && (
@@ -2520,8 +2567,10 @@ function openDocxCommentImport() {
 
 {/* Single global prompt modal (all tabs) */}
 <IsolatedPromptModal
+        key={promptConfig.isOpen ? promptConfig.message : 'closed'}
         isOpen={promptConfig.isOpen}
         message={promptConfig.message}
+        defaultValue={promptConfig.defaultValue}
         buttonText={promptConfig.buttonText}
         onResolve={handlePromptResolve}
       />
@@ -2751,13 +2800,14 @@ function openDocxCommentImport() {
 
           {/* Navigation Tabs */}
           <nav className="tabs" aria-label="Main navigation">
-            {(['workspace', 'codebook', 'codemap', 'autocode', 'analysis', 'about'] as Tab[]).map(t => (
+            {(['workspace', 'codebook', 'autocode', 'analysis', 'codemap', 'help', 'about'] as Tab[]).map(t => (
               <button key={t} className={`tab-btn ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
                 {t === 'workspace' && 'Workspace'}
                 {t === 'codebook' && 'Codebook'}
                 {t === 'codemap' && 'Code Map'}
                 {t === 'autocode' && 'Auto-Code'}
                 {t === 'analysis' && 'Analysis'}
+                {t === 'help' && 'Help'}
                 {t === 'about' && 'About'}
               </button>
             ))}
@@ -2778,8 +2828,9 @@ function openDocxCommentImport() {
             ? <button className="icon-btn" title="The session-shared project can't be renamed" disabled>✏️</button>
             : <button className="icon-btn" title="Rename project" onClick={openProjectSettings}>✏️</button>}
           <ToolMenu label="Project tools">
-          <button className="icon-btn" title="Export backup (.json)" onClick={handleExportBackup}>⬇️ Export</button>
-          <button className="icon-btn" title="Import backup (.json)" onClick={handleImportBackup}>⬆️ Import</button>
+          <button onClick={() => setResearchOpen(true)}>Research tools</button>
+          <button className="icon-btn" title="Export project as JSON or QDPX" onClick={() => setProjectExportOpen(true)}>⬇️ Export</button>
+          <button className="icon-btn" title="Import a JSON/QDPX project or QDC/QDE file" onClick={e => { e.currentTarget.closest('details')?.removeAttribute('open'); void handleImportBackup(); }}>⬆️ Import</button>
           <button className="icon-btn" title="Merge project(s) into current" onClick={handleMerge}>🔀 Merge</button>
           </ToolMenu>
           <button
@@ -2810,6 +2861,7 @@ function openDocxCommentImport() {
           <button className="icon-btn-sm" title="Redo (Ctrl+Shift+Z)" disabled={future.length === 0} onClick={redo}>↷</button>
           <span className="header-divider" style={{ margin: '0 8px', borderLeft: '1px solid #ccc', height: '20px' }} />
           <ToolMenu label="Reading">
+          <label><input type="checkbox" checked={codingStripes} onChange={e => toggleCodingStripes(e.target.checked)} />Coding stripes</label>
           <select
             title="Reading font"
             value={readerFontFamily}
@@ -3015,7 +3067,7 @@ function openDocxCommentImport() {
             {selectedDoc ? (
               <>
                 {/* Reading Theme Switcher Buttons */}
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
+                <div style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
                   <span style={{ fontSize: '12px', opacity: 0.7 }}>Theme:</span>
                   <button
                     className="mini-btn"
@@ -3057,9 +3109,22 @@ function openDocxCommentImport() {
                   >
                     📊 Portrait
                   </button>
+                  <button className="mini-btn" aria-pressed={codingStripes} title="Show vertical code names and coloured stripes beside coded passages" style={{ color: readerTheme === 'dark' ? '#f8fafc' : '#0f172a', fontWeight: codingStripes ? 'bold' : 'normal', border: codingStripes ? '2px solid #3b82f6' : '1px solid #475569' }} onClick={() => toggleCodingStripes(!codingStripes)}>Codes &amp; Strips</button>
+                  <button className="mini-btn" aria-pressed={showLineNumbers} disabled={!!selectedDoc.original && documentView === 'formatted'} style={{ color: readerTheme === 'dark' ? '#f8fafc' : '#0f172a', fontWeight: showLineNumbers ? 'bold' : 'normal', border: showLineNumbers ? '2px solid #3b82f6' : '1px solid #475569' }} title={selectedDoc.original && documentView === 'formatted' ? 'Source line numbers are available in Plain text' : 'Stable source lines; numbering stays the same when text wraps or font size changes'} onClick={() => {
+                    setShowLineNumbers(v => { localStorage.setItem('qda-source-lines', String(!v)); return !v; });
+                  }}>Lines</button>
                 </div>
                 <div className="doc-title-row">
                   <h3>{selectedDoc.name}</h3>
+                  <ToolMenu label="Original">
+                    {selectedDoc.original ? <>
+                      <p>Retained {selectedDoc.original.format.toUpperCase()} with its original formatting. Switch between Original view and Plain text below.</p>
+                      {selectedDoc.original.textChanged && <p>The coding text differs from this original file.</p>}
+                      <button className="mini-btn" onClick={() => handleOriginal(selectedDoc, 'open')}>Open original</button>
+                      <button className="mini-btn" onClick={() => handleOriginal(selectedDoc, 'save')}>Save original</button>
+                    </> : <p>Attach the Word or PDF original to preserve its formatting. Existing text and coding are retained.</p>}
+                    <button className="mini-btn" onClick={() => handleOriginal(selectedDoc, 'attach')}>{selectedDoc.original ? 'Replace original attachment' : 'Attach original'}</button>
+                  </ToolMenu>
                   {showDocNotes && (
                     <div className="doc-notes-panel">
                       <label>Document memo — whole-case notes, interpretation, context</label>
@@ -3079,12 +3144,31 @@ function openDocxCommentImport() {
                       style={{ flex: 1, overflowY: 'auto', padding: '16px', boxSizing: 'border-box', minWidth: 0 }}
                       onClick={() => { setHighlightTarget(null); setGotoTarget(null); }}
                     >
-                      <DocEditor
+                      {selectedDoc.original && <div className="document-view-switch" role="group" aria-label="Document view">
+                        <button className="mini-btn" aria-pressed={documentView === 'formatted'} onClick={() => { setDocumentView('formatted'); localStorage.setItem('qda-document-view', 'formatted'); }}>Original view</button>
+                        <button className="mini-btn" aria-pressed={documentView === 'text'} onClick={() => { setDocumentView('text'); localStorage.setItem('qda-document-view', 'text'); }}>Plain text</button>
+                      </div>}
+                      <CodingMargin readerStyle={THEME_STYLES[readerTheme]} enabled={codingStripes} segments={docSegments} codesById={codesById} onJump={goToExcerpt}>
+                      {selectedDoc.original && documentView === 'formatted' ? <FormattedDocView
+                        doc={selectedDoc} segments={docSegments} codesById={codesById}
+                        annotations={project.annotations?.filter(a => a.docId === selectedDoc.id)} onClickAnnotation={() => { setResearchSection('notes'); setResearchOpen(true); }}
+                        images={project.images} regions={formattedRegions}
+                        onSelectionChange={sel => { setPendingSelection(sel); if (sel) setPendingPdfRegion(null); }}
+                        onPdfRegion={region => { setPendingPdfRegion(region); if (region) setPendingSelection(null); }}
+                        onClickRegions={(regions, x, y) => setRegionPopup({ regions, x, y })}
+                        onClickSegment={(segments, x, y) => setSegmentPopup({ segments, x, y })}
+                        onDropCode={id => { const code = project.codes.find(c => c.id === id); if (code) handleWorkspaceCodeClick(code); }}
+                        scrollToSegmentId={gotoTarget?.segId} scrollNonce={gotoTarget?.nonce}
+                        highlightRange={highlightTarget?.docId === selectedDoc.id ? { start: highlightTarget.start, end: highlightTarget.end } : null}
+                        highlightNonce={highlightTarget?.nonce}
+                      /> : <DocEditor
                         doc={selectedDoc}
                         segments={docSegments}
                         codesById={codesById}
                         fontSize={readerFontSize}
                         fontFamily={readerFontFamily}
+                        showLineNumbers={showLineNumbers}
+                        annotations={project.annotations?.filter(a => a.docId === selectedDoc.id)} onClickAnnotation={() => { setResearchSection('notes'); setResearchOpen(true); }}
                         onSelectionChange={sel => {
                           setPendingSelection(sel);
                           // Clear navigation targets when user makes a new selection
@@ -3102,7 +3186,8 @@ function openDocxCommentImport() {
                         scrollNonce={gotoTarget?.nonce}
                         highlightRange={highlightTarget?.docId === selectedDoc.id ? { start: highlightTarget.start, end: highlightTarget.end } : null}
                         highlightNonce={highlightTarget?.nonce}
-                      />
+                      />}
+                      </CodingMargin>
                     </div>
                     {showDocPortrait && (
                       <div style={{ width: '20px', flexShrink: 0, borderLeft: '1px solid #ccc', backgroundColor: '#f9f9f9' }}>
@@ -3160,6 +3245,24 @@ function openDocxCommentImport() {
                       Selected {pendingSelection.text.length} chars — click or drag a code (legend or search box) to apply it
                     </span>
                   )}
+                  {refiningSegmentId && project.codedSegments.find(s => s.id === refiningSegmentId)?.docId === selectedDoc.id && <span className="selection-hint">Select a replacement passage, then choose Update passage. <button onClick={() => setRefiningSegmentId(null)}>Cancel adjustment</button></span>}
+                  {pendingSelection && <ToolMenu label="Selection actions">
+                    <button onClick={async () => {
+                      const note = await customPrompt('Annotate selected passage', '', 'Save annotation'); if (!note) return;
+                      persist({ ...project, annotations: [...(project.annotations || []), { id: uid('annotation'), docId: selectedDoc.id, start: pendingSelection.start, end: pendingSelection.end, text: selectedDoc.content.slice(pendingSelection.start,pendingSelection.end), note, createdAt: Date.now(), author: activeCoderName }] }); setPendingSelection(null);
+                    }}>Add annotation</button>
+                    <button onClick={() => { setResearchSection('cases'); setResearchOpen(true); }}>Link to case</button>
+                    <button onClick={async () => {
+                      const name = await customPrompt('Create a code from the selected words', pendingSelection.text.trim().slice(0,100), 'Create and apply'); if (!name?.trim()) return;
+                      const code: Code = { id: uid('code'), name: name.trim(), parentId: null, color: colorForNewCode(project.codes,null,project.codes.length), summary: '', createdAt: Date.now() };
+                      persist({ ...project, codes: [...project.codes,code], codedSegments: [...project.codedSegments,{ id:uid('seg'),docId:selectedDoc.id,codeId:code.id,start:pendingSelection.start,end:pendingSelection.end,text:selectedDoc.content.slice(pendingSelection.start,pendingSelection.end),createdAt:Date.now(),source:'manual',coder:activeCoderName }] }); setPendingSelection(null);
+                    }}>Create in-vivo code</button>
+                    <details><summary>Apply multiple codes</summary><div className="selection-code-list">{project.codes.map(c => <label key={c.id}><input type="checkbox" checked={multiCodes.includes(c.id)} onChange={e => setMultiCodes(e.target.checked ? [...multiCodes,c.id] : multiCodes.filter(id => id !== c.id))}/>{c.name}</label>)}</div><button disabled={!multiCodes.length} onClick={() => {
+                      persist({ ...project,codedSegments:[...project.codedSegments,...multiCodes.filter(id => codesById.has(id)).map(codeId => ({ id:uid('seg'),docId:selectedDoc.id,codeId,start:pendingSelection.start,end:pendingSelection.end,text:selectedDoc.content.slice(pendingSelection.start,pendingSelection.end),createdAt:Date.now(),source:'manual' as const,coder:activeCoderName }))] });setMultiCodes([]);setPendingSelection(null);
+                    }}>Apply selected codes</button></details>
+                    {refiningSegmentId && project.codedSegments.find(s => s.id === refiningSegmentId)?.docId === selectedDoc.id && <button onClick={() => { try { persist(resizeExcerpt(project,refiningSegmentId,pendingSelection.start,pendingSelection.end));setRefiningSegmentId(null);setPendingSelection(null);showToast('Coded passage updated.'); } catch(e) { showToast(String(e)); } }}>Update passage</button>}
+                  </ToolMenu>}
+                  {pendingPdfRegion && <span className="selection-hint">PDF page {pendingPdfRegion.page} region selected — click a code to apply it</span>}
                   <button onClick={() => startEditDoc(selectedDoc)}>✏️ Edit text</button>
                   <button onClick={() => setShowDocNotes(v => !v)}>
                     📝 Notes{selectedDoc.notes ? ' ●' : ''}
@@ -3234,8 +3337,8 @@ function openDocxCommentImport() {
               query={workspaceCodeSearch}
               onQueryChange={setWorkspaceCodeSearch}
               onSelectCode={handleWorkspaceCodeClick}
-              applyHint={!!pendingSelection}
-              placeholder={pendingSelection ? 'Search codes to apply…' : 'Search codes…'}
+              applyHint={!!pendingSelection || !!pendingPdfRegion || !!pendingRegion}
+              placeholder={pendingSelection || pendingPdfRegion || pendingRegion ? 'Search codes to apply…' : 'Search codes…'}
             />
             {!workspaceCodeSearch.trim() && (
               <CodeTree
@@ -3575,7 +3678,7 @@ function openDocxCommentImport() {
             <p className="section-hint">Add a codebook or coded sources to the current project.</p>
             <div className="action-list">
               <button onClick={handleCsvImport}>CSV dataset / codebook</button>
-              <button onClick={handleQdpxImport}>REFI-QDA project (QDPX)</button>
+              <button onClick={handleQdpxImport}>REFI-QDA (QDPX / QDC)</button>
               <button onClick={openDocxCommentImport}>Word comments (DOCX)</button>
             </div>
           </div>
@@ -3645,6 +3748,7 @@ function openDocxCommentImport() {
                     >
                       <div className="excerpt-doc" style={{ fontSize: '11px', color: '#64748b', marginBottom: '6px', fontWeight: 'bold' }}>
                         {doc?.name || 'Unknown source'}
+                        {doc && ` · ${sourceLineRange(doc.content, seg.start, seg.end)}`}
                       </div>
                       <div className="excerpt-text" style={{ marginBottom: '8px', lineHeight: '1.5' }}>"{seg.text}"</div>
                       <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 4 }}>
@@ -3941,6 +4045,7 @@ function openDocxCommentImport() {
   }}
 >
     <CodeMap
+      active={tab === 'codemap'}
       projectId={project.id}
       codes={project.codes}
       codedSegments={project.codedSegments}
@@ -3958,6 +4063,9 @@ function openDocxCommentImport() {
     />
 </div>
 
+{importReport && <div className="research-overlay" onKeyDown={e => { if(e.key === 'Escape') setImportReport(null); if(e.key === 'Tab') e.preventDefault(); }}><section className="project-export-dialog" role="dialog" aria-modal="true" aria-labelledby="import-report-title"><h2 id="import-report-title">{importReport.title}</h2><p style={{whiteSpace:'pre-wrap'}}>{importReport.message}</p><button autoFocus onClick={() => setImportReport(null)}>Close import report</button></section></div>}
+{projectExportOpen && <ProjectExportDialog project={project} onClose={() => setProjectExportOpen(false)} onMessage={showToast} />}
+{tab === 'help' && <HelpPanel />}
 {tab === 'about' && (
   <main className="panel about-panel">
     <div className="about-layout">
@@ -4395,7 +4503,7 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
         {[
           { label: 'Coding', views: [['frequency', 'Frequency', 'Coding Frequency'], ['docMatrix', 'Documents', 'Code × Document Matrix'], ['coMatrix', 'Co-occurrence', 'Code Co-occurrence Matrix'], ['framework', 'Framework', 'Framework Matrix']] },
           { label: 'Text', views: [['words', 'Word frequencies', 'Word Frequencies'], ['kwic', 'KWIC', 'Keyword in Context']] },
-          { label: 'Team', views: [['icr', 'Reliability', 'Inter-Coder Reliability'], ['consensus', 'Consensus', 'Consensus']] }
+          { label: 'Team', views: [['icr', 'ICR', 'Inter-Coder Reliability'], ['consensus', 'Consensus', 'Consensus']] }
         ].map(group => <div key={group.label} className="analysis-nav-group">
           <span>{group.label}</span>
           {group.views.map(([id, label, title]) => <button key={id} title={title} aria-current={subTab === id ? 'page' : undefined}
@@ -4775,9 +4883,10 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
           <div className="section-hint" style={{ marginBottom: '8px' }}>
             Agreement over code occurrence: one item = one code applied (or not) to one document or image.
             Pick the coders and documents in scope below. Pairwise: percent agreement, Holsti's index and Cohen's κ.
-            With 3+ coders: Fleiss' κ. Krippendorff's c-Alpha-binary (per code) and Cu-Alpha cover the same scope.
+            With 3+ coders: Fleiss' κ. Binary alpha uses the same source/code scope; Cu-Alpha uses text passage groups only.
           </div>
           {renderIcrScopePicker()}
+          <details className="analysis-counts"><summary>What the ICR counts mean</summary><p>Coder labels show text coding entries and image regions in the current scope. Several codes on one passage create several entries. The agreement table instead counts one source–code pair once per coder, even if that coder used the code many times in the source.</p><p>Percent agreement includes pairs neither coder coded. With many unused source–code pairs, this percentage can be high while Holsti or κ is low. Consensus counts grouped text passages and excludes image regions, so its totals will differ.</p></details>
           {icrSelCoders.length < 2 ? (
             <div className="empty-hint">Select at least two coders in scope above. Need a second coder? Merge another coder's project, or check coder names in Project Settings.</div>
           ) : icrScope.docIds.length === 0 && !icrScope.includeImages ? (
@@ -4793,8 +4902,8 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
                     style={{ padding: '4px 8px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text)' }}
                   >
                     {icrSelCoders.map(n => {
-                      const info = icrCoders.find(c => c.name === n);
-                      return <option key={n} value={n}>{n} ({(info?.segments || 0) + (info?.regions || 0)})</option>;
+                      const info = scopedCoderCounts(project,n,icrScope.docIds,icrScope.includeImages);
+                      return <option key={n} value={n}>{n} — {info.segments} text entries, {info.regions} image regions</option>;
                     })}
                   </select>
                 </div>
@@ -4806,8 +4915,8 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
                     style={{ padding: '4px 8px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text)' }}
                   >
                     {icrSelCoders.map(n => {
-                      const info = icrCoders.find(c => c.name === n);
-                      return <option key={n} value={n}>{n} ({(info?.segments || 0) + (info?.regions || 0)})</option>;
+                      const info = scopedCoderCounts(project,n,icrScope.docIds,icrScope.includeImages);
+                      return <option key={n} value={n}>{n} — {info.segments} text entries, {info.regions} image regions</option>;
                     })}
                   </select>
                 </div>
@@ -4989,6 +5098,7 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
             review — see them in the Codebook excerpts.
           </div>
           {renderIcrScopePicker()}
+          <div className="analysis-counts" role="status"><strong>{consensusAllUnits.reduce((count,unit)=>count+unit.segmentIds.length,0)} text coding entries → {consensusAllUnits.length} passage groups</strong><p>{consensusUnits.length} groups coded by two or more people are available for review; {consensusSoloCount} single-coder groups are hidden. Overlapping entries, including several codes on the same words, form one passage group. Image regions are excluded.</p><details><summary>Counts by coder in the current scope</summary>{icrSelCoders.map(name=>{const counts=scopedCoderCounts(project,name,icrScope.docIds,icrScope.includeImages);return <p key={name}>{name}: {counts.segments} text coding entries; {counts.regions} image regions included in ICR only.</p>;})}</details></div>
           {icrSelCoders.length < 2 ? (
             <div className="empty-hint">Select at least two coders in scope above to review agreements and disagreements.</div>
           ) : consensusUnits.length === 0 ? (
@@ -5010,7 +5120,7 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
                       style={consensusFilter === f ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
                       onClick={() => setConsensusFilter(f)}
                     >
-                      {f === 'all' ? `All (${n})` : f === 'agree' ? `Agreements (${n})` : `Disagreements (${n})`}
+                      {f === 'all' ? `All jointly coded (${n})` : f === 'agree' ? `Agreements (${n})` : `Disagreements (${n})`}
                     </button>
                   );
                 })}

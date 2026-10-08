@@ -1,4 +1,7 @@
 import { Project, Code, SourceDoc, CodedSegment, ImageSource, CodedRegion, ID, uid, colorForNewCode } from '../domain';
+import { qdaToUtf16Range } from './qdpxOffsets';
+import { hashSourceText } from './sourceOriginal';
+import { mergeResearch } from './researchMerge';
 
 export interface QdpxParsePayload {
   fileName: string;
@@ -121,7 +124,7 @@ function textOf(el: Element | null): string {
 
 // --- Notes resolution --------------------------------------------------
 
-function buildNoteMap(doc: XMLDocument): Map<string, string> {
+function buildNoteMap(doc: XMLDocument, payload: QdpxParsePayload): Map<string, string> {
   const map = new Map<string, string>();
   const notesEl = doc.querySelector('Notes');
   if (!notesEl) return map;
@@ -129,7 +132,9 @@ function buildNoteMap(doc: XMLDocument): Map<string, string> {
     const guid = note.getAttribute('guid');
     if (!guid) continue;
     const content = directChild(note, 'PlainTextContent');
-    const text = textOf(content) || note.getAttribute('name') || '';
+    const path = (note.getAttribute('plainTextPath') || '').replace(/^internal:\/\//i, '').replace(/^\/+/, '');
+    const file = path ? Object.keys(payload.sourceFiles).find(k => k.endsWith(path) || k === path) : undefined;
+    const text = textOf(content) || (file ? payload.sourceFiles[file] : '') || note.getAttribute('name') || '';
     if (text.trim()) map.set(guid, text.trim());
   }
   return map;
@@ -163,6 +168,13 @@ function resolveNoteMemo(el: Element, noteMap: Map<string, string>): string {
   return parts.join('\n\n');
 }
 
+function coderForCoding(coding: Element, selection: Element): string | undefined {
+  const guid = coding.getAttribute('creatingUser') || selection.getAttribute('creatingUser');
+  if (!guid) return undefined;
+  const users = selection.ownerDocument.querySelector('Users');
+  return users ? directChildren(users, 'User').find(u => u.getAttribute('guid') === guid)?.getAttribute('name') || undefined : undefined;
+}
+
 // --- Codebook ---------------------------------------------------------
 
 function importCodeTree(
@@ -191,8 +203,7 @@ function importCodeTree(
     summary.memosImported++;
   }
 
-  // REFI-QDA-2 usually nests subcodes inside a <SubCodes> wrapper, but some
-  // exporters place <Code> directly under the parent — accept both.
+  // Standard REFI-QDA nests Code directly; retain legacy eQc SubCodes support.
   const childEls = [...directChildren(el, 'Code')];
   const subCodes = directChild(el, 'SubCodes');
   if (subCodes) childEls.push(...directChildren(subCodes, 'Code'));
@@ -261,7 +272,12 @@ function importSelection(
   }
   const rawStart = parseInt(startAttr, 10);
   const rawEnd = parseInt(endAttr, 10);
-  if (Number.isNaN(rawStart) || Number.isNaN(rawEnd) || rawStart < 0 || rawEnd > rawContent.length) {
+  // Legacy eQc 2.0 exports used UTF-16/exclusive positions.
+  const legacy = sel.ownerDocument.documentElement.namespaceURI === 'urn:QDA-XML:project:2.0';
+  const rawRange = legacy
+    ? (rawStart >= 0 && rawEnd > rawStart && rawEnd <= rawContent.length ? { start: rawStart, end: rawEnd } : null)
+    : qdaToUtf16Range(rawContent, rawStart, rawEnd);
+  if (!rawRange) {
     summary.segmentsSkipped++;
     return;
   }
@@ -269,7 +285,7 @@ function importSelection(
   // Extract from the RAW content — this is what the .qde offsets are
   // defined against, regardless of whether doc.content has since been
   // reformatted for readability.
-  const text = rawContent.slice(rawStart, rawEnd);
+  const text = rawContent.slice(rawRange.start, rawRange.end);
   if (!text.trim()) {
     summary.segmentsSkipped++;
     return;
@@ -277,7 +293,7 @@ function importSelection(
 
   // Locate that exact text in the doc's actual stored content (raw or
   // reformatted — doesn't matter, we search either way).
-  const loc = locateQuote(doc.content, text);
+  const loc = doc.content === rawContent ? rawRange : locateQuote(doc.content, text);
   if (!loc) {
     // Most likely cause: the excerpt spanned a tab boundary that got
     // replaced by a field label/newline during reformatting.
@@ -291,17 +307,17 @@ function importSelection(
     const codeRef = directChild(coding, 'CodeRef');
     const targetGuid = codeRef?.getAttribute('targetGUID');
     const codeId = targetGuid ? guidMap.get(targetGuid) : null;
+    const coder = coderForCoding(coding, sel);
     if (!codeId) {
       summary.segmentsSkipped++;
       continue;
     }
 
-    // Dedupe by (doc, code, exact text) — robust to offset drift from
-    // reformatting, unlike comparing start/end directly.
-    const alreadyCoded = project.codedSegments.some(
-      s => s.docId === doc.id && s.codeId === codeId && s.text === text
+    // Keep repeated passages and separate coders while repeat imports remain idempotent.
+    const alreadyCoded = project.codedSegments.find(
+      s => s.docId === doc.id && s.codeId === codeId && s.start === loc.start && s.end === loc.end && (s.coder || '') === (coder || '')
     );
-    if (alreadyCoded) continue;
+    if (alreadyCoded) { const guid=coding.getAttribute('guid');if(guid)guidMap.set(guid,alreadyCoded.id);continue; }
 
     const segment: CodedSegment = {
       id: uid('seg'),
@@ -312,9 +328,11 @@ function importSelection(
       text,
       createdAt: Date.now(),
       source: 'qdpx-import',
+      ...(coder ? { coder } : {}),
       ...(memo ? { note: memo } : {})
     };
     project.codedSegments.push(segment);
+    const codingGuid=coding.getAttribute('guid');if(codingGuid)guidMap.set(codingGuid,segment.id);
     summary.segmentsCreated++;
     if (memo) summary.memosImported++;
   }
@@ -359,16 +377,18 @@ function importPictureSelection(
     const codeRef = directChild(coding, 'CodeRef');
     const targetGuid = codeRef?.getAttribute('targetGUID');
     const codeId = targetGuid ? guidMap.get(targetGuid) : null;
+    const coder = coderForCoding(coding, sel);
     if (!codeId) {
       summary.segmentsSkipped++;
       continue;
     }
 
-    const alreadyCoded = (project.codedRegions || []).some(
+    const alreadyCoded = (project.codedRegions || []).find(
       r => r.imageId === image.id && r.codeId === codeId &&
-        Math.abs(r.x - x) < 0.001 && Math.abs(r.y - y) < 0.001
+        Math.abs(r.x - x) < 0.001 && Math.abs(r.y - y) < 0.001 &&
+        Math.abs(r.width - width) < 0.001 && Math.abs(r.height - height) < 0.001 && (r.coder || '') === (coder || '')
     );
-    if (alreadyCoded) continue;
+    if (alreadyCoded) { const guid=coding.getAttribute('guid');if(guid)guidMap.set(guid,alreadyCoded.id);continue; }
 
     const region: CodedRegion = {
       id: uid('region'),
@@ -379,10 +399,12 @@ function importPictureSelection(
       width,
       height,
       createdAt: Date.now(),
+      ...(coder ? { coder } : {}),
       ...(memo ? { note: memo } : {})
     };
     if (!project.codedRegions) project.codedRegions = [];
     project.codedRegions.push(region);
+    const codingGuid=coding.getAttribute('guid');if(codingGuid)guidMap.set(codingGuid,region.id);
     summary.segmentsCreated++;
     if (memo) summary.memosImported++;
   }
@@ -458,7 +480,8 @@ async function importSources(
       continue;
     }
 
-    if (kind !== 'TextSource') {
+    const textSource = kind === 'PDFSource' ? directChild(srcEl, 'Representation') : srcEl;
+    if ((kind !== 'TextSource' && kind !== 'PDFSource') || !textSource) {
       // PDFSource, AudioSource, VideoSource, etc. — not handled in this MVP.
       // Report it rather than silently dropping it.
       summary.sourcesSkipped.push(`${name} (${kind.replace('Source', '')})`);
@@ -466,7 +489,7 @@ async function importSources(
     }
 
     const guid = srcEl.getAttribute('guid') || uid('guid');
-    const rawContent = resolveSourceText(srcEl, payload);
+    const rawContent = resolveSourceText(textSource, payload);
 
     if (rawContent === null) {
       summary.sourcesSkipped.push(`${name} (TextSource, content not found)`);
@@ -488,14 +511,21 @@ async function importSources(
       summary.docsCreated++;
     }
     guidMap.set(guid, doc_.id);
+    const format = kind === 'PDFSource' ? 'pdf' : 'docx';
+    const richPath = (srcEl.getAttribute(kind === 'PDFSource' ? 'path' : 'richTextPath') || '').replace(/^internal:\/\//i, '').replace(/^\/+/, '');
+    const richEntry = richPath && richPath.toLowerCase().endsWith(`.${format}`) ? Object.keys(payload.sourceBytes || {}).find(k => k.endsWith(richPath) || k === richPath) : undefined;
+    if (richEntry && !doc_.original) doc_.original = {
+      name: name.toLowerCase().endsWith(`.${format}`) ? name : `${name}.${format}`, format,
+      base64: payload.sourceBytes![richEntry], textHash: await hashSourceText(rawContent), textChanged: doc_.content !== rawContent
+    };
 
-    const sourceMemo = resolveMemoText(srcEl, noteMap);
+    const sourceMemo = resolveMemoText(srcEl, noteMap) || resolveMemoText(textSource, noteMap);
     if (sourceMemo) {
       appendMemo(doc_, 'notes', sourceMemo);
       summary.memosImported++;
     }
 
-    for (const sel of directChildren(srcEl, 'PlainTextSelection')) {
+    for (const sel of directChildren(textSource, 'PlainTextSelection')) {
       importSelection(project, sel, doc_, rawContent, guidMap, noteMap, summary);
     }
   }
@@ -526,11 +556,37 @@ export async function importQdpx(project: Project, payload: QdpxParsePayload): P
     throw new Error('Could not parse project.qde — the .qdpx file may be corrupted or not a valid REFI-QDA export.');
   }
 
+  if (!['Project', 'CodeBook'].includes(docEl.localName)) throw new Error('Expected a REFI-QDA Project or CodeBook XML document.');
+
   const guidMap = new Map<string, ID>();
-  const noteMap = buildNoteMap(doc);
+  const noteMap = buildNoteMap(doc, payload);
 
   importCodebook(project, doc, guidMap, noteMap, summary);
   await importSources(project, doc, payload, guidMap, noteMap, summary);
+
+  const archive = Array.from(doc.getElementsByTagNameNS('*','Note')).find(n=>n.getAttribute('name')==='eQc research archive (JSON, version 1)');
+  if(archive) {
+    const text=noteMap.get(archive.getAttribute('guid')||'');
+    if(text) {
+      const data=JSON.parse(text);
+      if(data.format!=='eQc-research'||data.version!==1||!data.records||!data.references)throw new Error('Unsupported research archive.');
+      const refs=new Map<string,string>(Object.entries(data.references).flatMap(([id,guid])=>guidMap.has(String(guid))?[[id,guidMap.get(String(guid))!]]:[]));
+      for(const key of ['cases','groups','annotations','memos','queries','codedSegments','codedRegions'])if(data.records[key]!==undefined&&!Array.isArray(data.records[key]))throw new Error('Invalid research archive collection.');
+      mergeResearch(project,{...data.records,docs:[],codes:[],folders:[],codedSegments:data.records.codedSegments||[]} as Project,refs,refs,refs,refs);
+    }
+  }
+
+  {
+    const referenced=new Set(Array.from(doc.getElementsByTagNameNS('*','NoteRef')).map(n=>n.getAttribute('targetGUID')));
+    for(const note of Array.from(doc.getElementsByTagNameNS('*','Note'))) {
+      const guid=note.getAttribute('guid'),text=noteMap.get(guid||'');if(!text||referenced.has(guid))continue;
+      if(archive&&(note===archive||(note.getAttribute('name')||'').startsWith('eQc research record — ')))continue;
+      project.memos ||= [];const title=note.getAttribute('name')||'Imported memo';
+      if(!project.memos.some(m=>m.title===title&&m.text===text)) {
+        project.memos.push({id:uid('memo'),title,text,kind:'analytic',docIds:[],codeIds:[],caseIds:[],segmentIds:[],createdAt:Date.now(),updatedAt:Date.now()});summary.memosImported++;
+      }
+    }
+  }
 
   return summary;
 }

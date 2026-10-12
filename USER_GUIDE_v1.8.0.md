@@ -1,3 +1,5 @@
+# eQc — Easy Qual Coding
+
 ## Table of Contents
 
 1. [Overview](#1-overview)

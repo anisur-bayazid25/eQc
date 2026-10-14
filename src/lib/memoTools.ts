@@ -1,10 +1,14 @@
 import { Project, ResearchMemo, uid } from '../domain';
 
 export interface MemoRecord extends ResearchMemo { origin: { kind: string; id: string }; }
+export const memoCategories: Record<string, string> = {standalone:'Project memos', document:'Document memos', image:'Document memos', code:'Code memos', framework:'Framework matrix memos', relationship:'Code co-occurrence memos', excerpt:'Quote notes', region:'Quote notes', annotation:'Annotations', case:'Case memos', map:'Code map notes', edge:'Code map notes'};
+export function memoCategory(memo: MemoRecord) { return memoCategories[memo.origin.kind] || 'Other notes'; }
 export function listMemoRecords(project: Project): MemoRecord[] {
   const records: MemoRecord[] = (project.memos || []).map(m => ({ ...m, origin:{kind:'standalone',id:m.id} }));
-  const source = (id: string) => [...project.docs,...(project.images || [])].find(s => s.id === id)?.name || 'Unavailable source';
-  const code = (id: string) => project.codes.find(c => c.id === id)?.name || 'Unavailable code';
+  const sources = new Map([...project.docs,...(project.images || [])].map(s => [s.id,s.name]));
+  const codes = new Map(project.codes.map(c => [c.id,c.name]));
+  const source = (id: string) => sources.get(id) || 'Unavailable source';
+  const code = (id: string) => codes.get(id) || 'Unavailable code';
   function add(kind: string, id: string, title: string, text: string | undefined, docIds: string[] = [], codeIds: string[] = [], caseIds: string[] = [], segmentIds: string[] = [], createdAt = 0, updatedAt = 0) {
     if (!text?.trim()) return;
     records.push({ id:`note:${kind}:${id}`, title, text, kind:'analytic', docIds, codeIds, caseIds, segmentIds, createdAt, updatedAt, origin:{kind,id} });
@@ -18,6 +22,8 @@ export function listMemoRecords(project: Project): MemoRecord[] {
   project.relationNotes?.forEach(r => add('relationship',r.id,'Relationship memo — '+code(r.codeAId)+' / '+code(r.codeBId),r.note,[],[r.codeAId,r.codeBId],[],[],0,r.updatedAt));
   project.cases?.forEach(c => add('case',c.id,'Case memo — '+c.name,c.notes,c.links.map(l => l.docId),[],[c.id]));
   project.annotations?.forEach(a => add('annotation',a.id,'Passage annotation — '+source(a.docId),a.note,[a.docId],[],[],[],a.createdAt));
+  project.mapAnnotations?.forEach(a => add('map',a.id,'Code map note',a.text));
+  project.mapEdgeStyles?.forEach(e => add('edge',e.id,'Code map link — '+code(e.fromCodeId)+' / '+code(e.toCodeId),e.label,[],[e.fromCodeId,e.toCodeId]));
   return records;
 }
 
@@ -34,6 +40,8 @@ export function updateMemoText(project: Project, record: MemoRecord, text: strin
   if (kind === 'relationship') return {...project,relationNotes:project.relationNotes?.map(r => r.id === id ? {...r,note:text,updatedAt:now} : r)};
   if (kind === 'case') return {...project,cases:project.cases?.map(c => c.id === id ? {...c,notes:text} : c)};
   if (kind === 'annotation') return {...project,annotations:project.annotations?.map(a => a.id === id ? {...a,note:text} : a)};
+  if (kind === 'map') return {...project,mapAnnotations:project.mapAnnotations?.map(a => a.id === id ? {...a,text} : a)};
+  if (kind === 'edge') return {...project,mapEdgeStyles:project.mapEdgeStyles?.map(e => e.id === id ? {...e,label:text} : e)};
   throw new Error('This memo is no longer available.');
 }
 
@@ -50,11 +58,36 @@ export function mergeMemos(project: Project, ids: string[], targetId: string, ti
 }
 
 export function memoExportRows(project: Project, ids: string[]) {
-  const names = (list: string[], items: Array<{ id: string; name: string }>) => list.map(id => items.find(item => item.id === id)?.name || 'Unavailable link').join('; ');
-  return listMemoRecords(project).filter(memo => ids.includes(memo.id)).map(memo => ({
-    Title: memo.title, Purpose: memo.kind, Memo: memo.text,
-    Documents: names(memo.docIds, [...project.docs, ...(project.images || [])]), Codes: names(memo.codeIds, project.codes), Cases: names(memo.caseIds, project.cases || []),
-    Excerpts: memo.segmentIds.map(id => { const segment = project.codedSegments.find(s => s.id === id); if (segment) return `${project.docs.find(d => d.id === segment.docId)?.name}: ${segment.text}`; const region = project.codedRegions?.find(r => r.id === id); return region ? `${project.images?.find(i => i.id === region.imageId)?.name}: image region` : 'Unavailable excerpt'; }).join('; '),
+  const selected = new Set(ids);
+  const sources = new Map([...project.docs,...(project.images || [])].map(s => [s.id,s.name]));
+  const codes = new Map(project.codes.map(c => [c.id,c.name]));
+  const cases = new Map((project.cases || []).map(c => [c.id,c.name]));
+  const segments = new Map(project.codedSegments.map(s => [s.id,s]));
+  const regions = new Map((project.codedRegions || []).map(r => [r.id,r]));
+  const annotations = new Map((project.annotations || []).map(a => [a.id,a]));
+  const caseRecords = new Map((project.cases || []).map(c => [c.id,c]));
+  const codeSources = new Map<string,Set<string>>();
+  for(const item of [...project.codedSegments,...(project.codedRegions || [])]) {
+    const sourceId='docId' in item ? item.docId : item.imageId;
+    const linked=codeSources.get(item.codeId) || new Set<string>();linked.add(sourceId);codeSources.set(item.codeId,linked);
+  }
+  const names = (list: string[], items: Map<string,string>) => list.map(id => items.get(id) || 'Unavailable link').join('; ');
+  const sourceName = (id:string) => sources.get(id) || `Unavailable source (${id})`;
+  return listMemoRecords(project).filter(memo => selected.has(memo.id)).map(memo => {
+    const annotation=memo.origin.kind==='annotation'?annotations.get(memo.origin.id):undefined;
+    const linkedSegments=memo.segmentIds.flatMap(id=>segments.get(id)?[segments.get(id)!]:[]);
+    const linkedRegions=memo.segmentIds.flatMap(id=>regions.get(id)?[regions.get(id)!]:[]);
+    const directSources=Array.from(new Set([...memo.docIds,...linkedSegments.map(s=>s.docId),...linkedRegions.map(r=>r.imageId),...memo.caseIds.flatMap(id=>caseRecords.get(id)?.links.map(l=>l.docId)||[])]));
+    const relatedSources=Array.from(new Set(memo.codeIds.flatMap(id=>Array.from(codeSources.get(id)||[])))).filter(id=>!directSources.includes(id));
+    const kind=memo.origin.kind;
+    const sourceLabel=kind==='standalone'?`Project memo — ${project.name}`:kind==='framework'?`Framework matrix — ${directSources.map(sourceName).join('; ')} × ${names(memo.codeIds,codes)}`:kind==='relationship'?`Code co-occurrence matrix — ${names(memo.codeIds,codes)}`:kind==='code'?`Codebook — ${names(memo.codeIds,codes)}`:kind==='case'?`Case — ${names(memo.caseIds,cases)}`:kind==='map'||kind==='edge'?`Code Map${memo.codeIds.length?' — '+names(memo.codeIds,codes):''}`:`${memoCategory(memo)} — ${directSources.map(sourceName).join('; ')}`;
+    const location=(sourceId:string,start:number,end:number)=>`${sourceName(sourceId)}: characters ${start}–${end} (zero-based, end exclusive)`;
+    return {
+    Title: memo.title, Category: memoCategory(memo), Purpose: memo.kind, Memo: memo.text, 'Memo ID': memo.id, 'Source type': memo.origin.kind, 'Source ID': memo.origin.id,
+    Source:sourceLabel, Documents: directSources.map(sourceName).join('; '), 'Related documents':relatedSources.map(sourceName).join('; '), Codes: names(memo.codeIds, codes), Cases: names(memo.caseIds, cases),
+    Excerpts: [annotation?`${sourceName(annotation.docId)}: ${annotation.text || ''}`:'',...memo.segmentIds.map(id => { const segment = segments.get(id); if (segment) return `${sourceName(segment.docId)}: ${segment.text}`; const region = regions.get(id); return region ? `${sourceName(region.imageId)}: image region` : `Unavailable excerpt (${id})`; })].filter(Boolean).join('; '),
+    Location:[...linkedSegments.filter(s=>Number.isFinite(s.start)&&Number.isFinite(s.end)).map(s=>location(s.docId,s.start,s.end)),...linkedRegions.map(r=>`${sourceName(r.imageId)}: region x=${r.x}, y=${r.y}, width=${r.width}, height=${r.height}`),...(annotation&&Number.isFinite(annotation.start)?[location(annotation.docId,annotation.start,annotation.end)]:[])].join('; '),
+    Coder:Array.from(new Set([...linkedSegments.map(s=>s.coder),...linkedRegions.map(r=>r.coder),annotation?.author].filter(Boolean))).join('; '),
     Created: memo.createdAt ? new Date(memo.createdAt).toISOString() : '', Updated: memo.updatedAt ? new Date(memo.updatedAt).toISOString() : ''
-  }));
+  };});
 }

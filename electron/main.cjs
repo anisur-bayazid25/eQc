@@ -1,4 +1,5 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, clipboard } = require('electron');
+const { aboutLinkMenu } = require('./aboutLinks.cjs');
 const path = require('node:path');
 const fs = require('node:fs');
 const Database = require('better-sqlite3');
@@ -8,6 +9,13 @@ const Papa = require('papaparse');
 const isDev = process.env.NODE_ENV === 'development';
 
 const JSZip = require('jszip');
+const { buildMemoWorkbook } = require('./memoWorkbook.cjs');
+ipcMain.handle('export:memoWorkbook', async (_e, payload) => {
+  const {canceled,filePath} = await dialog.showSaveDialog({title:'Export memos to Excel',defaultPath:safeFilename(payload.filenameBase)+'.xlsx',filters:[{name:'Excel workbook',extensions:['xlsx']}]});
+  if(canceled || !filePath) return null;
+  fs.writeFileSync(filePath, await buildMemoWorkbook(payload.sheets));
+  return filePath;
+});
 
 // Hoisted to module scope (not lazily inside the builders below): the
 // release test suite extracts buildTableDocx/buildOutlineDocx/
@@ -164,6 +172,10 @@ function createWindow() {
     }
   });
   profileCloseAllowed=false;
+  mainWindow.webContents.on?.('context-menu', (_event, params) => {
+    const items=aboutLinkMenu(params.linkURL,clipboard);
+    if(items.length) Menu.buildFromTemplate(items).popup({window:mainWindow});
+  });
   mainWindow.on?.('close',event=>{
     if(profileCloseAllowed)return;
     event.preventDefault();if(profileClosePending)return;

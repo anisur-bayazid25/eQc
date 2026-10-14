@@ -40,6 +40,7 @@ import { collectIcrCoders, scopedCoderCounts, computePairwiseIcr, computeFleissI
 import { buildReportHtml, ReportExtras } from './lib/report';
 import { AUTO_CODE_LANGUAGES, CaptureBoundary, AutoCodeMatchMode, runAutoCode } from './lib/autoCode';
 import { buildScopedExport, ExportScope, SCOPE_LABELS } from './lib/exportBuilders';
+import { listMemoRecords, memoExportRows, MemoRecord, memoCategory } from './lib/memoTools';
 import { buildCodeReport, codeExportFilename, CodeReport } from './lib/codeReport';
 import { sourceLineRange } from './lib/sourceLines';
 import { retainOriginalFile, hashSourceText } from './lib/sourceOriginal';
@@ -134,7 +135,7 @@ function DebouncedCodeText({ value, onCommit, multiline }: { value: string; onCo
   return React.createElement(el, commonProps);
 }
 
-type Tab = 'workspace' | 'codebook' | 'codemap' | 'autocode' | 'analysis' | 'help' | 'about' | 'profile';
+type Tab = 'workspace' | 'codebook' | 'codemap' | 'autocode' | 'analysis' | 'memos' | 'help' | 'about' | 'profile';
 
 // Coder filter predicate shared by the Workspace and Codebook lists. A
 // segment matches when it is explicitly stamped with the chosen coder, or —
@@ -437,6 +438,7 @@ useEffect(() => {
   const [documentView, setDocumentView] = useState<'formatted' | 'text'>(() => localStorage.getItem('qda-document-view') === 'text' ? 'text' : 'formatted');
   const [pendingPdfRegion, setPendingPdfRegion] = useState<PdfRegionSelection | null>(null);
   const [sortBy, setSortBy] = useState<SortKey>('name');
+  const [memoSourceTarget, setMemoSourceTarget] = useState<{kind:string;id:string;nonce:number} | null>(null);
   const [researchOpen, setResearchOpen] = useState(false);
   const [researchSection, setResearchSection] = useState('cases');
   const [refiningSegmentId, setRefiningSegmentId] = useState<string | null>(null);
@@ -2215,19 +2217,18 @@ async function handleExportManuscriptSkeleton() {
     if (!project) return;
 
     const outline: Array<{ name: string; depth: number; summary?: string; definition?: string; quotes?: string[]; imageQuotes?: Array<{ base64: string; width: number; height: number; caption: string }> }> = [];
-    const totalStarred = project!.codedSegments.filter(s => s.starred).length;
-    let quotesMatched = 0;
+    const memoRecords = listMemoRecords(project);
 
     async function walk(parentId: ID | null, depth: number) {
       for (const code of childCodes(project!.codes, parentId)) {
-        const summary = code.summary?.trim();
+        const summary = memoRecords.filter(m=>m.origin.kind==='code'&&m.origin.id===code.id || m.origin.kind==='standalone'&&m.codeIds.includes(code.id)).map(m=>m.title+'\n'+m.text).join('\n\n');
         if (summary) {
           const starredQuotes = project!.codedSegments
             .filter(s => s.codeId === code.id && s.starred)
             .map(s => {
               const doc = project!.docs.find(d => d.id === s.docId);
               const attribution = s.coder ? ` [Coded by: ${s.coder}]` : '';
-              return `"${s.text}" (${doc?.name || 'Unknown source'})${attribution}`;
+              return `"${s.text}"${s.note ? `\nQuote note: ${s.note}` : ''} (${doc?.name || 'Unknown source'})${attribution}`;
             });
 
           const starredRegions = (project!.codedRegions || []).filter(r => r.codeId === code.id && r.starred);
@@ -2254,9 +2255,14 @@ async function handleExportManuscriptSkeleton() {
       }
     }
     await walk(null, 0);
+    const notes=memoRecords.filter(m=>m.origin.kind!=='code' && !(m.origin.kind==='standalone'&&m.codeIds.some(id=>project.codes.some(c=>c.id===id))));
+    for(const category of Array.from(new Set(notes.map(memoCategory)))) {
+      outline.push({name:category,depth:0});
+      for(const memo of notes.filter(m=>memoCategory(m)===category)) outline.push({name:memo.title,depth:1,summary:[memo.text,'Source: '+memo.origin.kind+' / '+memo.origin.id,...memo.docIds.map(id=>'Document: '+([...project.docs,...(project.images||[])].find(d=>d.id===id)?.name||'Unavailable source')),...memo.codeIds.map(id=>'Code: '+(project.codes.find(c=>c.id===id)?.name||'Unavailable code'))].join('\n\n')});
+    }
 
     if (outline.length === 0) {
-      showToast('No codes with a summary/memo yet — write at least one code memo first.');
+      showToast('No memos or notes yet — write a code, analysis or project memo first.');
       return;
     }
 
@@ -2267,6 +2273,24 @@ async function handleExportManuscriptSkeleton() {
       filenameBase: `${project!.name.replace(/[^\w\- ]/g, '_')}_results_skeleton`
     } as any);
     if (path) showToast(`Manuscript skeleton exported to ${path}`);
+  }
+
+  function openMemoSource(memo: MemoRecord) {
+    if (!project) return;
+    const {kind,id} = memo.origin;
+    setResearchOpen(false);
+    const segment = project.codedSegments.find(s=>s.id===id);
+    if(kind==='excerpt' && segment) { goToExcerpt(segment); return; }
+    const annotation = project.annotations?.find(a=>a.id===id);
+    if(kind==='annotation' && annotation) { setTab('workspace');setSelectedDocId(annotation.docId);setSelectedImageId(null);setHighlightTarget({...annotation,nonce:Date.now()});return; }
+    const region = project.codedRegions?.find(r=>r.id===id);
+    if(kind==='region' && region) {setTab('workspace');setSelectedDocId(null);setSelectedImageId(region.imageId);return;}
+    if(kind==='document'||kind==='image') {setTab('workspace');setSelectedDocId(kind==='document'?id:null);setSelectedImageId(kind==='image'?id:null);return;}
+    if(kind==='code') {setCodebookSelectedCodeId(id);setTab('codebook');return;}
+    if(kind==='framework'||kind==='relationship') {setMemoSourceTarget({kind,id,nonce:Date.now()});setTab('analysis');return;}
+    if(kind==='case') {setMemoSourceTarget({kind,id,nonce:Date.now()});setResearchSection('cases');setResearchOpen(true);return;}
+    if(kind==='map'||kind==='edge') {setTab('codemap');return;}
+    showToast('This memo has no available source link.');
   }
 
   function updateDocNotes(docId: ID, notes: string) {
@@ -2460,35 +2484,19 @@ function handleRunAutoCode() {
   // definition, excerpt note, and image-region note in one CSV.
   async function handleExportNotesCsv() {
     if (!project) return;
-    const rows: string[][] = [];
-    const documentName = (id: ID) => project.docs.find(d => d.id === id)?.name || 'Unknown document';
-    const imageName = (id: ID) => (project.images || []).find(d => d.id === id)?.name || 'Unknown image';
-    for (const d of project.docs) {
-      if (d.notes?.trim()) rows.push(['Doc Memo', d.name, d.name, d.notes.trim()]);
-    }
-    for (const image of project.images || []) {
-      if (image.notes?.trim()) rows.push(['Image Memo', image.name, image.name, image.notes.trim()]);
-    }
-    for (const c of project.codes) {
-      const documents = [...new Set([
-        ...project.codedSegments.filter(s => s.codeId === c.id).map(s => documentName(s.docId)),
-        ...(project.codedRegions || []).filter(r => r.codeId === c.id).map(r => imageName(r.imageId))
-      ])].join('; ');
-      if (c.summary?.trim()) rows.push(['Code Summary', c.name, documents, c.summary.trim()]);
-      if (c.definition?.trim()) rows.push(['Code Definition', c.name, documents, c.definition.trim()]);
-    }
-    const codeName = (id: ID) => project.codes.find(c => c.id === id)?.name || 'Unknown code';
-    for (const s of project.codedSegments) {
-      if (s.note?.trim()) rows.push(['Segment Note', codeName(s.codeId), documentName(s.docId), s.note.trim()]);
-    }
-    for (const r of project.codedRegions || []) {
-      if (r.note?.trim()) rows.push(['Region Note', codeName(r.codeId), imageName(r.imageId), r.note.trim()]);
+    const records=listMemoRecords(project);
+    const exported=memoExportRows(project,records.map(m=>m.id));
+    const headers=exported.length?Object.keys(exported[0]):['Title','Category','Memo','Source','Source ID'];
+    const rows: string[][] = exported.map(row=>Object.values(row));
+    for(const code of project.codes) if(code.definition?.trim()) {
+      const definition:Record<string,string>={Title:code.name,Category:'Code Definition',Memo:code.definition,Source:'Codebook — '+code.name,'Source ID':code.id};
+      rows.push(headers.map(header=>definition[header]||''));
     }
     if (rows.length === 0) {
       showToast('No notes or memos found — nothing to export.');
       return;
     }
-    const csv = toCsv(['Type', 'Target Name', 'Document', 'Note/Memo Text'], rows);
+    const csv = toCsv(headers, rows);
     const path = await window.qv.exportText({
       title: 'Export All Notes & Memos (CSV)',
       defaultName: `${project.name.replace(/[^\w\- ]/g, '_')}_notes_and_memos.csv`,
@@ -2657,7 +2665,7 @@ function openDocxCommentImport() {
   }
   return (
     <div className="app-shell">
-      {researchOpen && <ResearchWorkspace project={project} section={researchSection} onSection={setResearchSection} onClose={() => setResearchOpen(false)} onChange={persist} actor={activeCoderName} selection={pendingSelection && selectedDoc ? { docId: selectedDoc.id, start: pendingSelection.start, end: pendingSelection.end } : null}
+      {researchOpen && <ResearchWorkspace initialCaseId={memoSourceTarget?.kind==='case'?memoSourceTarget.id:undefined} project={project} section={researchSection} onSection={setResearchSection} onClose={() => setResearchOpen(false)} onChange={persist} actor={activeCoderName} selection={pendingSelection && selectedDoc ? { docId: selectedDoc.id, start: pendingSelection.start, end: pendingSelection.end } : null}
         onNavigate={id => {
           const seg = project.codedSegments.find(s => s.id === id);
           if (seg) { goToExcerpt(seg); return; }
@@ -2922,13 +2930,14 @@ function openDocxCommentImport() {
 
           {/* Navigation Tabs */}
           <nav className="tabs" aria-label="Main navigation">
-            {(['workspace', 'codebook', 'autocode', 'analysis', 'codemap', 'help', 'about'] as Tab[]).map(t => (
+            {(['workspace', 'codebook', 'autocode', 'analysis', 'memos', 'codemap', 'help', 'about'] as Tab[]).map(t => (
               <button key={t} className={`tab-btn ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
                 {t === 'workspace' && 'Workspace'}
                 {t === 'codebook' && 'Codebook'}
                 {t === 'codemap' && 'Code Map'}
                 {t === 'autocode' && 'Auto-Code'}
                 {t === 'analysis' && 'Analysis'}
+                {t === 'memos' && 'Memo-Book'}
                 {t === 'help' && 'Help'}
                 {t === 'about' && 'About'}
               </button>
@@ -3021,7 +3030,7 @@ function openDocxCommentImport() {
                 <button onClick={handleCsvImport}>CSV dataset / codebook</button>
               </ToolMenu>
               <ToolMenu label="Research tools">
-                {[['cases', 'Cases & attributes'], ['groups', 'Document & code groups'], ['review', 'Excerpt review & queries'], ['notes', 'Memos/Notes'], ['history', 'History & recovery']].map(([id, label]) => <button key={id} onClick={e => { e.currentTarget.closest('details')?.removeAttribute('open'); setResearchSection(id); setResearchOpen(true); }}>{label}</button>)}
+                {[['cases', 'Cases & attributes'], ['groups', 'Document & code groups'], ['review', 'Excerpt review & queries'], ['history', 'History & recovery']].map(([id, label]) => <button key={id} onClick={e => { e.currentTarget.closest('details')?.removeAttribute('open'); setResearchSection(id); setResearchOpen(true); }}>{label}</button>)}
               </ToolMenu>
               <button aria-expanded={contentSearchOpen} onClick={() => setContentSearchOpen(v => !v)}>Search text</button>
             </div>
@@ -3252,7 +3261,7 @@ function openDocxCommentImport() {
                       <CodingMargin readerStyle={THEME_STYLES[readerTheme]} enabled={codingStripes} segments={docSegments} codesById={codesById} onJump={goToExcerpt}>
                       {selectedDoc.original && documentView === 'formatted' ? <FormattedDocView
                         doc={selectedDoc} segments={docSegments} codesById={codesById}
-                        annotations={project.annotations?.filter(a => a.docId === selectedDoc.id)} onClickAnnotation={() => { setResearchSection('notes'); setResearchOpen(true); }}
+                        annotations={project.annotations?.filter(a => a.docId === selectedDoc.id)} onClickAnnotation={() => { setTab('memos'); }}
                         images={project.images} regions={formattedRegions}
                         onSelectionChange={sel => { setPendingSelection(sel); if (sel) setPendingPdfRegion(null); }}
                         onPdfRegion={region => { setPendingPdfRegion(region); if (region) setPendingSelection(null); }}
@@ -3269,7 +3278,7 @@ function openDocxCommentImport() {
                         fontSize={readerFontSize}
                         fontFamily={readerFontFamily}
                         showLineNumbers={showLineNumbers}
-                        annotations={project.annotations?.filter(a => a.docId === selectedDoc.id)} onClickAnnotation={() => { setResearchSection('notes'); setResearchOpen(true); }}
+                        annotations={project.annotations?.filter(a => a.docId === selectedDoc.id)} onClickAnnotation={() => { setTab('memos'); }}
                         onSelectionChange={sel => {
                           setPendingSelection(sel);
                           // Clear navigation targets when user makes a new selection
@@ -4134,8 +4143,10 @@ function openDocxCommentImport() {
   </div>
 )}
 
+{tab === 'memos' && <ResearchWorkspace embedded project={project} section="notes" onSection={()=>{}} onClose={()=>setTab('workspace')} onChange={persist} onNavigate={()=>{}} onAdjust={()=>{}} onMemoSource={openMemoSource} onManuscript={handleExportManuscriptSkeleton} actor={activeCoderName}/>}
+
 {tab === 'analysis' && (
-  <AnalysisTab project={project} onExportReport={handleExportReport} onSaveCell={updateFrameworkCell} onSaveRelationNote={updateRelationNote} onDeleteSegments={deleteSegmentsByIds} showToast={showToast} />
+  <AnalysisTab sourceTarget={memoSourceTarget} project={project} onExportReport={handleExportReport} onSaveCell={updateFrameworkCell} onSaveRelationNote={updateRelationNote} onDeleteSegments={deleteSegmentsByIds} showToast={showToast} />
 )}
 
 <div
@@ -4186,7 +4197,7 @@ function openDocxCommentImport() {
         </div>
         <p>A local-first environment for qualitative research. Organize sources, code text and images, develop memos, and explore your analysis.</p>
         <div className="about-actions">
-          <a href="https://github.com/anisur-bayazid25/eQc" target="_blank" rel="noopener noreferrer">Source & releases ↗</a>
+          <a title="Right-click to copy link address" href="https://github.com/anisur-bayazid25/eQc" target="_blank" rel="noopener noreferrer">Source & releases ↗</a>
           <button onClick={() => window.qv.checkForUpdates()}>Check for Updates</button>
         </div>
       </section>
@@ -4194,7 +4205,7 @@ function openDocxCommentImport() {
         <dl>
           <dt>Created by</dt><dd>Anisur Rahman Bayazid <em>(with help from borrowed intellect)</em></dd>
           <dt>Acknowledgments</dt><dd>eQc gratefully acknowledges the contributions of the CARE project and BRAC James P Grant School of Public Health, BRAC University, to its development.</dd>
-          <dt>Contact</dt><dd><a href="mailto:anisur.rahman.bayazid@gmail.com" onClick={startContactEmail} aria-busy={!!mailCourier}>anisur.rahman.bayazid@gmail.com</a></dd>
+          <dt>Contact</dt><dd><a title="Right-click to copy email address or link" href="mailto:anisur.rahman.bayazid@gmail.com" onClick={startContactEmail} aria-busy={!!mailCourier}>anisur.rahman.bayazid@gmail.com</a></dd>
           <dt>License</dt><dd>MIT License — free for commercial and non-commercial use.</dd>
           <dt>Year</dt><dd>2026</dd>
         </dl>
@@ -4321,9 +4332,12 @@ function AnalysisExportButtons({
   );
 }
 
-function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, onDeleteSegments, showToast }: { project: Project; onExportReport: (extras?: ReportExtras) => void; onSaveCell: (docId: ID, codeId: ID, text: string) => void; onSaveRelationNote: (codeAId: ID, codeBId: ID, note: string) => void; onDeleteSegments: (ids: ID[]) => void; showToast: (msg: string) => void }) {
+function AnalysisTab({ sourceTarget, project, onExportReport, onSaveCell, onSaveRelationNote, onDeleteSegments, showToast }: { sourceTarget?: {kind:string;id:string;nonce:number} | null; project: Project; onExportReport: (extras?: ReportExtras) => void; onSaveCell: (docId: ID, codeId: ID, text: string) => void; onSaveRelationNote: (codeAId: ID, codeBId: ID, note: string) => void; onDeleteSegments: (ids: ID[]) => void; showToast: (msg: string) => void }) {
   const [subTab, setSubTab] = useState<'frequency' | 'docMatrix' | 'coMatrix' | 'framework' | 'words' | 'kwic' | 'icr' | 'consensus'>('frequency');
   const codesByIdLocal = useMemo(() => new Map(project.codes.map(c => [c.id, c])), [project.codes]);
+
+  useEffect(()=>{if(sourceTarget?.kind==='framework')setSubTab('framework');if(sourceTarget?.kind==='relationship')setSubTab('coMatrix');},[sourceTarget]);
+  useEffect(()=>{if(!sourceTarget)return;const element=document.getElementById('analysis-memo-'+sourceTarget.id);element?.scrollIntoView({block:'center'});element?.querySelector('textarea')?.focus();},[sourceTarget,subTab]);
 
   // The text the user is typing (`inputValue`, drives only the input field)
   // versus the keyword actually searched (`activeSearch`, set only by the
@@ -4567,7 +4581,9 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
   }, [project.relationNotes]);
   const [coocView, setCoocView] = useState<{ codeAId: ID; codeBId: ID; codeAName: string; codeBName: string; excerpts: Array<{ docName: string; text: string }> } | null>(null);
 
-  const frameworkRows = useMemo(() => childCodes(project.codes, null), [project.codes]);
+  useEffect(()=>{if(sourceTarget?.kind!=='relationship')return;const note=project.relationNotes?.find(n=>n.id===sourceTarget.id);if(!note)return;setCoocView({codeAId:note.codeAId,codeBId:note.codeBId,codeAName:codesByIdLocal.get(note.codeAId)?.name||'Unavailable code',codeBName:codesByIdLocal.get(note.codeBId)?.name||'Unavailable code',excerpts:findCooccurringExcerpts(project,note.codeAId,note.codeBId)});},[sourceTarget]);
+  useEffect(()=>{if(sourceTarget?.kind==='relationship')document.querySelector<HTMLTextAreaElement>('.cooc-memo-panel textarea')?.focus();},[coocView]);
+  const frameworkRows = useMemo(() => {const roots=childCodes(project.codes,null);const target=sourceTarget?.kind==='framework'?project.frameworkCells?.find(f=>f.id===sourceTarget.id):undefined;const code=project.codes.find(c=>c.id===target?.codeId);return code&&!roots.some(c=>c.id===code.id)?[...roots,code]:roots;}, [project.codes,sourceTarget,project.frameworkCells]);
   const frameworkCellMap = useMemo(() => {
     const m = new Map<string, FrameworkCell>();
     (project.frameworkCells || []).forEach(c => m.set(`${c.docId}::${c.codeId}`, c));
@@ -4867,7 +4883,7 @@ function AnalysisTab({ project, onExportReport, onSaveCell, onSaveRelationNote, 
                     {sortedFrameworkDocs.map(d => {
                       const existing = frameworkCellMap.get(`${d.id}::${code.id}`);
                       return (
-                        <td key={d.id} className="framework-cell">
+                        <td key={d.id} id={existing ? 'analysis-memo-'+existing.id : undefined} className="framework-cell">
                           <FrameworkCellInput
                             initialValue={existing?.text || ''}
                             onSave={text => onSaveCell(d.id, code.id, text)}

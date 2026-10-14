@@ -1,0 +1,1039 @@
+{
+  "note": "Illustrative preview includes headers and interviewer prompts, as the app uses whole document text. Generate the live analysis to match current app settings.",
+  "stopWordsText": "the, a, an, and, or, of, to, in, on, for, with, is, was, were, be, been, that, this, it, i, we, our, my, me, us, you, your, they, their, as, at, by, from, not, but, so, had, have, has, do, did, does, can, could, would, should, will, when, where, who, what, how, which, than, then, also, one, some, more, about, into, if, there, them, its, he, she, her, his",
+  "wordFrequencies": [
+    {
+      "word": "interviewer",
+      "count": 48
+    },
+    {
+      "word": "water",
+      "count": 35
+    },
+    {
+      "word": "people",
+      "count": 30
+    },
+    {
+      "word": "work",
+      "count": 26
+    },
+    {
+      "word": "house",
+      "count": 18
+    },
+    {
+      "word": "because",
+      "count": 16
+    },
+    {
+      "word": "support",
+      "count": 16
+    },
+    {
+      "word": "food",
+      "count": 15
+    },
+    {
+      "word": "residents",
+      "count": 15
+    },
+    {
+      "word": "are",
+      "count": 14
+    },
+    {
+      "word": "household",
+      "count": 14
+    },
+    {
+      "word": "before",
+      "count": 14
+    },
+    {
+      "word": "mere",
+      "count": 13
+    },
+    {
+      "word": "day",
+      "count": 13
+    },
+    {
+      "word": "nasima",
+      "count": 13
+    },
+    {
+      "word": "arun",
+      "count": 13
+    },
+    {
+      "word": "sari",
+      "count": 13
+    },
+    {
+      "word": "interview",
+      "count": 12
+    },
+    {
+      "word": "school",
+      "count": 12
+    },
+    {
+      "word": "after",
+      "count": 12
+    },
+    {
+      "word": "helped",
+      "count": 12
+    },
+    {
+      "word": "during",
+      "count": 11
+    },
+    {
+      "word": "every",
+      "count": 11
+    },
+    {
+      "word": "neighbours",
+      "count": 11
+    },
+    {
+      "word": "road",
+      "count": 10
+    },
+    {
+      "word": "while",
+      "count": 10
+    },
+    {
+      "word": "changed",
+      "count": 10
+    },
+    {
+      "word": "income",
+      "count": 10
+    },
+    {
+      "word": "small",
+      "count": 10
+    },
+    {
+      "word": "help",
+      "count": 10
+    },
+    {
+      "word": "moving",
+      "count": 10
+    },
+    {
+      "word": "away",
+      "count": 10
+    },
+    {
+      "word": "route",
+      "count": 10
+    },
+    {
+      "word": "fictional",
+      "count": 9
+    },
+    {
+      "word": "event",
+      "count": 9
+    },
+    {
+      "word": "care",
+      "count": 9
+    },
+    {
+      "word": "shared",
+      "count": 9
+    },
+    {
+      "word": "whether",
+      "count": 9
+    },
+    {
+      "word": "path",
+      "count": 9
+    },
+    {
+      "word": "rather",
+      "count": 9
+    },
+    {
+      "word": "still",
+      "count": 9
+    },
+    {
+      "word": "know",
+      "count": 9
+    },
+    {
+      "word": "need",
+      "count": 9
+    },
+    {
+      "word": "english",
+      "count": 8
+    },
+    {
+      "word": "tell",
+      "count": 8
+    },
+    {
+      "word": "ordinary",
+      "count": 8
+    },
+    {
+      "word": "neighbour",
+      "count": 8
+    },
+    {
+      "word": "affect",
+      "count": 8
+    },
+    {
+      "word": "drinking",
+      "count": 8
+    },
+    {
+      "word": "only",
+      "count": 8
+    },
+    {
+      "word": "next",
+      "count": 8
+    },
+    {
+      "word": "another",
+      "count": 8
+    },
+    {
+      "word": "disruption",
+      "count": 8
+    },
+    {
+      "word": "repair",
+      "count": 8
+    },
+    {
+      "word": "changes",
+      "count": 8
+    },
+    {
+      "word": "here",
+      "count": 7
+    },
+    {
+      "word": "children",
+      "count": 7
+    },
+    {
+      "word": "nearby",
+      "count": 7
+    },
+    {
+      "word": "family",
+      "count": 7
+    },
+    {
+      "word": "shelter",
+      "count": 7
+    },
+    {
+      "word": "stayed",
+      "count": 7
+    },
+    {
+      "word": "decide",
+      "count": 7
+    },
+    {
+      "word": "information",
+      "count": 7
+    },
+    {
+      "word": "flood",
+      "count": 7
+    },
+    {
+      "word": "leave",
+      "count": 7
+    },
+    {
+      "word": "neighbourhood",
+      "count": 7
+    },
+    {
+      "word": "want",
+      "count": 7
+    },
+    {
+      "word": "later",
+      "count": 6
+    },
+    {
+      "word": "cooking",
+      "count": 6
+    },
+    {
+      "word": "supply",
+      "count": 6
+    },
+    {
+      "word": "warning",
+      "count": 6
+    },
+    {
+      "word": "stay",
+      "count": 6
+    },
+    {
+      "word": "emergency",
+      "count": 6
+    },
+    {
+      "word": "open",
+      "count": 6
+    },
+    {
+      "word": "community",
+      "count": 6
+    },
+    {
+      "word": "group",
+      "count": 6
+    },
+    {
+      "word": "others",
+      "count": 6
+    },
+    {
+      "word": "stall",
+      "count": 6
+    },
+    {
+      "word": "days",
+      "count": 6
+    },
+    {
+      "word": "receive",
+      "count": 6
+    },
+    {
+      "word": "much",
+      "count": 6
+    },
+    {
+      "word": "say",
+      "count": 6
+    },
+    {
+      "word": "prepare",
+      "count": 6
+    },
+    {
+      "word": "keep",
+      "count": 6
+    },
+    {
+      "word": "rent",
+      "count": 6
+    },
+    {
+      "word": "relatives",
+      "count": 6
+    },
+    {
+      "word": "safe",
+      "count": 6
+    },
+    {
+      "word": "choose",
+      "count": 6
+    },
+    {
+      "word": "husband",
+      "count": 6
+    },
+    {
+      "word": "without",
+      "count": 6
+    },
+    {
+      "word": "rain",
+      "count": 6
+    },
+    {
+      "word": "part",
+      "count": 6
+    },
+    {
+      "word": "between",
+      "count": 6
+    },
+    {
+      "word": "below",
+      "count": 5
+    },
+    {
+      "word": "mother",
+      "count": 5
+    },
+    {
+      "word": "two",
+      "count": 5
+    },
+    {
+      "word": "life",
+      "count": 5
+    },
+    {
+      "word": "lost",
+      "count": 5
+    },
+    {
+      "word": "made",
+      "count": 5
+    },
+    {
+      "word": "electricity",
+      "count": 5
+    }
+  ],
+  "kwicKeyword": "water",
+  "kwicResults": [
+    {
+      "docName": "01_Fiji_Mere_FICTIONAL.txt",
+      "before": [
+        "did",
+        "the",
+        "event",
+        "affect",
+        "drinking"
+      ],
+      "keyword": "water,",
+      "after": [
+        "sanitation,",
+        "electricity",
+        "or",
+        "access",
+        "to"
+      ]
+    },
+    {
+      "docName": "01_Fiji_Mere_FICTIONAL.txt",
+      "before": [
+        "rainwater",
+        "tank",
+        "survived,",
+        "but",
+        "dirty"
+      ],
+      "keyword": "water",
+      "after": [
+        "entered",
+        "the",
+        "pipe",
+        "connection.",
+        "We"
+      ]
+    },
+    {
+      "docName": "01_Fiji_Mere_FICTIONAL.txt",
+      "before": [
+        "was",
+        "out,",
+        "and",
+        "then",
+        "shared"
+      ],
+      "keyword": "water",
+      "after": [
+        "from",
+        "a",
+        "neighbour's",
+        "covered",
+        "tank."
+      ]
+    },
+    {
+      "docName": "01_Fiji_Mere_FICTIONAL.txt",
+      "before": [
+        "By",
+        "the",
+        "third",
+        "day,",
+        "collecting"
+      ],
+      "keyword": "water",
+      "after": [
+        "took",
+        "the",
+        "hours",
+        "I",
+        "normally"
+      ]
+    },
+    {
+      "docName": "01_Fiji_Mere_FICTIONAL.txt",
+      "before": [
+        "had",
+        "roofs.",
+        "One",
+        "family",
+        "shared"
+      ],
+      "keyword": "water,",
+      "after": [
+        "another",
+        "lent",
+        "tools,",
+        "and",
+        "the"
+      ]
+    },
+    {
+      "docName": "01_Fiji_Mere_FICTIONAL.txt",
+      "before": [
+        "at",
+        "one",
+        "property",
+        "could",
+        "send"
+      ],
+      "keyword": "water",
+      "after": [
+        "towards",
+        "another.",
+        "Preparation",
+        "should",
+        "look"
+      ]
+    },
+    {
+      "docName": "01_Fiji_Mere_FICTIONAL.txt",
+      "before": [
+        "I",
+        "would",
+        "choose",
+        "reliable",
+        "drinking"
+      ],
+      "keyword": "water",
+      "after": [
+        "that",
+        "everyone",
+        "can",
+        "reach.",
+        "Second,"
+      ]
+    },
+    {
+      "docName": "02_Bangladesh_Nasima_FICTIONAL.txt",
+      "before": [
+        "continued",
+        "through",
+        "the",
+        "evening",
+        "and"
+      ],
+      "keyword": "water",
+      "after": [
+        "entered",
+        "the",
+        "yard",
+        "before",
+        "the"
+      ]
+    },
+    {
+      "docName": "02_Bangladesh_Nasima_FICTIONAL.txt",
+      "before": [
+        "to",
+        "normal",
+        "just",
+        "because",
+        "the"
+      ],
+      "keyword": "water",
+      "after": [
+        "disappeared.",
+        "Interviewer",
+        "—",
+        "Q3:",
+        "How"
+      ]
+    },
+    {
+      "docName": "02_Bangladesh_Nasima_FICTIONAL.txt",
+      "before": [
+        "did",
+        "the",
+        "event",
+        "affect",
+        "drinking"
+      ],
+      "keyword": "water,",
+      "after": [
+        "sanitation,",
+        "electricity",
+        "or",
+        "access",
+        "to"
+      ]
+    },
+    {
+      "docName": "02_Bangladesh_Nasima_FICTIONAL.txt",
+      "before": [
+        "used",
+        "was",
+        "surrounded",
+        "by",
+        "dirty"
+      ],
+      "keyword": "water.",
+      "after": [
+        "I",
+        "collected",
+        "drinking",
+        "water",
+        "from"
+      ]
+    },
+    {
+      "docName": "02_Bangladesh_Nasima_FICTIONAL.txt",
+      "before": [
+        "dirty",
+        "water.",
+        "I",
+        "collected",
+        "drinking"
+      ],
+      "keyword": "water",
+      "after": [
+        "from",
+        "a",
+        "tank",
+        "farther",
+        "away."
+      ]
+    },
+    {
+      "docName": "02_Bangladesh_Nasima_FICTIONAL.txt",
+      "before": [
+        "and",
+        "missed",
+        "some",
+        "sewing",
+        "orders."
+      ],
+      "keyword": "Water",
+      "after": [
+        "was",
+        "available",
+        "somewhere,",
+        "but",
+        "getting"
+      ]
+    },
+    {
+      "docName": "02_Bangladesh_Nasima_FICTIONAL.txt",
+      "before": [
+        "father.",
+        "When",
+        "people",
+        "say",
+        "the"
+      ],
+      "keyword": "water",
+      "after": [
+        "problem",
+        "is",
+        "solved,",
+        "I",
+        "ask"
+      ]
+    },
+    {
+      "docName": "02_Bangladesh_Nasima_FICTIONAL.txt",
+      "before": [
+        "fewer",
+        "orders",
+        "because",
+        "of",
+        "the"
+      ],
+      "keyword": "water",
+      "after": [
+        "trips.",
+        "The",
+        "flood",
+        "connected",
+        "our"
+      ]
+    },
+    {
+      "docName": "02_Bangladesh_Nasima_FICTIONAL.txt",
+      "before": [
+        "and",
+        "took",
+        "turns",
+        "going",
+        "for"
+      ],
+      "keyword": "water.",
+      "after": [
+        "My",
+        "niece",
+        "watched",
+        "the",
+        "younger"
+      ]
+    },
+    {
+      "docName": "02_Bangladesh_Nasima_FICTIONAL.txt",
+      "before": [
+        "If",
+        "a",
+        "household",
+        "receives",
+        "a"
+      ],
+      "keyword": "water",
+      "after": [
+        "container,",
+        "it",
+        "still",
+        "matters",
+        "who"
+      ]
+    },
+    {
+      "docName": "02_Bangladesh_Nasima_FICTIONAL.txt",
+      "before": [
+        "I",
+        "would",
+        "prioritise",
+        "nearby",
+        "drinking"
+      ],
+      "keyword": "water,",
+      "after": [
+        "a",
+        "shelter",
+        "with",
+        "toilets",
+        "that"
+      ]
+    },
+    {
+      "docName": "02_Bangladesh_Nasima_FICTIONAL.txt",
+      "before": [
+        "to",
+        "the",
+        "people",
+        "who",
+        "collect"
+      ],
+      "keyword": "water",
+      "after": [
+        "and",
+        "care",
+        "for",
+        "relatives.",
+        "We"
+      ]
+    },
+    {
+      "docName": "03_Nepal_Arun_FICTIONAL.txt",
+      "before": [
+        "checking",
+        "the",
+        "animals",
+        "and",
+        "the"
+      ],
+      "keyword": "water",
+      "after": [
+        "pipe.",
+        "The",
+        "path",
+        "between",
+        "households"
+      ]
+    },
+    {
+      "docName": "03_Nepal_Arun_FICTIONAL.txt",
+      "before": [
+        "did",
+        "the",
+        "event",
+        "affect",
+        "drinking"
+      ],
+      "keyword": "water,",
+      "after": [
+        "sanitation,",
+        "electricity",
+        "or",
+        "access",
+        "to"
+      ]
+    },
+    {
+      "docName": "03_Nepal_Arun_FICTIONAL.txt",
+      "before": [
+        "to",
+        "another",
+        "tap",
+        "and",
+        "carried"
+      ],
+      "keyword": "water",
+      "after": [
+        "back,",
+        "while",
+        "people",
+        "tried",
+        "to"
+      ]
+    },
+    {
+      "docName": "03_Nepal_Arun_FICTIONAL.txt",
+      "before": [
+        "aunt",
+        "postponed",
+        "a",
+        "check-up.",
+        "A"
+      ],
+      "keyword": "water",
+      "after": [
+        "repair",
+        "and",
+        "a",
+        "road",
+        "repair"
+      ]
+    },
+    {
+      "docName": "03_Nepal_Arun_FICTIONAL.txt",
+      "before": [
+        "others?",
+        "Arun:",
+        "My",
+        "wife",
+        "carried"
+      ],
+      "keyword": "water",
+      "after": [
+        "and",
+        "looked",
+        "after",
+        "our",
+        "son"
+      ]
+    },
+    {
+      "docName": "03_Nepal_Arun_FICTIONAL.txt",
+      "before": [
+        "the",
+        "smaller",
+        "path",
+        "to",
+        "the"
+      ],
+      "keyword": "water",
+      "after": [
+        "point,",
+        "but",
+        "it",
+        "was",
+        "not"
+      ]
+    },
+    {
+      "docName": "03_Nepal_Arun_FICTIONAL.txt",
+      "before": [
+        "used",
+        "daily",
+        "by",
+        "people",
+        "carrying"
+      ],
+      "keyword": "water",
+      "after": [
+        "should",
+        "count",
+        "alongside",
+        "the",
+        "road"
+      ]
+    },
+    {
+      "docName": "03_Nepal_Arun_FICTIONAL.txt",
+      "before": [
+        "choose",
+        "a",
+        "reliable",
+        "path",
+        "to"
+      ],
+      "keyword": "water",
+      "after": [
+        "and",
+        "school,",
+        "timely",
+        "inspection",
+        "of"
+      ]
+    },
+    {
+      "docName": "04_Indonesia_Sari_FICTIONAL.txt",
+      "before": [
+        "flooding",
+        "imagined",
+        "for",
+        "this",
+        "interview,"
+      ],
+      "keyword": "water",
+      "after": [
+        "entered",
+        "the",
+        "lane",
+        "during",
+        "the"
+      ]
+    },
+    {
+      "docName": "04_Indonesia_Sari_FICTIONAL.txt",
+      "before": [
+        "days.",
+        "Some",
+        "neighbours",
+        "said",
+        "the"
+      ],
+      "keyword": "water",
+      "after": [
+        "was",
+        "routine,",
+        "although",
+        "this",
+        "time"
+      ]
+    },
+    {
+      "docName": "04_Indonesia_Sari_FICTIONAL.txt",
+      "before": [
+        "did",
+        "the",
+        "event",
+        "affect",
+        "drinking"
+      ],
+      "keyword": "water,",
+      "after": [
+        "sanitation,",
+        "electricity",
+        "or",
+        "access",
+        "to"
+      ]
+    },
+    {
+      "docName": "04_Indonesia_Sari_FICTIONAL.txt",
+      "before": [
+        "had",
+        "to",
+        "protect",
+        "the",
+        "drinking"
+      ],
+      "keyword": "water",
+      "after": [
+        "containers",
+        "from",
+        "the",
+        "dirty",
+        "water"
+      ]
+    },
+    {
+      "docName": "04_Indonesia_Sari_FICTIONAL.txt",
+      "before": [
+        "water",
+        "containers",
+        "from",
+        "the",
+        "dirty"
+      ],
+      "keyword": "water",
+      "after": [
+        "in",
+        "the",
+        "lane.",
+        "The",
+        "electricity"
+      ]
+    },
+    {
+      "docName": "04_Indonesia_Sari_FICTIONAL.txt",
+      "before": [
+        "that",
+        "during",
+        "school",
+        "hours.",
+        "Safe"
+      ],
+      "keyword": "water",
+      "after": [
+        "was",
+        "not",
+        "only",
+        "a",
+        "question"
+      ]
+    },
+    {
+      "docName": "04_Indonesia_Sari_FICTIONAL.txt",
+      "before": [
+        "not",
+        "leave",
+        "immediately",
+        "because",
+        "the"
+      ],
+      "keyword": "water",
+      "after": [
+        "was",
+        "shallow",
+        "inside",
+        "and",
+        "we"
+      ]
+    },
+    {
+      "docName": "04_Indonesia_Sari_FICTIONAL.txt",
+      "before": [
+        "but",
+        "shelves",
+        "do",
+        "not",
+        "stop"
+      ],
+      "keyword": "water",
+      "after": [
+        "entering",
+        "the",
+        "lane.",
+        "I",
+        "cannot"
+      ]
+    }
+  ]
+}

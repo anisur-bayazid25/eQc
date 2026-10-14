@@ -34,7 +34,17 @@ jobs:
         run: npm install @rollup/rollup-darwin-arm64@4.62.2 --no-save
 
       - name: Run feature regression tests
-        run: node --test tests/release-1.6.4.cjs tests/release-1.7.0.cjs tests/code-report.cjs tests/formatted-mapping.cjs tests/source-lines.cjs tests/data-integrity.cjs tests/profile-sqlite.cjs tests/profile-store.cjs tests/time-tracking.cjs tests/milestones.cjs tests/desktop-bridge.cjs tests/resource-cleanup.cjs tests/next-help-import.cjs tests/easter-eggs.cjs tests/lan-identity.cjs
+        run: node --test tests/release-1.6.4.cjs tests/release-1.7.0.cjs tests/code-report.cjs tests/formatted-mapping.cjs tests/source-lines.cjs tests/data-integrity.cjs tests/profile-sqlite.cjs tests/profile-store.cjs tests/time-tracking.cjs tests/milestones.cjs tests/desktop-bridge.cjs tests/resource-cleanup.cjs tests/next-help-import.cjs tests/easter-eggs.cjs tests/lan-identity.cjs tests/memo-workspace.cjs tests/about-links.cjs
+
+      - name: Validate fictional demo dataset
+        run: node demo/climate-resilience/build-demo.cjs
+
+      - name: Upload fictional demo kit
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: fictional-demo-kit
+          path: demo/climate-resilience/eQc_Fictional_Climate_Demo.zip
 
       - name: Install browser test tools
         if: runner.os == 'Windows'
@@ -42,7 +52,7 @@ jobs:
           npm install --no-save --package-lock=false playwright
           npx playwright install chromium
 
-      - name: Run usability and data-integrity browser checks
+      - name: Run usability, data-integrity, Help and memo browser checks
         if: runner.os == 'Windows'
         run: node tests/run-browser-checks.cjs
         env:

@@ -1,0 +1,1328 @@
+{
+  "scope": {
+    "docIds": [
+      "demo_doc_fiji",
+      "demo_doc_bangladesh",
+      "demo_doc_nepal",
+      "demo_doc_indonesia"
+    ],
+    "includeImages": false
+  },
+  "coders": [
+    "Amina",
+    "Ravi",
+    "Lina"
+  ],
+  "pairwise": [
+    {
+      "coderA": "Amina",
+      "coderB": "Ravi",
+      "items": 96,
+      "sources": 4,
+      "codes": 24,
+      "contingency": {
+        "bothYes": 80,
+        "aOnly": 4,
+        "bOnly": 1,
+        "bothNo": 11,
+        "n": 96
+      },
+      "percent": 94.79166666666666,
+      "kappa": 0.7849462365591396,
+      "holsti": 0.9696969696969697,
+      "perCode": [
+        {
+          "codeId": "demo_code_mobility",
+          "codeName": "Considering mobility",
+          "bothYes": 0,
+          "aOnly": 4,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 0,
+          "kappa": 0,
+          "holsti": 0
+        },
+        {
+          "codeId": "demo_code_eligibility",
+          "codeName": "Eligibility and administration",
+          "bothYes": 0,
+          "aOnly": 0,
+          "bOnly": 1,
+          "bothNo": 3,
+          "n": 4,
+          "percent": 75,
+          "kappa": 0,
+          "holsti": 0
+        },
+        {
+          "codeId": "demo_code_access",
+          "codeName": "Access to health and school",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_warning",
+          "codeName": "Actionable warnings",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_uncertainty",
+          "codeName": "Continuing risk and worry",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_debt",
+          "codeName": "Debt and recurring costs",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_hazard",
+          "codeName": "Environmental disruption",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_services",
+          "codeName": "Essential services and care",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_evacuation",
+          "codeName": "Evacuation constraints",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_future",
+          "codeName": "Future aspirations",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_income",
+          "codeName": "Income interruption",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_governance",
+          "codeName": "Institutions and fair support",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_limits",
+          "codeName": "Limits of household adaptation",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_livelihood",
+          "codeName": "Livelihoods and recovery costs",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_mutual",
+          "codeName": "Mutual aid and inclusion",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_voice",
+          "codeName": "Participation and voice",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_place",
+          "codeName": "Place and social ties",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_belonging",
+          "codeName": "Place, mobility and future",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_agency",
+          "codeName": "Preparedness and mutual support",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_care",
+          "codeName": "Unpaid care and time",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_water",
+          "codeName": "Water access and safety",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_flood",
+          "codeName": "Flooding and storm impacts",
+          "bothYes": 3,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 1,
+          "n": 4,
+          "percent": 100,
+          "kappa": 1,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_slope",
+          "codeName": "Slope and access disruption",
+          "bothYes": 1,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 3,
+          "n": 4,
+          "percent": 100,
+          "kappa": 1,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_restart",
+          "codeName": "Restarting work",
+          "bothYes": 0,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 4,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": null
+        }
+      ]
+    },
+    {
+      "coderA": "Amina",
+      "coderB": "Lina",
+      "items": 96,
+      "sources": 4,
+      "codes": 24,
+      "contingency": {
+        "bothYes": 78,
+        "aOnly": 6,
+        "bOnly": 4,
+        "bothNo": 8,
+        "n": 96
+      },
+      "percent": 89.58333333333334,
+      "kappa": 0.5555555555555559,
+      "holsti": 0.9397590361445783,
+      "perCode": [
+        {
+          "codeId": "demo_code_eligibility",
+          "codeName": "Eligibility and administration",
+          "bothYes": 0,
+          "aOnly": 0,
+          "bOnly": 4,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 0,
+          "kappa": 0,
+          "holsti": 0
+        },
+        {
+          "codeId": "demo_code_voice",
+          "codeName": "Participation and voice",
+          "bothYes": 0,
+          "aOnly": 4,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 0,
+          "kappa": 0,
+          "holsti": 0
+        },
+        {
+          "codeId": "demo_code_debt",
+          "codeName": "Debt and recurring costs",
+          "bothYes": 3,
+          "aOnly": 1,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 75,
+          "kappa": 0,
+          "holsti": 0.8571428571428571
+        },
+        {
+          "codeId": "demo_code_future",
+          "codeName": "Future aspirations",
+          "bothYes": 3,
+          "aOnly": 1,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 75,
+          "kappa": 0,
+          "holsti": 0.8571428571428571
+        },
+        {
+          "codeId": "demo_code_access",
+          "codeName": "Access to health and school",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_warning",
+          "codeName": "Actionable warnings",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_mobility",
+          "codeName": "Considering mobility",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_uncertainty",
+          "codeName": "Continuing risk and worry",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_hazard",
+          "codeName": "Environmental disruption",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_services",
+          "codeName": "Essential services and care",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_evacuation",
+          "codeName": "Evacuation constraints",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_income",
+          "codeName": "Income interruption",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_governance",
+          "codeName": "Institutions and fair support",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_limits",
+          "codeName": "Limits of household adaptation",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_livelihood",
+          "codeName": "Livelihoods and recovery costs",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_mutual",
+          "codeName": "Mutual aid and inclusion",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_place",
+          "codeName": "Place and social ties",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_belonging",
+          "codeName": "Place, mobility and future",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_agency",
+          "codeName": "Preparedness and mutual support",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_care",
+          "codeName": "Unpaid care and time",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_water",
+          "codeName": "Water access and safety",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_flood",
+          "codeName": "Flooding and storm impacts",
+          "bothYes": 3,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 1,
+          "n": 4,
+          "percent": 100,
+          "kappa": 1,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_slope",
+          "codeName": "Slope and access disruption",
+          "bothYes": 1,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 3,
+          "n": 4,
+          "percent": 100,
+          "kappa": 1,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_restart",
+          "codeName": "Restarting work",
+          "bothYes": 0,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 4,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": null
+        }
+      ]
+    },
+    {
+      "coderA": "Ravi",
+      "coderB": "Lina",
+      "items": 96,
+      "sources": 4,
+      "codes": 24,
+      "contingency": {
+        "bothYes": 75,
+        "aOnly": 6,
+        "bOnly": 7,
+        "bothNo": 8,
+        "n": 96
+      },
+      "percent": 86.45833333333334,
+      "kappa": 0.47208121827411176,
+      "holsti": 0.9202453987730062,
+      "perCode": [
+        {
+          "codeId": "demo_code_mobility",
+          "codeName": "Considering mobility",
+          "bothYes": 0,
+          "aOnly": 0,
+          "bOnly": 4,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 0,
+          "kappa": 0,
+          "holsti": 0
+        },
+        {
+          "codeId": "demo_code_voice",
+          "codeName": "Participation and voice",
+          "bothYes": 0,
+          "aOnly": 4,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 0,
+          "kappa": 0,
+          "holsti": 0
+        },
+        {
+          "codeId": "demo_code_eligibility",
+          "codeName": "Eligibility and administration",
+          "bothYes": 1,
+          "aOnly": 0,
+          "bOnly": 3,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 25,
+          "kappa": 0,
+          "holsti": 0.4
+        },
+        {
+          "codeId": "demo_code_debt",
+          "codeName": "Debt and recurring costs",
+          "bothYes": 3,
+          "aOnly": 1,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 75,
+          "kappa": 0,
+          "holsti": 0.8571428571428571
+        },
+        {
+          "codeId": "demo_code_future",
+          "codeName": "Future aspirations",
+          "bothYes": 3,
+          "aOnly": 1,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 75,
+          "kappa": 0,
+          "holsti": 0.8571428571428571
+        },
+        {
+          "codeId": "demo_code_access",
+          "codeName": "Access to health and school",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_warning",
+          "codeName": "Actionable warnings",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_uncertainty",
+          "codeName": "Continuing risk and worry",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_hazard",
+          "codeName": "Environmental disruption",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_services",
+          "codeName": "Essential services and care",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_evacuation",
+          "codeName": "Evacuation constraints",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_income",
+          "codeName": "Income interruption",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_governance",
+          "codeName": "Institutions and fair support",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_limits",
+          "codeName": "Limits of household adaptation",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_livelihood",
+          "codeName": "Livelihoods and recovery costs",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_mutual",
+          "codeName": "Mutual aid and inclusion",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_place",
+          "codeName": "Place and social ties",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_belonging",
+          "codeName": "Place, mobility and future",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_agency",
+          "codeName": "Preparedness and mutual support",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_care",
+          "codeName": "Unpaid care and time",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_water",
+          "codeName": "Water access and safety",
+          "bothYes": 4,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 0,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_flood",
+          "codeName": "Flooding and storm impacts",
+          "bothYes": 3,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 1,
+          "n": 4,
+          "percent": 100,
+          "kappa": 1,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_slope",
+          "codeName": "Slope and access disruption",
+          "bothYes": 1,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 3,
+          "n": 4,
+          "percent": 100,
+          "kappa": 1,
+          "holsti": 1
+        },
+        {
+          "codeId": "demo_code_restart",
+          "codeName": "Restarting work",
+          "bothYes": 0,
+          "aOnly": 0,
+          "bOnly": 0,
+          "bothNo": 4,
+          "n": 4,
+          "percent": 100,
+          "kappa": null,
+          "holsti": null
+        }
+      ]
+    }
+  ],
+  "fleiss": {
+    "coders": [
+      "Amina",
+      "Ravi",
+      "Lina"
+    ],
+    "items": 96,
+    "sources": 4,
+    "codes": 24,
+    "fullAgreement": 82,
+    "percentFull": 85.41666666666666,
+    "kappa": 0.6018564234225312,
+    "perCode": [
+      {
+        "codeId": "demo_code_mobility",
+        "codeName": "Considering mobility",
+        "items": 4,
+        "fullAgreement": 0,
+        "percentFull": 0,
+        "kappa": -0.5000000000000001
+      },
+      {
+        "codeId": "demo_code_eligibility",
+        "codeName": "Eligibility and administration",
+        "items": 4,
+        "fullAgreement": 0,
+        "percentFull": 0,
+        "kappa": -0.37142857142857133
+      },
+      {
+        "codeId": "demo_code_voice",
+        "codeName": "Participation and voice",
+        "items": 4,
+        "fullAgreement": 0,
+        "percentFull": 0,
+        "kappa": -0.5000000000000001
+      },
+      {
+        "codeId": "demo_code_debt",
+        "codeName": "Debt and recurring costs",
+        "items": 4,
+        "fullAgreement": 3,
+        "percentFull": 75,
+        "kappa": -0.09090909090909051
+      },
+      {
+        "codeId": "demo_code_future",
+        "codeName": "Future aspirations",
+        "items": 4,
+        "fullAgreement": 3,
+        "percentFull": 75,
+        "kappa": -0.09090909090908979
+      },
+      {
+        "codeId": "demo_code_access",
+        "codeName": "Access to health and school",
+        "items": 4,
+        "fullAgreement": 4,
+        "percentFull": 100,
+        "kappa": null
+      },
+      {
+        "codeId": "demo_code_warning",
+        "codeName": "Actionable warnings",
+        "items": 4,
+        "fullAgreement": 4,
+        "percentFull": 100,
+        "kappa": null
+      },
+      {
+        "codeId": "demo_code_uncertainty",
+        "codeName": "Continuing risk and worry",
+        "items": 4,
+        "fullAgreement": 4,
+        "percentFull": 100,
+        "kappa": null
+      },
+      {
+        "codeId": "demo_code_hazard",
+        "codeName": "Environmental disruption",
+        "items": 4,
+        "fullAgreement": 4,
+        "percentFull": 100,
+        "kappa": null
+      },
+      {
+        "codeId": "demo_code_services",
+        "codeName": "Essential services and care",
+        "items": 4,
+        "fullAgreement": 4,
+        "percentFull": 100,
+        "kappa": null
+      },
+      {
+        "codeId": "demo_code_evacuation",
+        "codeName": "Evacuation constraints",
+        "items": 4,
+        "fullAgreement": 4,
+        "percentFull": 100,
+        "kappa": null
+      },
+      {
+        "codeId": "demo_code_flood",
+        "codeName": "Flooding and storm impacts",
+        "items": 4,
+        "fullAgreement": 4,
+        "percentFull": 100,
+        "kappa": 1
+      },
+      {
+        "codeId": "demo_code_income",
+        "codeName": "Income interruption",
+        "items": 4,
+        "fullAgreement": 4,
+        "percentFull": 100,
+        "kappa": null
+      },
+      {
+        "codeId": "demo_code_governance",
+        "codeName": "Institutions and fair support",
+        "items": 4,
+        "fullAgreement": 4,
+        "percentFull": 100,
+        "kappa": null
+      },
+      {
+        "codeId": "demo_code_limits",
+        "codeName": "Limits of household adaptation",
+        "items": 4,
+        "fullAgreement": 4,
+        "percentFull": 100,
+        "kappa": null
+      },
+      {
+        "codeId": "demo_code_livelihood",
+        "codeName": "Livelihoods and recovery costs",
+        "items": 4,
+        "fullAgreement": 4,
+        "percentFull": 100,
+        "kappa": null
+      },
+      {
+        "codeId": "demo_code_mutual",
+        "codeName": "Mutual aid and inclusion",
+        "items": 4,
+        "fullAgreement": 4,
+        "percentFull": 100,
+        "kappa": null
+      },
+      {
+        "codeId": "demo_code_place",
+        "codeName": "Place and social ties",
+        "items": 4,
+        "fullAgreement": 4,
+        "percentFull": 100,
+        "kappa": null
+      },
+      {
+        "codeId": "demo_code_belonging",
+        "codeName": "Place, mobility and future",
+        "items": 4,
+        "fullAgreement": 4,
+        "percentFull": 100,
+        "kappa": null
+      },
+      {
+        "codeId": "demo_code_agency",
+        "codeName": "Preparedness and mutual support",
+        "items": 4,
+        "fullAgreement": 4,
+        "percentFull": 100,
+        "kappa": null
+      },
+      {
+        "codeId": "demo_code_restart",
+        "codeName": "Restarting work",
+        "items": 4,
+        "fullAgreement": 4,
+        "percentFull": 100,
+        "kappa": null
+      },
+      {
+        "codeId": "demo_code_slope",
+        "codeName": "Slope and access disruption",
+        "items": 4,
+        "fullAgreement": 4,
+        "percentFull": 100,
+        "kappa": 1
+      },
+      {
+        "codeId": "demo_code_care",
+        "codeName": "Unpaid care and time",
+        "items": 4,
+        "fullAgreement": 4,
+        "percentFull": 100,
+        "kappa": null
+      },
+      {
+        "codeId": "demo_code_water",
+        "codeName": "Water access and safety",
+        "items": 4,
+        "fullAgreement": 4,
+        "percentFull": 100,
+        "kappa": null
+      }
+    ]
+  },
+  "binary": {
+    "coders": [
+      "Amina",
+      "Ravi",
+      "Lina"
+    ],
+    "items": 96,
+    "sources": 4,
+    "codes": 24,
+    "alpha": 0.6032388663967612,
+    "perCode": [
+      {
+        "codeId": "demo_code_mobility",
+        "codeName": "Considering mobility",
+        "items": 4,
+        "alpha": -0.3749999999999998
+      },
+      {
+        "codeId": "demo_code_voice",
+        "codeName": "Participation and voice",
+        "items": 4,
+        "alpha": -0.3749999999999998
+      },
+      {
+        "codeId": "demo_code_eligibility",
+        "codeName": "Eligibility and administration",
+        "items": 4,
+        "alpha": -0.2571428571428571
+      },
+      {
+        "codeId": "demo_code_debt",
+        "codeName": "Debt and recurring costs",
+        "items": 4,
+        "alpha": 0
+      },
+      {
+        "codeId": "demo_code_future",
+        "codeName": "Future aspirations",
+        "items": 4,
+        "alpha": 0
+      },
+      {
+        "codeId": "demo_code_flood",
+        "codeName": "Flooding and storm impacts",
+        "items": 4,
+        "alpha": 1
+      },
+      {
+        "codeId": "demo_code_slope",
+        "codeName": "Slope and access disruption",
+        "items": 4,
+        "alpha": 1
+      },
+      {
+        "codeId": "demo_code_access",
+        "codeName": "Access to health and school",
+        "items": 4,
+        "alpha": null
+      },
+      {
+        "codeId": "demo_code_warning",
+        "codeName": "Actionable warnings",
+        "items": 4,
+        "alpha": null
+      },
+      {
+        "codeId": "demo_code_uncertainty",
+        "codeName": "Continuing risk and worry",
+        "items": 4,
+        "alpha": null
+      },
+      {
+        "codeId": "demo_code_hazard",
+        "codeName": "Environmental disruption",
+        "items": 4,
+        "alpha": null
+      },
+      {
+        "codeId": "demo_code_services",
+        "codeName": "Essential services and care",
+        "items": 4,
+        "alpha": null
+      },
+      {
+        "codeId": "demo_code_evacuation",
+        "codeName": "Evacuation constraints",
+        "items": 4,
+        "alpha": null
+      },
+      {
+        "codeId": "demo_code_income",
+        "codeName": "Income interruption",
+        "items": 4,
+        "alpha": null
+      },
+      {
+        "codeId": "demo_code_governance",
+        "codeName": "Institutions and fair support",
+        "items": 4,
+        "alpha": null
+      },
+      {
+        "codeId": "demo_code_limits",
+        "codeName": "Limits of household adaptation",
+        "items": 4,
+        "alpha": null
+      },
+      {
+        "codeId": "demo_code_livelihood",
+        "codeName": "Livelihoods and recovery costs",
+        "items": 4,
+        "alpha": null
+      },
+      {
+        "codeId": "demo_code_mutual",
+        "codeName": "Mutual aid and inclusion",
+        "items": 4,
+        "alpha": null
+      },
+      {
+        "codeId": "demo_code_place",
+        "codeName": "Place and social ties",
+        "items": 4,
+        "alpha": null
+      },
+      {
+        "codeId": "demo_code_belonging",
+        "codeName": "Place, mobility and future",
+        "items": 4,
+        "alpha": null
+      },
+      {
+        "codeId": "demo_code_agency",
+        "codeName": "Preparedness and mutual support",
+        "items": 4,
+        "alpha": null
+      },
+      {
+        "codeId": "demo_code_restart",
+        "codeName": "Restarting work",
+        "items": 4,
+        "alpha": null
+      },
+      {
+        "codeId": "demo_code_care",
+        "codeName": "Unpaid care and time",
+        "items": 4,
+        "alpha": null
+      },
+      {
+        "codeId": "demo_code_water",
+        "codeName": "Water access and safety",
+        "items": 4,
+        "alpha": null
+      }
+    ]
+  },
+  "cu": {
+    "coders": [
+      "Amina",
+      "Ravi",
+      "Lina"
+    ],
+    "units": 48,
+    "alpha": 0.8458553411663253,
+    "fullAgreement": 38,
+    "percentFull": 79.16666666666666
+  },
+  "consensus": {
+    "allUnits": 48,
+    "reviewable": 48,
+    "agreements": 12,
+    "needsReview": 36
+  },
+  "intentionalOmissions": [
+    {
+      "resident": "nepal",
+      "q": 12,
+      "coder": "Lina",
+      "reason": "Intentional missed passage for Cu-alpha versus consensus demonstration."
+    }
+  ]
+}

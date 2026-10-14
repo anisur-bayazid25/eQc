@@ -44,6 +44,7 @@ onUpdateProgress: (cb) => ipcRenderer.on('update:progress', (_e, pct) => cb(pct)
   exportDocAsDocx: (payload) => ipcRenderer.invoke('docs:exportDocx', payload),
   exportText: (payload) => ipcRenderer.invoke('export:saveText', payload),
   exportDocxTable: (payload) => ipcRenderer.invoke('export:docx', payload),
+  exportMemoWorkbook: (payload) => ipcRenderer.invoke('export:memoWorkbook', payload),
   exportImage: (payload) => ipcRenderer.invoke('export:saveImage', payload),
 
   // CSV dataset import

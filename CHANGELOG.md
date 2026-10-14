@@ -6,6 +6,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## Unreleased
 
+## 1.8.1 - 2026-10-14
+
+- Added **Memo-Book**, a top tab after Analysis, replacing Memos/Notes in Research tools. It gathers project, document/image, code, quote/region, annotation, case, framework, co-occurrence and Code Map notes with source navigation and editing.
+- Added individual, selected and all-memo Word/Excel exports. Excel separates memo categories into worksheets; Word groups them under headings. Search, source filters and selected-only reading help organise notes.
+- Memo exports always identify the source, including document names, quotations, codes, authors and locations for passage notes, and related sources for code/matrix notes.
+- Manuscript skeletons include linked code memos, analysis notes, source/case/quote notes and starred evidence; the writing export is also available in Memo-Book.
+- Rewrote offline Help for general users, with a complete Memo-Book section and four Research tools sections: Cases, Groups, Review and History.
+- About email and GitHub links have right-click copy menus, without separate copy buttons.
+- Reduced repeated work in memo lookup/export and manuscript generation; memo lists display 50 cards per page.
+- Added a fictional climate-resilience demo: four English interviews, three simulated coders, 24 codes, starred quotes, notes, matrices, saved queries, analysis previews and a video guide.
+- Updated the GitHub README with the eQc logo and current workflow. Added memo, contact-copy, Help and dataset validation to release checks.
+
 ## 1.8.0 - 2026-10-09
 
 - Simplified offline Help: practical instructions and examples, without development notes, validation claims or comparisons with other applications.

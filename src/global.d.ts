@@ -180,6 +180,7 @@ export interface QvBridge {
   pickMultipleForMerge(): Promise<Project[]>;
 
   exportDocAsDocx(payload: { name: string; content: string }): Promise<string | null>;
+  exportMemoWorkbook(payload: { filenameBase: string; sheets: Array<{ name: string; headers: string[]; rows: string[][] }> }): Promise<string | null>;
   
   exportText(payload: { title: string; defaultName: string; content: string; extension: string; filterName: string }): Promise<string | null>;
   exportDocxTable: (payload:

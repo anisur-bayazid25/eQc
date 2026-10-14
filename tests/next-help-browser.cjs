@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict'), fs = require('node:fs');
 const { chromium } = require(process.env.EQC_PLAYWRIGHT_PATH || 'playwright');
 (async () => {
-  const browser = await chromium.launch({ channel: 'msedge', headless: true });
+  const browser = await chromium.launch({ channel: process.env.EQC_BROWSER_CHANNEL || 'msedge', headless: true });
   try {
     const page = await browser.newPage({ viewport: { width: 1366, height: 768 } }), errors = [];
     page.on('pageerror', error => errors.push(error.message));
@@ -33,7 +33,7 @@ const { chromium } = require(process.env.EQC_PLAYWRIGHT_PATH || 'playwright');
     assert.equal(await page.locator('.help-sections > details > summary').first().textContent(), 'Table of Contents');
     assert.doesNotMatch(await page.locator('.help-sections').textContent(), /NVivo|ATLAS\.ti|These changes have passed|Interoperability still depends|Version 1\.7\.0|Small surprises/i);
     await page.locator('.tabs').getByRole('button', { name: 'Workspace', exact: true }).click();
-    for (const [button, tab, example] of [['Cases & attributes', 'Cases', 'Participant 01'], ['Document & code groups', 'Groups', 'women’s focus groups'], ['Excerpt review & queries', 'Review', 'Water access'], ['Memos/Notes', 'Memos/Notes', 'Distance and safety'], ['History & recovery', 'History', 'Before merging access codes']]) {
+    for (const [button, tab, example] of [['Cases & attributes', 'Cases', 'Participant 01'], ['Document & code groups', 'Groups', 'women’s focus groups'], ['Excerpt review & queries', 'Review', 'Water access'], ['History & recovery', 'History', 'Before merging access codes']]) {
       await page.locator('.workspace-sources').getByText('Research tools', { exact: true }).click();
       await page.getByRole('button', { name: button, exact: true }).click();
       const modal = page.getByRole('dialog', { name: 'Research tools', exact: true });
@@ -61,6 +61,6 @@ const { chromium } = require(process.env.EQC_PLAYWRIGHT_PATH || 'playwright');
     await page.getByText('How to review Consensus, with an example', { exact: true }).click();
     await page.getByText('The pump is too far away', { exact: false }).waitFor();
     assert.deepEqual(errors, []);
-    console.log('Help contents/links/Markdown tables, five Workspace tools, responsive menus and ICR/Consensus examples passed.');
+    console.log('Help contents/links/Markdown tables, four Research tools sections and Memo-Book, responsive menus and ICR/Consensus examples passed.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exit(1); });

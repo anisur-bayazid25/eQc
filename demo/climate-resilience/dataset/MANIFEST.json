@@ -1,0 +1,39 @@
+{
+  "fictional": true,
+  "transcripts": 4,
+  "words": 4314,
+  "codes": 24,
+  "coders": [
+    {
+      "name": "Amina",
+      "codingEntries": 104,
+      "transcripts": 4
+    },
+    {
+      "name": "Ravi",
+      "codingEntries": 101,
+      "transcripts": 4
+    },
+    {
+      "name": "Lina",
+      "codingEntries": 102,
+      "transcripts": 4
+    }
+  ],
+  "codingEntries": 307,
+  "starred": 8,
+  "memosAndNotes": 124,
+  "frameworkCells": 24,
+  "relationshipMemos": 4,
+  "savedQueries": 6,
+  "agreements": 12,
+  "reviewableGroups": 48,
+  "checks": [
+    "Exact quote offsets verified",
+    "Unique core IDs verified",
+    "All saved queries return results",
+    "Every coder covers every transcript",
+    "Independent projects merge to 4 sources and matching coding-entry count",
+    "Pairwise ICR has non-null kappa and intentional disagreements"
+  ]
+}

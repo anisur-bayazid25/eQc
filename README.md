@@ -1,6 +1,10 @@
+<p align="center">
+  <img src="public/eqc-logo.png" alt="eQc logo" width="180">
+</p>
+
 # eQc — Easy Qual Coding
 
-**Version 1.8.0** · A local desktop app for qualitative research.
+**Version 1.8.1** · A local desktop app for qualitative research.
 
 Import interviews, field notes, documents and images; code passages and regions; organise your codebook; write memos; and explore your analysis. No account or cloud upload is required.
 
@@ -14,31 +18,38 @@ Import interviews, field notes, documents and images; code passages and regions;
 
 The **Help** tab includes the complete guide and application reference offline. Search a function or open a section to find instructions and examples.
 
-## What's new in 1.8.0
+## What's new in 1.8.1
 
-- Local profiles with an optional photo and details, shared coder/LAN names, active app/coding time, period summaries and project breakdowns.
-- Profile and time history in JSON backups, with duplicate-safe import and efficient local storage.
-- Markdown documents and HEIC/HEIF photos, alongside existing text, Word, PDF and image formats.
-- Preferred installed reading fonts and an editable font size, compact vertical coding stripes, and zoom controls that do not cover the document.
-- Memos/Notes and Research tools in Workspace, with clearer instructions and examples.
-- Fixes for folder/source visibility, CSV summary/definition routing, legacy QDPX memos, research links, framework cells, coder-name whitespace and project-switch inspector state.
+- **Memo-Book:** a top tab after Analysis that gathers notes from documents, codes, quotations, cases, annotations, matrices and Code Map, with links back to their sources.
+- **Writing and export:** search, filter and select memos; export one, several or all to Word or Excel. Excel separates memo categories into worksheets. Manuscript skeletons now include analysis memos and linked research notes.
+- **Clearer Help:** concise offline instructions, a dedicated Memo-Book section, and Research tools focused on Cases, Groups, Review and History.
+- **About links:** right-click the email or GitHub link to copy its address without extra buttons.
+- **Large memo lists:** indexed source lookups, paged cards and one memo collection per manuscript export reduce repeated work.
+- **Fictional demo study:** four English interviews, three simulated coders, a questionnaire/codebook, starred evidence, memos, analysis previews and a video walkthrough.
 
 ## Research workflow
 
 1. Create a project and add sources in **Workspace**.
 2. Create codes, select a passage or image region, and apply a code.
 3. Use **Codebook** for definitions, summaries, merge and export.
-4. Open **Workspace → Research tools** for cases, groups, queries, memos and recovery history.
+4. Open **Workspace → Research tools** for cases, groups, queries and recovery history.
 5. Use **Analysis** for frequencies, matrices, framework analysis, text searches, ICR and Consensus. **Code Map** diagrams the codebook.
-6. Export selected coding, analysis reports and regular JSON project backups.
+6. Use **Memo-Book** to link evidence, develop writing and export notes or a manuscript skeleton.
+7. Export selected coding, analysis reports and regular JSON project backups.
 
 ## Files and sharing
 
 Documents: TXT, Markdown, DOCX and PDF; scanned PDFs support local OCR. Images: PNG, JPEG, GIF, WebP, BMP and HEIC/HEIF. Structured CSV datasets, codebooks and Word-comment coding can also be imported.
 
-Project import accepts JSON, QDPX, QDC and extracted QDE files with their matching sources. Project export offers JSON or QDPX, with original attachments or smaller plain-text document data. Selected coding and memos export to Word and CSV; analysis reports export to HTML. JSON is the complete eQc backup format and can include the selected profile and time history.
+Project import accepts JSON, QDPX, QDC and extracted QDE files with their matching sources. Project export offers JSON or QDPX, with original attachments or smaller plain-text document data. Selected coding exports to Word/CSV; Memo-Book exports to Word/Excel; analysis reports export to HTML. JSON is the complete eQc backup format and can include the selected profile and time history.
 
 LAN collaboration shares research projects with colleagues on a trusted local network. Profiles and personal time records are kept separate from LAN sessions.
+
+## Try the fictional demo
+
+Import [the ready-to-use project](demo/climate-resilience/dataset/03_READY_TO_IMPORT_EQC.json) through **Project tools → Import**. The [demo kit](demo/climate-resilience/eQc_Fictional_Climate_Demo.zip) also includes an uncoded starter and individual coder projects. Follow the [video walkthrough](demo/climate-resilience/dataset/README_VIDEO_GUIDE.md).
+
+All people, interviews, events and findings are invented for training. Three simulated coder identities support ICR and consensus demonstrations; they are not authenticated user accounts.
 
 ## Development
 

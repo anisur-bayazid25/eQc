@@ -152,3 +152,6 @@ dist
 /build
 /out
 /release
+
+# Private research data must never be committed
+/Heat_Data_Matrix_july_2026.csv

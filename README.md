@@ -51,7 +51,7 @@ Normal coding, analysis and Help work offline. Installation downloads and update
 - **Clearer Help:** concise offline instructions, a dedicated Memo-Book section, and Research tools focused on Cases, Groups, Review and History.
 - **About links:** right-click the email or GitHub link to copy its address without extra buttons.
 - **Large memo lists:** indexed source lookups, paged cards and one memo collection per manuscript export reduce repeated work.
-- **Fictional demo study:** four English interviews, three simulated coders, a questionnaire/codebook, starred evidence, memos, analysis previews and a video walkthrough.
+- **Fictional demo study:** four English interviews, three simulated coders, a questionnaire/codebook, starred evidence, memos and analysis previews.
 
 ## Research workflow
 
@@ -73,7 +73,9 @@ LAN collaboration shares research projects with colleagues on a trusted local ne
 
 ## Try the fictional demo
 
-Import [the ready-to-use project](demo/climate-resilience/dataset/03_READY_TO_IMPORT_EQC.json) through **Project tools → Import**. The [demo kit](demo/climate-resilience/eQc_Fictional_Climate_Demo.zip) also includes an uncoded starter and individual coder projects. Follow the [video walkthrough](demo/climate-resilience/dataset/README_VIDEO_GUIDE.md).
+For instructions, use the [current user guide](USER_GUIDE.md). The [complete v1.6.4 guide](USER_GUIDE_v1.6.4.md) is retained as a historical reference.
+
+Import [the ready-to-use project](demo/climate-resilience/dataset/03_READY_TO_IMPORT_EQC.json) through **Project tools → Import**. The [demo kit](demo/climate-resilience/eQc_Fictional_Climate_Demo.zip) also includes an uncoded starter and individual coder projects.
 
 All people, interviews, events and findings are invented for training. Three simulated coder identities support ICR and consensus demonstrations; they are not authenticated user accounts.
 

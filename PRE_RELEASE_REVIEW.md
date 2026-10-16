@@ -57,6 +57,7 @@ Before confirming the minimum, measure aggregate memory across all installed-app
 - TypeScript check and production build passed.
 - All **105 feature regression tests** passed in the follow-up run.
 - All **19 functional browser test files** passed in one complete runner invocation, including the Muse Spark audit follow-up, coding, annotations, Memo-Book, Help, visualization settings, palettes, drafts, grouping, exports, stale updates and profile-photo persistence. The strengthened audit check also passed separately after adding hidden-legend regeneration and a second timestamp assertion.
+- The first hosted Windows release run exposed a cold-load timing assumption in the shape-gallery test. Added an explicit wait for the lazy-loaded library before counting icons, and ensured the test creates its own screenshot directory.
 - Inspector layout was checked in light and dark themes; profile-photo controls were also checked at mobile width.
 - Both Help Overview requirements tables were checked for search, seven requirement rows and responsive layout at 1366, 800 and 640 pixels; existing Help navigation/table checks also passed.
 - Large-project coding UI benchmark: **600 codes, 80 sources and 4,000 initial coding entries**, median **47.6 ms** from applying a code through two rendered frames. Save transport was simulated; this is a UI response measurement rather than an end-to-end installed-app saving guarantee.

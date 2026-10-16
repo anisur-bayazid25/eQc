@@ -2,6 +2,8 @@
 
 ## 2026-10-16 — Release 1.8.2 preparation
 
+- Hosted Windows CI exposed an icon-count assertion running before the lazy library mounted. The shape browser test now waits for the first card and creates its screenshot directory, preserving all existing icon/shape assertions.
+
 - Added explicit frameworkCells filtering to deleteDoc alongside the existing shared cleanup. Browser regression preserves an unrelated document's cells and verifies deletion, Undo and Redo.
 - Removed the manual/blank branch from MapSuggestions; legacy manual canvases remain loadable, and new blank drawings start through the visualization library. Updated the designer regression to cover the sole blank-canvas entry and Undo.
 - Updated package/lock versions, README, both Help books, changelog, release notes and versioned User Guide for v1.8.2.

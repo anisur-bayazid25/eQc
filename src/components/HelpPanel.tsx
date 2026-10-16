@@ -1,4 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import ShortcutSettings from './ShortcutSettings';
+import { ShortcutProfile } from '../lib/shortcuts';
+import { Code } from '../domain';
 import guide from '../../USER_GUIDE.md?raw';
 import documentation from '../../DOCUMENTATION.md?raw';
 import { helpSlug as slug, helpSections } from '../lib/helpSections';
@@ -43,7 +46,7 @@ function MarkdownText({ text, onDocument, onAnchor }: { text: string; onDocument
   }
   return <div className="help-text">{blocks}</div>;
 }
-export default function HelpPanel() {
+export default function HelpPanel({shortcutProfile,onShortcutProfile,codes,favorites,onFavorite}:{shortcutProfile:ShortcutProfile;onShortcutProfile:(p:ShortcutProfile)=>void;codes:Code[];favorites:string[];onFavorite:(slot:number,id:string)=>void}) {
   const [search, setSearch] = useState(''), [book, setBook] = useState('guide'), [expanded, setExpanded] = useState(false);
   const [anchor, setAnchor] = useState('');
   const [revealedSection, setRevealedSection] = useState('');
@@ -63,7 +66,7 @@ export default function HelpPanel() {
     <p>Search a feature or open a section below. These instructions are available offline.</p>
     <div className="help-controls"><label>Search documentation<input type="search" placeholder="Try: Memo-Book, export, coding, ICR…" value={search} onChange={e => { setRevealedSection(''); setAnchor(''); setSearch(e.target.value); }} /></label><label>Read<select aria-label="Documentation to read" value={book} onChange={e => { setRevealedSection(''); setAnchor(''); setSearch(''); setBook(e.target.value); }}><option value="guide">User guide</option><option value="documentation">Application reference</option></select></label><button onClick={() => { setRevealedSection(''); setAnchor(''); setExpanded(!expanded); }}>{expanded ? 'Collapse all sections' : 'Expand all sections'}</button></div>
     {search && <p role="status">{matches.length} sections match your search.</p>}
-    <div className="help-sections">{matches.map((section, index) => <details key={`${book}-${section.id}-${expanded}-${search}`} id={'help-' + slug(section.title)} open={expanded || !!search || revealedSection === 'help-' + slug(section.title) || index === 0 && section.title === 'Table of Contents'}><summary>{section.title}</summary><MarkdownText text={section.text} onDocument={value => { setRevealedSection(''); setAnchor(''); setSearch(''); setBook(value); }} onAnchor={value => { const section = sections.find(section => slug(section.title) === value || [...section.text.matchAll(/^#{1,6}\s+(.+)$/gm)].some(heading => slug(heading[1]) === value)); setRevealedSection(section ? 'help-' + slug(section.title) : ''); setSearch(''); setAnchor(value); setAnchorVisit(visit => visit + 1); }} /></details>)}</div>
+    <div className="help-sections">{matches.map((section, index) => <details key={`${book}-${section.id}-${expanded}-${search}`} id={'help-' + slug(section.title)} open={expanded || !!search || revealedSection === 'help-' + slug(section.title) || index === 0 && section.title === 'Table of Contents'}><summary>{section.title}</summary>{/Keyboard shortcuts/i.test(section.title)&&<ShortcutSettings profile={shortcutProfile} onProfile={onShortcutProfile} codes={codes} favorites={favorites} onFavorite={onFavorite}/>}<MarkdownText text={section.text} onDocument={value => { setRevealedSection(''); setAnchor(''); setSearch(''); setBook(value); }} onAnchor={value => { const section = sections.find(section => slug(section.title) === value || [...section.text.matchAll(/^#{1,6}\s+(.+)$/gm)].some(heading => slug(heading[1]) === value)); setRevealedSection(section ? 'help-' + slug(section.title) : ''); setSearch(''); setAnchor(value); setAnchorVisit(visit => visit + 1); }} /></details>)}</div>
     {!matches.length && <p>No matching sections. Try a shorter phrase or choose the other documentation.</p>}
   </main>;
 }

@@ -1,5 +1,172 @@
 # AI Changelog — eQc desktop app
 
+## 2026-10-16 — Release 1.8.2 preparation
+
+- Added explicit frameworkCells filtering to deleteDoc alongside the existing shared cleanup. Browser regression preserves an unrelated document's cells and verifies deletion, Undo and Redo.
+- Removed the manual/blank branch from MapSuggestions; legacy manual canvases remain loadable, and new blank drawings start through the visualization library. Updated the designer regression to cover the sole blank-canvas entry and Undo.
+- Updated package/lock versions, README, both Help books, changelog, release notes and versioned User Guide for v1.8.2.
+
+## 2026-10-16 — Unreleased: Muse Spark audit follow-up
+
+- Normalized coder stamps and selected coder values in Heat map/Sankey aggregation and both settings dropdowns, and applied the same rule to Histomap/Dendrogram readiness, aggregation and passage overrides. Blank stamps appear as Unattributed; source attribution remains unchanged.
+- Removed the design-effect legend reset. Fresh generated canvases retain their default hidden legend, while regeneration and saved views respect the user's choice.
+- Working-view checkpoints stamp updatedAt directly, preserving LAN offline-edit detection without adding view changes to Undo. Successful project deletion removes its LAN sequence/sync markers while retaining other projects' markers.
+- Verified existing shared cleanup removes deleted-document framework cells and existing project-switch effects clear both text and image inspectors. Existing browser checks cover these paths; the usability/browser runner is already called by Windows CI.
+- Removed unused ZoroArtwork and MilestoneId; guarded optional diagram text inputs. Kept the complete draft design schema for backup compatibility and documented that saved view dimensions take precedence after resizing.
+- Added audit-followup-browser to the CI runner for canonical dropdowns, view timestamp/Undo behavior, legend regeneration/restore and project-scoped LAN cleanup. Added cross-visualization filter regression coverage.
+
+## 2026-10-16 — Unreleased: System requirements
+
+- Added matching minimum/recommended tables to README, User Guide Overview and Application Reference Overview. Recorded the current Electron platform floor and release architectures, offline workflow scope and OCR asset downloads.
+- Documented the estimate basis (existing packaged footprint and bounded sequential OCR rendering), and kept hardware recommendations explicitly provisional until low-spec installed-app measurements confirm them.
+
+## 2026-10-16 — Unreleased: Repositionable profile photos
+
+- Added a circular photo editor with pointer dragging, 100–400% zoom, arrow-key positioning, reset and cancel. A bounded full-frame image is retained with four numeric framing values, allowing later adjustment without another upload.
+- Profile and header avatars share the same geometry. SQLite metadata and JSON import/export validate and retain framing; removing the picture clears it. Image decoding frees bitmaps and rejects oversized source dimensions.
+- Added geometry, SQL and JSON tests plus a real-SQL browser test covering side-positioned images, pan/zoom, cancel, reload, keyboard edits and removal.
+
+## 2026-10-16 — Unreleased: Pre-release review and Inspector polish
+
+- Grouped Inspector typography into labelled rows with 34-pixel controls, explicit Edit text, advanced direction/rotation disclosure, and smaller word exclusions below selection formatting. Stop-list file import is disclosed separately; colour swatches retain their compact palette layout.
+- Added context checks so pending cloud generation/refits cannot replace newer sources, colours, canvas edits or designs. Apply Changes captures current word typography, retains individual colour/underline/group/layer settings and remaps connectors by word identity; links to excluded words are removed.
+- SVG source descriptions respect the configured document limit. Reader font labels identify saved families; malformed cached language profiles are ignored and invalid locales show actionable guidance.
+- Updated new-user instructions and stale test assumptions about automatic canvas resume. Added browser coverage for typography layout in both themes, delayed/stale edits, preserved word colours and 32-source metadata.
+
+## 2026-10-16 — Unreleased: Guided statistical visualization setup
+
+- Added a three-section Histomap/Dendrogram workflow, jump links, in-scope record summaries, missing-input messages and expandable exclusion/gap warnings. Invalid selections disable Generate.
+- Reused histogram tables and shared dendrogram presence preparation for readiness. Average-linkage clustering and canvas layout remain Generate-only; settings do not change source records or add global research tools.
+- Split period assignment from display controls and limited assignment lists to the selected document scope. Updated help and regression coverage for blank labels, conflicts, empty items, coder filters, limits and deferred generation.
+
+## 2026-10-15 — Unreleased: Preserve cloud heading edits
+
+- Local stop-word updates and font-size refits now share decoration preservation. Deleted titles/subtitles stay deleted; edited text, styles, positions and extra annotations stay intact. Untouched automatic method captions still refresh their counts.
+- Added pure preservation coverage and a browser reproduction covering edited headings, deletion, exclusions and subsequent font-size refitting.
+
+## 2026-10-15 — Unreleased: Sankey, Word Cloud and label placement
+
+- Replaced numeric datalists with shared accessible preset buttons for code/theme/subcode/document/word/context/stage limits; custom input remains available.
+- Expanded the lazy visualization gallery to 16 types. Added five Sankey presets with common proportional widths, full-path alluvial continuity, circular feedback, data validation and editable labels anchored inside/outside bars with boundary gaps.
+- Added asynchronous local glyph-packing clouds, seeded organic masks, sanitized PNG/SVG masks/overlays, spacing/density controls and Unicode base-letter filtering. Shared word-frequency filtering and optional local JSON language preferences avoid bundled models.
+- Added uniform word sizing, saved per-word size overrides and debounced glyph repacking when an individual font size changes. Stale/unmounted operations do not replace the canvas; unplaceable overrides retain the previous graph.
+- Moved cloud stop-word editing/import into the right Inspector with Apply Changes; typing is cheap, navigation retains drafts, and explicit regeneration preserves palettes. Added shared text direction/rotation and reversed palette order.
+- Added pure weighted-flow/Unicode/palette tests and browser coverage for all five Sankey examples, mask export, cloud packing, stop-word application/retention, random seeds and label anchoring.
+
+## 2026-10-15 — Unreleased: Standard shapes and distinct visualization icons
+
+- Added a lightweight 21-item Shapes gallery using existing annotation records, normalized polygon vertices and proportional rounded corners. Drag previews match the selected shape; Shift constrains aspect ratio; Escape cancels drawing. Labels use existing in-place editing and styling; shapes retain grouping, layers, drafts and SVG/image export. Zero-area non-line gestures are ignored.
+- Replaced the shared fallback gallery glyphs with explicit, distinct SVG miniatures for all 14 visualization families, including stream bands for histomaps, a merge tree for dendrograms and concentric layers for ecology. No graphics library was added.
+- Added browser checks drawing all 21 choices on a blank canvas, editing labels, checking icon uniqueness, constrained dimensions, export and navigation retention. Sankey remains deferred as requested.
+
+## 2026-10-15 — Unreleased: Group editing, custom palettes and configurable limits
+
+- Palette and arrangement modules load with Visualization rather than the initial app bundle.
+- Added sampled Matplotlib scientific ramps (Viridis, Magma, Plasma, Inferno and Cividis), ColorBrewer Set2 and Tableau 10 for 17 built-ins. Sequential heat maps interpolate the scientific ramps. Named custom palettes are project records with editable swatches, preset/custom bases and replace-by-name saving.
+- Added a lightweight selection hook with Shift/Ctrl selection, marquee, whole-group drag, proportional or free group resize, alignment/centering, layer ordering and grouping shortcuts. Atomic project mutations retain code research records, and draft snapshots retain code group/layer/scale metadata. Unified shape/node rendering honors cross-object layer order. Live gestures transform SVG groups and commit once on release.
+- Added numeric limits with datalist suggestions for codes, contexts, documents, themes, subcodes and diagram labels. Expanded deterministic map placement and circle layouts; matrix and clustering checks produce explicit errors for oversized requests.
+- Fixed simulated Strict Mode unmounts from replacing restored view settings; a guarded microtask saves only after a real unmount. View checkpoints bypass research Undo history and do not trigger background aggregation.
+
+## 2026-10-15 — Unreleased: Canvas palettes and working-state recovery
+
+- Added a pure 17-preset colour transform with stable category keys across repeated palette switches, sequential heat-map remapping, contrast-selected numeric labels and matching histomap keys. Research-code colours, coding records, source text and geometry are unchanged. Presets include the Okabe–Ito palette (https://jfly.uni-koeln.de/color/) and retain text/line cues rather than relying solely on hue (https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html).
+- Expanded the shared picker to 60 theme shades, 12 standard colours, up to ten recent colours, hex entry and generated palettes. Added annotation-arrow line colours in the Inspector.
+- Removed navigation-triggered editor reset. Unmount saves a compact view snapshot once; the project already stores edited nodes/annotations/edges. The renderer and its observers unload outside the tab; no background aggregation or image cache is retained. Library/current-canvas recovery and named-draft loading retain their separate roles.
+- Added palette invariants across all fourteen types, heat-map ordering/label checks, histogram-key consistency and browser coverage for source navigation, unsaved working-canvas restoration, view state and idle unloading. Updated Help/User Guide.
+
+## 2026-10-15 — Unreleased: Temporal/clustering views and docked drawing workspace
+
+- Added explicit analysisPeriods and optional passage/document periodId metadata. Histomap configuration supports period definitions/order, document defaults and per-passage overrides. Unique range counts are deduplicated across coders; contradictory period tags raise a visible validation error. Shares use displayed code assignments; missing-data gaps are never interpolated.
+- Implemented bounded direct-presence Jaccard distance and agglomerative average linkage in a pure module. Document/code clustering excludes empty vectors, handles ties deterministically and renders a labelled joining-distance axis. Requirements/method explanations appear within both settings pages; source leaf/band links, drafts and exports share the normal editor.
+- Replaced stacked top formatting rows with a grid workspace: compact header, left tool rail, independently scrolling right Inspector and a centered flex paper stage. Inspector toggle expands the central viewport; smaller screens collapse it. Existing wheel anchoring, in-place editing and fit controls retain canvas coordinates.
+- Pyramid bands now derive from a common linear triangle, with a genuine three-point apex and proportional trapezoids; geometry checks assert collinear outer edges.
+- Rebuilt demo coding as varied sentence selections and occasional overlapping ranges, including singly coded and uncoded respondent sentences. Preserved three-coder disagreements, exact offsets, source notes and report analyses. Added four explicit story-time phases, period-assignment CSV, temporal counts and two ready-made typed drafts; uncoded/coder starters clear those draft results.
+- Added hand-calculated clustering/period tests, demo integrity checks and browser coverage for configuration, count/share views, cluster orientations, centered layout, inspector toggle, source links, export and responsive unloading.
+
+## 2026-10-15 — Unreleased: Type-specific settings and publication review
+
+- Removed duplicate Pause and sparkle buttons; type-specific settings route preserves the mounted canvas while configuration is hidden, disables graph keyboard/zoom actions there, and leaves data unchanged on cancel. Library/tab navigation unmounts the renderer. Legacy Code Map route/drafts remain compatible.
+- Audited 19 type/preset combinations using the four-interview/three-coder climate project and real SVG serialization. Added a reusable export gallery, text-boundary measurements and configuration/cancel checks. Fixed clipped heat-map scales/headers, compact forest hierarchy layouts, crossing branch flows, honeycomb tiling, Venn overlap placement, ecology ring keys and annotation z-order. New typed snapshots clear unrelated map drawings; in-map Code Map redesign continues to retain manual notes.
+- Unique passage heat-map counts deduplicate identical code/document/start/end across coders; explicit decision/presence and coder choices retain alternative interpretations. C/D header IDs and full source keys replace compressed filenames. Balanced mind-map limits include roots and distribute remaining slots across branches. Added coded-only word-tree scope, merging overlapping coder ranges before scanning and explicitly labelling whether prompts are included.
+- Enlarged labels, preserved short Latin words during text fitting, and hid redundant legends by default on generated figures. Added physical SVG dimensions, print size/DPI diagnostics and source/method descriptions. SVG exports use white backgrounds and family-specific filenames; raster resolution is described as pixels rather than a guaranteed physical DPI.
+- Documented histomap period/width/denominator requirements and a proposed Jaccard/average-linkage dendrogram specification. Neither new statistical type is implemented or represented as an existing feature.
+
+## 2026-10-15 — Unreleased: Visualization library and dynamic presets
+
+- Renamed navigation to Visualization, retaining the internal codemap route for compatibility. Added twelve square type cards, explicit settings/generate workflows, current-canvas resume and typed draft labels. Gallery renders static previews only; generation and aggregation never run from a tab visit.
+- Added bounded direct-code/document heat maps and selected-document code-pair presence counts with source IDs; phrase trees scan at most 2M characters/2,000 literal matches and group sentence-bounded contexts. Mind maps use hierarchy without co-occurrence; hierarchy supports horizontal/vertical layouts and cycle protection.
+- Added researcher-defined process/cycle/branch, rated journey, layered pyramid, conceptual Venn, polygon honeycomb and ecology/network/layer presets. Shared SVG annotation engine supports normalised polygon geometry, fill opacity, connected annotation arrows, inline typography, fitting, editing/deletion, legends and exports. Drafts retain family/options and geometry; Generate replaces the current canvas as one undoable change.
+- Added pure generation/data-integrity checks and browser coverage across all twelve types, selected sources, source navigation, draft restore, attached movement, validation and responsive cards. Updated Help/README and navigation regressions.
+
+## 2026-10-14 — Unreleased: Editable legends
+
+- Replaced the truncated fixed HTML legend and separate export builder with one canvas-coordinate SVG MapLegend. Full labels use measured wrapping/fitting; direct editing commits on blur and cancels with Escape. Shared typography tools support defaults and individual entry overrides.
+- Added drag movement, a resize handle, entry visibility/order, 1–3 columns, remove/reset and draft-backed legend settings. SVG/raster exports retain the exact legend layout and omit editor/selection elements.
+- Extended map-editing browser checks for legend editing, formatting, resizing, ordering, hiding, draft restoration and SVG output.
+
+## 2026-10-14 — Unreleased: In-place editing, resizing and compact tools
+
+- Replaced toolbar text inputs and the old fixed annotation prompt with a canvas-coordinate SVG foreignObject editor. Double-click starts code/map label, annotation/topic or relationship label editing; blur saves, Escape cancels, Ctrl/Cmd+Enter/S commits. Draft text editors/outlines are removed from exports. Drawn text boxes begin in-place editing immediately.
+- Added resize handles with one persistence call at mouse-up, local live geometry and canvas text measurement/wrapping that shrinks text while retaining its preferred font size. Code/map-only labels and explicit code renaming remain separate; multiline annotations and fitted link labels render in SVG.
+- Compact icon formatting strip has stable height to prevent first-click layout changes breaking double-clicks. Shared colour hex/palette popovers replace duplicate annotation/edge controls; annotation trash icon and Delete key preserve native text deletion.
+- Dynamic legends use visible node styles and current relationship colours. Raster resolution choices scale SVG text/legend proportionally, capped at 8192 pixels per dimension and 40 million pixels. Named drafts retain map labels, fitting geometry, typography and export scale.
+- Added map-editing-browser.cjs, map-drafts.cjs and map-text-fit.cjs; updated prior map tests to explicitly activate.
+
+## 2026-10-14 — Unreleased: Map text and colour editing
+
+- Added MapTextEditor and shared reader font picker, with map-only labels plus explicit validated code renaming. Code appearance, relationship labels, annotation labels and topic text support family/size/colour/bold/italic/underline and survive SVG serialization/drafts.
+- Added MapColorPicker with native colour picker, validated #RGB/#RRGGBB input and lightweight local coordinated-palette generation. Node fill/border, text, link and annotation controls reuse it.
+- Folded roots can be selected for text styling while retaining expansion; selecting a node clears a stale relationship selection.
+
+## 2026-10-14 — Unreleased: Map wheel and keyboard zoom
+
+- Added useMapZoom with a non-passive canvas-only wheel listener, exponential scaling bounded at 10–400%, pointer anchoring after layout, and Ctrl/Cmd +/- centre zoom plus 0-to-fit. Menu/form scrolling, composition and dialogs are excluded. Listeners exist only while the map engine is explicitly active.
+
+## 2026-10-14 — Unreleased: Explicit map activation and drafts
+
+- DeferredCodeMap renders only a lightweight landing screen until Activate code map/Open draft. Leaving the tab or Pause unmounts all graph calculations/observers; project switches require separate activation.
+- Added CodeMapDraft/CodeMapView and mapDrafts.ts. Named drafts contain only map/code-reference/view data; restoring retains current source text, code names/definitions/memos and coding, filters deleted nodes/edges, and keeps newly added codes off the saved scene. Loading and draft deletion use project undo. Drafts are included in project backups.
+- New map designs clear stale saved view settings; Drafts menu captures canvas, folding, relationships and legend settings. Updated browser flows for activation.
+
+## 2026-10-14 — Unreleased: Suggested map designs
+
+- Researched official network layout and model-template documentation. Implemented independently generated radial theme diagrams with optional ranked subcode clusters, actual shared-document associations and configurable node/link budgets. No external AI calls or inferred causal links.
+- Added mapSuggestions.ts, MapSuggestions preview/manual dialog, persistent mapDesign and map-specific code appearance. Applying suggestions is atomic/undoable; blank mode clears only map marks/styles/placements. Suggestions retain manual notes/custom links and preserve research fields/codebook colours.
+- Main renderer supports wrapped oval nodes, filled/editable topic hub, branch spokes, clipped edge endpoints and a mask keeping relationships off the topic text. Added node controls, code/memo navigation and find/restore code. SVG/PNG/JPEG share the rendered diagram.
+- Added map-suggestions.cjs and map-design-browser.cjs, including deterministic layout, shared-document deduplication/aggregation, cycles, Unicode, immutability, preview cancellation, atomic persistence, drag/style, memo navigation, SVG, blank canvas/undo and responsive dialogs.
+
+## 2026-10-14 — Unreleased: Annotation deletion and exact memo navigation
+
+- updateMemoText removes passage annotations on empty/whitespace saves. Collector exposes legacy empty annotations so users can delete or repair them. Added explicit Delete annotation actions; undo uses existing project history.
+- Moved existing standalone and attached memo editors into their source cards; removed unused top annotation form. New memo creation retains its top form.
+- Source click handlers carry annotation IDs from plain and mapped readers, including coded overlaps. Memo-Book clears filters, chooses the correct 50-record page, scrolls to and focuses the exact entry.
+- Added annotation-browser.cjs for pagination, inline editing, both deletion paths, legacy ghosts, undo, coded overlap and Word navigation.
+
+## 2026-10-14 — Unreleased: Keyboard text selection and coding performance
+
+- Added shared read-only Chromium selection navigation to plain and mapped readers: Shift arrows, word selection and line/reader boundaries, with exact source offsets and no content editing.
+- Memoized the code tree using current callback delegates and deferred move-parent lists until hover. Cached source annotations. Hidden Code Map ignores prop updates until reactivation, retaining its navigation state and refreshing from current coding.
+- Save IPC returns only id/updatedAt after the transaction; project history uses deep equality rather than serializing each record twice. Automatic recovery snapshots and activity remain enabled.
+- Synthetic browser benchmark: 600 codes, 80 sources and 4,000 coded excerpts; median apply-through-two-frames latency fell from 4,374.6 ms to 40.9 ms on this machine. Browser saves simulate transport; this number is not a full desktop SQLite latency claim.
+- Added real-click selection/coding checks and save receipt/persistence validation. Changes remain local.
+
+## 2026-10-14 — Unreleased: Help order and shortcut profiles
+
+- Reordered current USER_GUIDE.md and DOCUMENTATION.md with unnumbered Overview, introductory Quick start/Projects/Workspace, then Codebook → Auto-Code → Analysis → Memo-Book → Code Map → About → LAN collaboration → Profile/time → Supported files → Keyboard shortcuts. Contents and export-subsection anchors updated; historical version snapshots remain as released.
+- Researched official shortcut tables for the requested four qualitative applications. src/lib/shortcuts.ts contains independently implemented supported-action bindings, under descriptive profile IDs/labels (standard, codingBar, quickCode, numbered, selection). Commercial names do not appear in app labels/current Help. Unsupported playback/formatting/internal-link functions are intentionally unmapped; journal/memo and navigation entries describe their actual eQc behavior, not a full compatibility claim.
+- ShortcutSettings in Help's Keyboard shortcuts section displays active platform-labelled keys, stores a computer-local profile and supports nine project-ID-scoped code assignments. Native typing/clipboard/undo, modal controls, composing/AltGr inputs and repeated keydown events are preserved. The numbered bindings and Coding bar navigation bindings are separate profiles to prevent Ctrl+1–9 conflicts.
+- App dispatches supported actions to existing functions and shares annotation/in-vivo toolbar handlers. Last-used code state is scoped to the project and resets on project changes. Quick coding focuses the existing search input while retaining sticky source selection. Ctrl+S submits memo forms or source-note/text edits; other field changes blur before invoking the current save button.
+- Linked memo requests prefill the current source/code and are consumed once by ResearchWorkspace, so reopening Memo-Book does not resurrect a saved draft. Matrix shortcuts reuse AnalysisTab source-target navigation. Help's common shortcut presets use Ctrl on Windows and Cmd on macOS; Option aliases cover supported numbered-profile coding actions.
+- Added shortcuts.cjs (bindings/conflicts/AltGr/composition/repeat and both Help orders) and shortcuts-browser.cjs (end-to-end coding, memo links, save, numbered codes, matrices, Space and typing protection). These follow-up changes remain local; v1.8.1 is unchanged.
+
+
+## 2026-10-14 — Unreleased: document Notes placement
+
+- Reproduced the reported Notes problem in Workspace: persistence worked, but opening the bottom toolbar's Notes button rendered the textarea inside the top doc-title-row. With a long title/source, the editor appeared outside the viewport (measured y=-52 at 1200×800).
+- Moved the document memo panel immediately after doc-title-actions, associated label/control IDs, added aria-expanded/aria-controls and autofocus, and kept the existing blur-save behavior. The field uses full panel width; notes panels resist flex shrinking and use border-box textarea sizing. Save/Memo-Book helper text uses theme-aware contrast.
+- Added tests/source-notes-browser.cjs to release browser checks. It verifies visible placement below the Notes button, focus, existing content, persistence into Memo-Book and reopening at 1200/800/640 px widths. Production build passed. User guide explains the placement and save behavior. This is a local follow-up fix; the published v1.8.1 tag is unchanged.
+
+
 ## 2026-10-14 — Release 1.8.1: Memo-Book, writing exports and clearer Help
 
 - Promoted ResearchWorkspace's notes section to App's top-level memos tab, labelled **Memo-Book** after Analysis. Research tools now exposes only Cases/Groups/Review/History; passage annotation navigation opens Memo-Book. Embedded mode uses a region instead of a modal/focus trap. Existing project structures remain compatible.
@@ -21,7 +188,10 @@
 - Cleaned both in-app Help books: removed the external NVivo reference/verification paragraph, other-QDA lists/comparisons, release-history notes and runtime/loading/storage details. Kept user operations, examples, export choices, import-file requirements, recovery/backup guidance, ICR/Consensus interpretation and actionable LAN setup. Consolidated repeated memo instructions and moved editable reader-size guidance to Reading. Easter eggs remain undocumented in user-facing Help and release notes; their details remain in this file.
 - Release verification: 59 unit checks passed, including isolated SQLite migration/time merge, desktop main/preload handlers, HEIC conversion, resource cleanup and data-integrity cases. Production Vite/TypeScript build passed. Windows x64 NSIS packaging passed; app.asar verified version 1.8.0, profile/image-import handlers, notices and cleaned offline Help. Browser checks against the built bundle passed for Help, profiles, milestones, reader menus, inspectors, usability and hidden animations. Adjusted media test matching for production hashed asset filenames. Release workflow uses Node 24 for node:sqlite tests and runs the usability/data-integrity browser checks before packaging. User authorized commit, push and tag-release publication.
 
-## Unreleased — inspector isolation and framework cleanup recheck
+## Unreleased
+
+- Added Chromium read-only selection navigation shared by plain and mapped readers, preserving original text offsets. Memoized code tree with current callback delegates; paused hidden Code Map prop refresh until activation; cached document annotations.
+- Reduced project-save IPC response to id/updatedAt after the SQLite transaction; history comparison uses deep equality while retaining snapshots and activity records. Added click/keyboard selection checks and a 600-code / 4,000-excerpt renderer benchmark. — inspector isolation and framework cleanup recheck
 
 - Rechecked finding 7: App.persist already calls cleanResearchLinks, whose frameworkCells filter requires a live document and code. The actual deleteDoc UI regression verifies the deleted document’s cells are absent from the saved project; no redundant second deletion implementation was added.
 - Fixed finding 10 with a project-id effect that clears segmentPopup/regionPopup and both inspector note edit ids/drafts. This covers project switches, imports, new/deleted-project replacements and LAN project changes, without resetting open inspectors on ordinary same-project saves. Popup rendering now uses only live coding ids and skips deleted entries instead of falling back to retained snapshots.

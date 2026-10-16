@@ -623,5 +623,28 @@
   "mapEdgeStyles": [],
   "mapAnnotations": [],
   "images": [],
-  "codedRegions": []
+  "codedRegions": [],
+  "analysisPeriods": [
+    {
+      "id": "before",
+      "label": "Before disruption",
+      "order": 0
+    },
+    {
+      "id": "event",
+      "label": "Event and evacuation",
+      "order": 1
+    },
+    {
+      "id": "early",
+      "label": "Early recovery",
+      "order": 2
+    },
+    {
+      "id": "later",
+      "label": "Later adaptation",
+      "order": 3
+    }
+  ],
+  "mapDrafts": []
 }

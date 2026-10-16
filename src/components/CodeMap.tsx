@@ -1,10 +1,48 @@
+import CloudStopWords from './CloudStopWords';
+import {flowGeometry,flowLabelGeometry} from '../lib/sankey';
+import DrawingShapes from './DrawingShapes';
+import {drawingShapes,drawingAnnotation} from '../lib/mapShapes';
+import MapPaletteGallery from './MapPaletteGallery';
+import {useMapSelection} from './MapSelection';
+import {MapObject,ObjectCommand} from '../lib/mapObjects';
+import {mapPalettes,MapPalette,reversedPalette} from '../lib/mapPalettes';
+import VisualizationSetup,{VisualizationIcon} from './VisualizationSetup';
+import {visualizationTypes,VisualizationOptions} from '../lib/visualizations';
+import MapLegend from './MapLegend';
+import { fitMapText } from '../lib/mapTextFit';
+import MapTextEditor from './MapTextEditor';
+import MapColorPicker from './MapColorPicker';
+import { useMapZoom } from '../lib/mapZoom';
+import MapSuggestions, { MapLabel } from './MapSuggestions';
+import { ellipseEndpoint, mapSharedDocuments, mapLabelLines, suggestedMapPairs, MapSuggestion } from '../lib/mapSuggestions';
 import ToolMenu from './ToolMenu';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Code, CodedSegment, ID, MapAnnotation, MapEdgeStyle, childCodes, descendantCodeIds, uid } from '../domain';
+import { AnalysisPeriod, Code, SourceDoc, VisualizationKind, CodedSegment, ID, MapAnnotation, MapDesign, CodeMapDraft, CodeMapView, MapLegendSettings, MapEdgeStyle, childCodes, descendantCodeIds, uid } from '../domain';
 
 interface Props {
   active?: boolean;
   projectId: ID;
+  projectName?: string;
+  mapView?: CodeMapView;
+  drafts?: CodeMapDraft[];
+  onObjectCommand?: (keys:string[],command:ObjectCommand) => void;
+  customMapPalettes?:MapPalette[];
+  onSavePalette?:(palette:MapPalette)=>void;
+  onApplyPalette?: (palette:MapPalette,invert?:boolean) => void;
+  onRememberView?: (view:CodeMapView) => void;
+  onSaveDraft?: (name:string,view:CodeMapView) => void;
+  onRestoreDraft?: (id:string) => void;
+  onDeleteDraft?: (id:string) => void;
+  onLibrary?: () => void;
+  onConfigure?:()=>void;
+  mapDesign?: MapDesign;
+  onResizeCanvas?: (width:number,height:number,updates:Array<{id:ID;patch:Partial<Code>}>) => void;
+  onApplySuggestion?: (suggestion: MapSuggestion) => void;
+  onOpenCode?: (id: string) => void;
+  onOpenCodeMemo?: (id: string) => void;
+  docs?:SourceDoc[];
+  analysisPeriods?:AnalysisPeriod[];
+  onOpenDocument?:(id:string)=>void;
   codes: Code[];
   codedSegments: CodedSegment[];
   mapEdgeStyles: MapEdgeStyle[];
@@ -46,7 +84,7 @@ const CANVAS_PRESETS = [
 ];
 
 const CANVAS_MIN = 200;
-const CANVAS_MAX = 5000;
+const CANVAS_MAX = 50000;
 
 const DEFAULT_COLORS: Record<MapEdgeStyle['kind'], string> = {
   hierarchy: '#cbd5e1',
@@ -54,7 +92,7 @@ const DEFAULT_COLORS: Record<MapEdgeStyle['kind'], string> = {
   custom: '#64748b'
 };
 
-const SHAPES: Code['mapShape'][] = ['circle', 'square', 'diamond'];
+const SHAPES: Code['mapShape'][] = ['circle', 'square', 'diamond', 'ellipse'];
 
 type EdgeRef = {
   key: string;
@@ -172,15 +210,28 @@ function relaxLayout(layout: Map<ID, { x: number; y: number }>, codes: Code[], v
   }
 }
 
-export default function CodeMap({
+function CodeMap({
   active = true,
-  projectId, codes, codedSegments, mapEdgeStyles, annotations, hiddenMapCodeIds,
+  projectId, projectName, mapView, drafts, customMapPalettes=[], onSavePalette, onObjectCommand, onApplyPalette, onRememberView, onSaveDraft, onRestoreDraft, onDeleteDraft, onLibrary, onConfigure, mapDesign, onApplySuggestion, onResizeCanvas, onOpenDocument, docs=[], onOpenCode, onOpenCodeMemo, codes, codedSegments, mapEdgeStyles, annotations:sourceAnnotations, hiddenMapCodeIds,
   onUpdateCode, onUpdateCodesBatch, onUpdateEdgeStyle, onAddEdgeStyle, onDeleteEdgeStyle,
   onUpdateAnnotations, onUpdateHiddenMapCodes,
   onShowToast
 }: Props) {
+  const annotations=useMemo(()=>sourceAnnotations.map(a=>a.flow?{...a,...flowGeometry(a.flow,sourceAnnotations,Number(mapDesign?.options?.sankeyCurvature)||.5)}:a.flowNodeLabel?{...a,...flowLabelGeometry(a,sourceAnnotations)}:a),[sourceAnnotations,mapDesign?.options?.sankeyCurvature]);
+  const basePalette=[...mapPalettes,...customMapPalettes].find(p=>p.id===mapDesign?.paletteId);
+  const palette=basePalette?reversedPalette(basePalette,!!mapDesign?.paletteInverted):undefined;
+  const mapColors=palette?{hierarchy:palette.colors[0],cooccurrence:palette.colors[1],custom:palette.colors[2]}:DEFAULT_COLORS;
+  const [textEditorOpen,setTextEditorOpen]=useState(true);
+  const [draftName,setDraftName] = useState('');
+  const [draftMessage,setDraftMessage] = useState('');
+  const [designOpen,setDesignOpen] = useState(false);
+  const [inspectorOpen,setInspectorOpen]=useState(()=>window.matchMedia('(min-width:701px)').matches);
+  useEffect(()=>{const query=window.matchMedia('(min-width:701px)'),hide=()=>{if(!query.matches)setInspectorOpen(false);};query.addEventListener('change',hide);return()=>query.removeEventListener('change',hide);},[]);
+  const [findCode,setFindCode] = useState('');
+  const [jumpCode,setJumpCode] = useState<string|null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const movedRef = useRef(false);
+  const multiKeysRef=useRef<string[]>([]);
 
   // Codes deliberately removed from the canvas (still in the codebook) are
   // filtered out up front — every downstream map computation sees only the
@@ -205,19 +256,22 @@ export default function CodeMap({
   const [viewMode, setViewMode] = useState<'auto' | 'full' | 'custom'>('auto');
   const [expandedRoots, setExpandedRoots] = useState<Set<ID>>(new Set());
   const [childrenPerRoot, setChildrenPerRoot] = useState<number | 'all'>(5);
-  const [showLegend, setShowLegend] = useState(true);
-  // Legend floats over the outer wrapper (sibling of the scroll container);
-  // its top-left corner is tracked here so dragging can reposition it.
+  // Fresh generated canvases start without an overlay; regeneration and saved views retain the user's choice.
+  const [showLegend, setShowLegend] = useState(mapView?.showLegend??!mapDesign?.family);
+  // Legend uses canvas coordinates so drafts and exports retain its layout.
+  const [legendSettings,setLegendSettings]=useState<MapLegendSettings>({});
+  const [selectedLegend,setSelectedLegend]=useState<string|null>(null);
+  const [legendEditRequest,setLegendEditRequest]=useState(0);
   const [legendPos, setLegendPos] = useState({ x: 12, y: 12 });
-  const [legendDrag, setLegendDrag] = useState<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+
   const [drawMode, setDrawMode] = useState(false);
   const [drawSource, setDrawSource] = useState<ID | null>(null);
   // Free-standing annotation layer (not tied to any code): shape picker
   // mode, the drag currently being drawn (viewBox units), its live preview,
   // the selected shape for the style bar, and the inline text-label prompt.
   const [annotateMode, setAnnotateMode] = useState(false);
-  const [annotateShape, setAnnotateShape] = useState<'rect' | 'circle' | 'arrow' | 'text'>('rect');
-  const [annoDrag, setAnnoDrag] = useState<{ x0: number; y0: number; shape: 'rect' | 'circle' | 'arrow' } | null>(null);
+  const [annotateShape, setAnnotateShape] = useState('rectangle');
+  const [annoDrag, setAnnoDrag] = useState<{ x0: number; y0: number; shape:string } | null>(null);
   const [annoPreview, setAnnoPreview] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
     const [selectedAnnoId, setSelectedAnnoId] = useState<string | null>(null);
   // Drag-to-move for an already-placed annotation (separate from annoDrag,
@@ -228,7 +282,6 @@ export default function CodeMap({
   const annoMovedRef = useRef(false);
   // Editing an existing text annotation's content reuses the same textPrompt
   // UI used to create one — this tracks which mode we're in.
-  const [editingAnnoId, setEditingAnnoId] = useState<string | null>(null);
   // Edge label drag-to-move (offset from the edge midpoint). The in-progress
   // offset is held locally (labelLiveOffset) exactly like annoLiveOffset, so
   // the drag renders smoothly but persists ONCE on mouseup — never a
@@ -243,24 +296,33 @@ export default function CodeMap({
   const [showAddCodes, setShowAddCodes] = useState(false);
   // Whether the legend is baked into SVG/PNG/JPEG exports.
   const [includeLegendInExport, setIncludeLegendInExport] = useState(true);
-  const [textPrompt, setTextPrompt] = useState<{ sx: number; sy: number; tx: number; ty: number } | null>(null);
+  const [exportScale,setExportScale]=useState(3.125);
+  const [publicationWidthMm,setPublicationWidthMm]=useState(180);
+  const [printCheck,setPrintCheck]=useState('');
+  const [resizeDrag,setResizeDrag]=useState<{kind:'code'|'annotation'|'edge';id:string;handle:string;startX:number;startY:number;box:{x:number;y:number;width:number;height:number}}|null>(null);
+  const [resizeLive,setResizeLive]=useState<({kind:'code'|'annotation'|'edge';id:string;x:number;y:number;width:number;height:number})|null>(null);
+  const resizeLiveRef=useRef<typeof resizeLive>(null);
+  const [inlineEdit,setInlineEdit]=useState<{kind:'code'|'rename'|'annotation'|'edge';id:string;value:string;isNew?:boolean}|null>(null);
+  const inlineEditRef=useRef<typeof inlineEdit>(null);
   const annoPreviewRef = useRef<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
-  const textPromptRef = useRef<{ sx: number; sy: number; tx: number; ty: number } | null>(null);
-  const annoTextRef = useRef<HTMLInputElement>(null);
   // A click always follows an annotation mousedown+mouseup, and would
   // otherwise clear the selection the drag just made — this guard skips the
   // clear for exactly that click (reset on every svg mousedown, consumed on
   // the svg click).
   const annoClickGuardRef = useRef(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(1);
-  const [fitToWindow, setFitToWindow] = useState(true);
+  const [zoom, setZoom] = useState(mapView?.zoom||1);
+  const [fitToWindow, setFitToWindow] = useState(mapView?.fitToWindow!==false);
   const viewportRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [presetIdx, setPresetIdx] = useState(0);
   const [customMode, setCustomMode] = useState(false);
   const [customW, setCustomW] = useState(1200);
   const [customH, setCustomH] = useState(800);
+
+  useEffect(()=>{if(!mapDesign){setCustomMode(false);setPresetIdx(0);setViewMode('auto');setShowCooc(false);setFitToWindow(true);return;}setCustomMode(true);setCustomW(mapDesign.width);setCustomH(mapDesign.height);setViewMode('full');setShowCooc(mapDesign.mode!=='manual'&&mapDesign.maxLinks>0);setMinShared(1);setFitToWindow(true);setSelectedMapCodeId(null);setSelectedAnnoId(null);setSelectedKey(null);},[mapDesign?.generatedAt,mapDesign?.width,mapDesign?.height,mapDesign?.mode,mapDesign?.maxLinks,mapDesign?.family,mapDesign?.hubId,mapDesign?.rootIds.join(",")]);
+
+  useEffect(()=>{if(!mapView)return;setCustomMode(true);setCustomW(mapView.width);setCustomH(mapView.height);setViewMode(mapView.viewMode);setExpandedRoots(new Set(mapView.expandedRoots));setChildrenPerRoot(mapView.childrenPerRoot);setShowCooc(mapView.showCooc);setMinShared(mapView.minShared);setShowLegend(mapView.showLegend);setIncludeLegendInExport(mapView.includeLegendInExport);setLegendPos(mapView.legendPos);setLegendSettings(mapView.legend||{});setExportScale(mapView.exportScale||3.125);setPublicationWidthMm(mapView.publicationWidthMm||180);setFitToWindow(mapView.fitToWindow!==false);if(mapView.zoom)setZoom(mapView.zoom);},[mapView]);
 
   const canvas = customMode
     ? { w: Math.max(CANVAS_MIN, Math.min(CANVAS_MAX, customW)), h: Math.max(CANVAS_MIN, Math.min(CANVAS_MAX, customH)) }
@@ -286,8 +348,18 @@ export default function CodeMap({
     setZoom(Math.max(0.1, Math.min(4, value)));
   }
 
+  useMapZoom(viewportRef,svgRef,zoom,manualZoom,()=>setFitToWindow(true),active);
+
   const zoomRef = useRef(zoom);
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+
+  // Save only small view settings on unmount; project records already contain all edits.
+  const [cloudStopDraft,setCloudStopDraft]=useState(mapView?.cloudStopDraft??String(mapDesign?.options?.wordStops??''));
+  useEffect(()=>{setCloudStopDraft(mapView?.cloudStopDraft??String(mapDesign?.options?.wordStops??''));},[mapDesign?.family,mapDesign?.options?.wordStops,mapView]);
+  const rememberedView=useRef<{view:CodeMapView;save?:Props['onRememberView']}>();
+  rememberedView.current={save:onRememberView,view:{cloudStopDraft,width:canvas.w,height:canvas.h,viewMode,expandedRoots:Array.from(expandedRoots),childrenPerRoot,showCooc,minShared,showLegend,includeLegendInExport,legendPos,exportScale,publicationWidthMm,legend:legendSettings,zoom,fitToWindow}};
+  const editorMounted=useRef(false);
+  useEffect(()=>{editorMounted.current=true;return()=>{editorMounted.current=false;queueMicrotask(()=>{if(!editorMounted.current){const snapshot=rememberedView.current;snapshot?.save?.(snapshot.view);}});};},[]);
 
   const canvasRef = useRef(canvas);
   useEffect(() => { canvasRef.current = canvas; });
@@ -311,8 +383,6 @@ export default function CodeMap({
       setDrawSource(null);
       setDrawMode(false);
       setSelectedAnnoId(null);
-      setEditingAnnoId(null);
-      setTextPrompt(null);
       setDrag(null);
     }
   }, [projectId]);
@@ -384,12 +454,14 @@ export default function CodeMap({
   const radiusFor = (codeId: ID, useRollup: boolean) => {
     const count = useRollup ? (rolledUpCounts.get(codeId) || 0) : (counts.get(codeId) || 0);
     const max = useRollup ? maxRolledCount : maxCount;
-    if (max === 0) return MIN_R;
-    return Math.round(MIN_R + (count / max) * (MAX_R - MIN_R));
+    const scale=codes.find(c=>c.id===codeId)?.mapScale||1;
+    if (max === 0) return MIN_R*scale;
+    return Math.round(MIN_R + (count / max) * (MAX_R - MIN_R))*scale;
   };
 
   // Document-level co-occurrence: how many docs each code pair shares.
   const sharedDocs = useMemo(() => {
+    if(mapDesign&&mapDesign.mode!=='manual')return mapSharedDocuments(codes,codedSegments,new Set(shownCodes.map(c=>c.id)));
     const byDoc = new Map<ID, ID[]>();
     for (const seg of codedSegments) {
       const list = byDoc.get(seg.docId) || [];
@@ -407,7 +479,7 @@ export default function CodeMap({
       }
     }
     return pairCount;
-  }, [codedSegments]);
+  }, [codedSegments, codes, shownCodes, mapDesign]);
 
   // Largest shared-document count across any pair — drives the continuous
   // co-occurrence edge weight scale.
@@ -495,6 +567,8 @@ export default function CodeMap({
     return m;
   }, [visibleCodes]);
 
+  useEffect(()=>{if(!jumpCode||!positions.has(jumpCode))return;const node=svgRef.current?.querySelector<SVGGElement>('[data-map-code="'+CSS.escape(jumpCode)+'"]');if(!node)return;node.scrollIntoView({block:'center',inline:'center'});setJumpCode(null);},[jumpCode,positions,visibleCodes]);
+
   // Auto-layout for visible codes with no cached mapPosition. Runs on import,
   // on canvas changes, and when folding reveals nodes that were never
   // arranged; hand-placed positions are never clobbered. Only the visible
@@ -525,7 +599,7 @@ export default function CodeMap({
       refs.push({ key: `hierarchy:${c.parentId}:${c.id}`, kind: 'hierarchy', fromId: c.parentId, toId: c.id });
     }
     if (showCooc) {
-      for (const [pair, shared] of sharedDocs) {
+      for (const [pair, shared] of (mapDesign&&mapDesign.mode!=='manual'?suggestedMapPairs(codes,sharedDocs,mapDesign.maxLinks):Array.from(sharedDocs))) {
         if (shared < minShared) continue;
         const [a, b] = pair.split('::');
         if (!visibleIds.has(a) || !visibleIds.has(b)) continue;
@@ -545,7 +619,7 @@ export default function CodeMap({
       if (!ref.style && ref.kind !== 'custom') ref.style = findStyle(ref.kind, ref.fromId, ref.toId);
     }
     return refs;
-  }, [visibleCodes, visibleIds, sharedDocs, styles, showCooc, minShared]);
+  }, [visibleCodes, visibleIds, sharedDocs, styles, showCooc, minShared, mapDesign, codes]);
 
   // Edge kinds actually drawn right now — the legend only shows rows for
   // kinds present (plus the strength scale only when co-occurrence edges
@@ -556,6 +630,10 @@ export default function CodeMap({
     return s;
   }, [edges]);
 
+  const legendNodes=useMemo(()=>{const grouped=new Map<string,{key:string;shape:string;fill:string;stroke:string;label:string;count:number}>();for(const code of visibleCodes){const shape=code.mapShape||'circle',fill=code.mapAppearance?.fill||code.color,stroke=code.mapAppearance?.stroke||code.color,key=shape+'|'+fill+'|'+stroke;const item=grouped.get(key);if(item)item.count++;else grouped.set(key,{key:'node:'+code.id,shape,fill,stroke,label:code.mapLabel??code.name,count:1});}return Array.from(grouped.values());},[visibleCodes]);
+  const legendLines=useMemo(()=>(['hierarchy','cooccurrence','custom'] as const).flatMap(kind=>{const drawn=edges.filter(e=>e.kind===kind);if(!drawn.length)return [];const sample=drawn[0];return [{key:'relation:'+kind,label:kind==='hierarchy'?'Hierarchy':kind==='cooccurrence'?(mapDesign&&mapDesign.mode!=='manual'?'Shared documents':'Co-occurrence'):'Custom',color:sample.style?.color||mapColors[kind],dashed:(sample.style?.lineStyle||'solid')!=='solid'}];}),[edges,mapDesign]);
+  const annotationLegend=Array.from(new Map(annotations.filter(a=>a.legendLabel).map(a=>[a.legendLabel,{key:'annotation:'+a.id,label:a.legendLabel!,shape:a.kind==='circle'?'ellipse':mapDesign?.family==='histomap'?'square':a.polygonPoints?.length===12?'hexagon':a.polygonPoints?.[0]===.5?'triangle':a.polygonPoints?'trapezoid':'square',fill:a.fill||'none',stroke:a.color}])).values());
+  const legendEntries=[...annotationLegend,...legendLines,...(mapDesign?.hubId?[{key:'topic',label:'Topic grouping',color:annotations.find(a=>a.id===mapDesign.hubId)?.color||'#6f4d89',dashed:false}]:[]),...legendNodes.map(n=>({...n,label:n.label+(n.count>1?' +'+(n.count-1):'')}))];
   const selectedEdge = useMemo(
     () => edges.find(e => e.key === selectedKey) || null,
     [edges, selectedKey]
@@ -580,7 +658,7 @@ export default function CodeMap({
   // render ever shows a shrunk paper with cropped nodes.
   function rescalePositionsFor(newW: number, newH: number) {
     const placed = codes.filter(c => !!c.mapPosition);
-    if (placed.length === 0) return;
+    if (placed.length === 0) {onResizeCanvas?.(newW,newH,[]);return;}
     const PAD = 40;
     const xs = placed.map(c => c.mapPosition!.x);
     const ys = placed.map(c => c.mapPosition!.y);
@@ -595,11 +673,10 @@ export default function CodeMap({
       const ny = PAD + (spreadY === 0 ? 0 : ((c.mapPosition!.y - minY) / spreadY) * (newH - 2 * PAD));
       return { id: c.id, patch: { mapPosition: { x: Math.round(nx), y: Math.round(ny) } } };
     });
-    onUpdateCodesBatch(updates);
+    if(onResizeCanvas)onResizeCanvas(newW,newH,updates);else onUpdateCodesBatch(updates);
   }
 
   const selectCanvasPreset = (value: string) => {
-    setShowLegend(false); // simple: legend nudges off whenever the canvas changes
     if (value === 'custom') {
       setCustomMode(true);
       return;
@@ -690,12 +767,10 @@ export default function CodeMap({
     // (adds/removes its id from `expandedRoots`). Anything else: the node is
     // selected on the canvas — selecting never navigates to the Codebook;
     // use ✕ Remove from map (toolbar) to hide it, ➕ Add codes do the reverse.
-    if (foldMode && (descendantsCache.get(code.id) || 0) > 0) {
-      toggleExpand(code.id, e);
-      return;
-    }
+    if (foldMode && (descendantsCache.get(code.id) || 0) > 0) toggleExpand(code.id, e);
+    setSelectedKey(null);
     setSelectedAnnoId(null);
-    setSelectedMapCodeId(code.id);
+    setSelectedLegend(null);setSelectedMapCodeId(code.id);
   }
 
   function cycleShape(e: React.MouseEvent, code: Code) {
@@ -747,9 +822,10 @@ export default function CodeMap({
       const rawY = active.origY + (e.clientY - active.startY) / z;
       // Rigid clamp so a node can never leave the white paper.
       const { w, h } = canvasRef.current;
-      const padding = 40;
-      const x = Math.round(Math.max(padding, Math.min(rawX, w - padding)));
-      const y = Math.round(Math.max(padding, Math.min(rawY, h - padding)));
+      const appearance=codes.find(c=>c.id===active.id)?.mapAppearance;
+      const px=Math.max(40,(appearance?.width||0)/2+12),py=Math.max(40,(appearance?.height||0)/2+12);
+      const x = Math.round(Math.max(px, Math.min(rawX, w - px)));
+      const y = Math.round(Math.max(py, Math.min(rawY, h - py)));
       setPositions(prev => new Map(prev).set(active.id, { x, y }));
     }
     function onUp() {
@@ -765,28 +841,6 @@ export default function CodeMap({
     };
   }, [drag, onUpdateCode]);
 
-  // Drag-to-reposition the legend (same window-listener pattern as node
-  // dragging, but purely local — no persistence).
-  useEffect(() => {
-    if (!legendDrag) return;
-    const active = legendDrag;
-    function onMove(e: MouseEvent) {
-      setLegendPos({
-        x: Math.max(0, active.origX + (e.clientX - active.startX)),
-        y: Math.max(0, active.origY + (e.clientY - active.startY))
-      });
-    }
-    function onUp() {
-      setLegendDrag(null);
-    }
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-  }, [legendDrag]);
-
   // ViewBox coords for a pointer event: the svg sits inside the zoom-scaled
   // wrapper, so divide the screen delta by the zoom factor.
   const toViewBox = (e: React.MouseEvent | MouseEvent) => {
@@ -796,6 +850,8 @@ export default function CodeMap({
     const z = zoomRef.current;
     return { x: (e.clientX - rect.left) / z, y: (e.clientY - rect.top) / z };
   };
+
+  useEffect(()=>{if(!active)return;const stop=(e:KeyboardEvent)=>{if(e.key==='Escape'){setAnnotateMode(false);setAnnoDrag(null);annoPreviewRef.current=null;setAnnoPreview(null);}};window.addEventListener('keydown',stop);return()=>window.removeEventListener('keydown',stop);},[active]);
 
   // Annotation drawing drag: window listeners while active (same pattern as
   // node drag). Releasing persists the new shape with ONE onUpdateAnnotations
@@ -810,29 +866,19 @@ export default function CodeMap({
       const z = zoomRef.current;
       const x = (e.clientX - rect.left) / z;
       const y = (e.clientY - rect.top) / z;
-      const next = { x0: active.x0, y0: active.y0, x1: x, y1: y };
+      const side=Math.max(Math.abs(x-active.x0),Math.abs(y-active.y0));const constrain=e.shiftKey&&drawingShapes.find(s=>s.id===active.shape)?.kind!=='arrow';
+      const next = { x0: active.x0, y0: active.y0, x1:constrain?active.x0+(x>=active.x0?side:-side):x, y1:constrain?active.y0+(y>=active.y0?side:-side):y };
       annoPreviewRef.current = next;
       setAnnoPreview(next);
     }
     function onUp() {
       const p = annoPreviewRef.current;
-      if (p && Math.abs(p.x1 - p.x0) + Math.abs(p.y1 - p.y0) > 5) {
-        const base = { id: uid('anno'), color: DEFAULT_COLORS.custom, lineStyle: 'solid' as const };
-        let anno: MapAnnotation;
-        if (active.shape === 'arrow') {
-          anno = { ...base, kind: 'arrow', x: p.x0, y: p.y0, x2: p.x1, y2: p.y1 };
-        } else {
-          anno = {
-            ...base,
-            kind: active.shape,
-            x: Math.min(p.x0, p.x1),
-            y: Math.min(p.y0, p.y1),
-            width: Math.abs(p.x1 - p.x0),
-            height: Math.abs(p.y1 - p.y0)
-          };
-        }
+      if (p && Math.abs(p.x1 - p.x0) + Math.abs(p.y1 - p.y0) > 5 && (drawingShapes.find(s=>s.id===active.shape)?.kind==='arrow'||Math.abs(p.x1-p.x0)>5&&Math.abs(p.y1-p.y0)>5)) {
+        const shape=drawingShapes.find(s=>s.id===active.shape)||drawingShapes[0];
+        const anno=drawingAnnotation(shape,p,uid('anno'),mapColors.custom);
         onUpdateAnnotations([...annotations, anno]);
         setSelectedAnnoId(anno.id);
+        if(anno.kind==='text'){const edit={kind:'annotation' as const,id:anno.id,value:'',isNew:true};inlineEditRef.current=edit;setInlineEdit(edit);setAnnotateMode(false);setTextEditorOpen(true);}
       }
       annoPreviewRef.current = null;
       setAnnoPreview(null);
@@ -934,42 +980,75 @@ export default function CodeMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [labelDragMove]);
 
-  function openTextPrompt(sx: number, sy: number, tx: number, ty: number) {
-    textPromptRef.current = { sx, sy, tx, ty };
-    setTextPrompt({ sx, sy, tx, ty });
+  function textBox(kind:'code'|'annotation'|'edge',id:string){
+    if(kind==='code'){const code=codes.find(c=>c.id===id),pos=positions.get(id);if(!code||!pos)return null;const width=code.mapAppearance?.width||180,height=code.mapAppearance?.height||80;return {x:pos.x-width/2,y:code.mapShape==='ellipse'?pos.y-height/2:pos.y+radiusFor(id,false)+2,width,height};}
+    if(kind==='annotation'){const anno=annotations.find(a=>a.id===id);if(!anno)return null;return {x:anno.x,y:anno.width?anno.y:anno.y-(anno.fontSize||14),width:anno.width||250,height:anno.height||90};}
+    const edge=edges.find(e=>e.key===id);if(!edge)return null;const from=positions.get(edge.fromId),to=positions.get(edge.toId);if(!from||!to)return null;const width=edge.style?.labelWidth||250,height=edge.style?.labelHeight||70;return {x:(from.x+to.x)/2+(edge.style?.labelDx||0)-width/2,y:(from.y+to.y)/2-6+(edge.style?.labelDy||0)-height/2,width,height};
   }
-  function closeTextPrompt() {
-    textPromptRef.current = null;
-    setTextPrompt(null);
-    setEditingAnnoId(null);
+  useEffect(()=>{
+    if(!resizeDrag)return;const drag=resizeDrag;
+    const move=(event:MouseEvent)=>{const dx=(event.clientX-drag.startX)/zoomRef.current,dy=(event.clientY-drag.startY)/zoomRef.current;let left=drag.box.x,top=drag.box.y,right=left+drag.box.width,bottom=top+drag.box.height;
+      if(drag.handle.includes('e'))right+=dx;if(drag.handle.includes('w'))left+=dx;if(drag.handle.includes('s'))bottom+=dy;if(drag.handle.includes('n'))top+=dy;
+      left=Math.max(0,Math.min(left,right-50));top=Math.max(0,Math.min(top,bottom-30));right=Math.min(canvasRef.current.w,Math.max(right,left+50));bottom=Math.min(canvasRef.current.h,Math.max(bottom,top+30));
+      const live={kind:drag.kind,id:drag.id,x:left,y:top,width:right-left,height:bottom-top};resizeLiveRef.current=live;setResizeLive(live);};
+    const up=()=>{const box=resizeLiveRef.current;if(box){
+      if(box.kind==='code'){const code=codes.find(c=>c.id===box.id);if(code){const appearance=code.mapAppearance||{fill:code.color,stroke:code.color,width:180,height:80,fontSize:16};onUpdateCode(box.id,{mapAppearance:{...appearance,width:box.width,height:box.height},mapPosition:{x:box.x+box.width/2,y:code.mapShape==='ellipse'?box.y+box.height/2:box.y-radiusFor(code.id,false)-2}});}}
+      else if(box.kind==='annotation')onUpdateAnnotations(annotations.map(a=>a.id===box.id?{...a,x:box.x,y:box.y,width:box.width,height:box.height}:a));
+      else {const edge=edges.find(e=>e.key===box.id);if(edge){const from=positions.get(edge.fromId),to=positions.get(edge.toId);if(from&&to)commitStyle(edge,{labelWidth:box.width,labelHeight:box.height,labelDx:box.x+box.width/2-(from.x+to.x)/2,labelDy:box.y+box.height/2-((from.y+to.y)/2-6)});}}
+    }resizeLiveRef.current=null;setResizeLive(null);setResizeDrag(null);};
+    window.addEventListener('mousemove',move);window.addEventListener('mouseup',up);return()=>{window.removeEventListener('mousemove',move);window.removeEventListener('mouseup',up);};
+  },[resizeDrag]);
+  function beginInline(kind: 'code'|'rename'|'annotation'|'edge',id:string) {
+    setSelectedLegend(null);const code=codes.find(c=>c.id===id),annotation=annotations.find(a=>a.id===id),edge=edges.find(e=>e.key===id);
+    const value=kind==='rename'?code?.name:kind==='code'?code?.mapLabel??code?.name:kind==='annotation'?annotation?.text:edge?.style?.label;
+    const edit={kind,id,value:value||''};inlineEditRef.current=edit;setInlineEdit(edit);setTextEditorOpen(true);setAnnotateMode(false);setDrawMode(false);
   }
-  // Enter/blur commits the label, Escape cancels. Ref-guarded so a blur
-  // racing the Enter-commit can never double-persist. When editingAnnoId is
-  // set, this updates that annotation's text instead of creating a new one.
-  function commitTextPrompt() {
-    const t = textPromptRef.current;
-    if (!t) return;
-    const text = (annoTextRef.current?.value || '').trim();
-    const editId = editingAnnoId;
-    textPromptRef.current = null;
-    setTextPrompt(null);
-    setEditingAnnoId(null);
-    if (!text) return;
-    if (editId) {
-      onUpdateAnnotations(annotations.map(a => (a.id === editId ? { ...a, text } : a)));
-      return;
-    }
-    onUpdateAnnotations([
-      ...annotations,
-      { id: uid('anno'), kind: 'text', x: t.sx, y: t.sy, text, color: DEFAULT_COLORS.custom, lineStyle: 'solid' }
-    ]);
+  function endInline(save:boolean) {
+    const edit=inlineEditRef.current;if(!edit)return;inlineEditRef.current=null;setInlineEdit(null);
+    if(!save){if(edit.isNew)onUpdateAnnotations(annotations.filter(a=>a.id!==edit.id));return;}
+    if(edit.kind==='code')onUpdateCode(edit.id,{mapLabel:edit.value});
+    else if(edit.kind==='rename'){
+      const code=codes.find(c=>c.id===edit.id),name=edit.value.trim();if(!code||!name)return;
+      if(codes.some(c=>c.id!==code.id&&c.parentId===code.parentId&&c.name.trim().toLocaleLowerCase()===name.toLocaleLowerCase())){onShowToast?.('A sibling code already has that name.');return;}
+      onUpdateCode(edit.id,{name,mapLabel:undefined});
+    }else if(edit.kind==='annotation')onUpdateAnnotations(edit.isNew&&!edit.value.trim()?annotations.filter(a=>a.id!==edit.id):annotations.map(a=>a.id===edit.id?{...a,text:edit.value}:a));
+    else {const edge=edges.find(e=>e.key===edit.id);if(edge)commitStyle(edge,{label:edit.value});}
   }
+  useEffect(()=>{if(!active)return;const remove=(event:KeyboardEvent)=>{if(multiKeysRef.current.length>1)return;if(event.key!=='Delete'||event.defaultPrevented||event.isComposing||event.ctrlKey||event.metaKey||event.altKey||!selectedAnnoId)return;const target=event.target;if(target instanceof Element&&target.closest('input,textarea,select,[contenteditable="true"]'))return;if(document.querySelector('[role="dialog"]'))return;event.preventDefault();onUpdateAnnotations(annotations.filter(a=>a.id!==selectedAnnoId&&a.fromAnnotationId!==selectedAnnoId&&a.toAnnotationId!==selectedAnnoId));setSelectedAnnoId(null);};window.addEventListener('keydown',remove);return()=>window.removeEventListener('keydown',remove);},[active,selectedAnnoId,annotations,onUpdateAnnotations]);
 
   const selectedAnno = selectedAnnoId ? (annotations.find(a => a.id === selectedAnnoId) || null) : null;
 
+  const cloudReflowVersion=useRef(0),cloudReflowTimer=useRef<ReturnType<typeof setTimeout>>();
+  const cloudContext=useRef({projectId,mapDesign,sourceAnnotations,docs,codes,codedSegments,active,selectedAnnoId});cloudContext.current={projectId,mapDesign,sourceAnnotations,docs,codes,codedSegments,active,selectedAnnoId};
+  const [cloudSizing,setCloudSizing]=useState<{id:string;size:number}>();
+  useEffect(()=>()=>{cloudReflowVersion.current++;clearTimeout(cloudReflowTimer.current);},[]);
   function updateSelectedAnno(patch: Partial<MapAnnotation>) {
     if (!selectedAnnoId) return;
-    onUpdateAnnotations(annotations.map(a => (a.id === selectedAnnoId ? { ...a, ...patch } : a)));
+    const currentLabel=sourceAnnotations.find(a=>a.id===selectedAnnoId);
+    if(currentLabel?.flowNodeLabel&&patch.flowLabelPlacement){
+      if(patch.flowLabelPlacement==='inside'&&currentLabel.flowLabelPlacement!=='inside')patch={...patch,flowLabelOutsideSize:{width:currentLabel.width||360,height:currentLabel.height||70}};
+      else if(patch.flowLabelPlacement!=='inside'&&currentLabel.flowLabelPlacement==='inside')patch={...patch,...currentLabel.flowLabelOutsideSize,flowLabelOutsideSize:undefined};
+    }
+    const cloudOptions=mapDesign?.family==='word-cloud'?mapDesign.options as unknown as VisualizationOptions:undefined;
+    const wordIndex=cloudOptions?.cloudWords?.findIndex((_,i)=>'suggested:cloud:word:'+i===selectedAnnoId)??-1;
+    if(cloudOptions&&wordIndex>=0&&patch.fontSize!==undefined&&onApplySuggestion){
+      const version=++cloudReflowVersion.current,word=cloudOptions.cloudWords![wordIndex].word;
+      setCloudSizing({id:selectedAnnoId,size:patch.fontSize});clearTimeout(cloudReflowTimer.current);
+      cloudReflowTimer.current=setTimeout(async()=>{try{
+        const styles={...cloudOptions.cloudWordStyles};for(const [i,w] of cloudOptions.cloudWords!.entries()){const a=sourceAnnotations.find(a=>a.id==='suggested:cloud:word:'+i);if(a)styles[w.word]={...styles[w.word],fontFamily:a.fontFamily,bold:a.bold,italic:a.italic,rotation:a.rotation,text:a.text};}
+        styles[word]={...styles[word],fontSize:patch.fontSize};
+        const {prepareWordCloud,buildWordCloud,preserveCloudDecorations}=await import('../lib/wordCloud'),data={id:projectId,name:projectName||'Word cloud',codes,docs,codedSegments};
+        const ready=await prepareWordCloud(data,{...cloudOptions,cloudWordStyles:styles});if(version!==cloudReflowVersion.current)return;
+        const current=cloudContext.current;if(current.active===false||current.projectId!==projectId||current.mapDesign!==mapDesign||current.sourceAnnotations!==sourceAnnotations||current.docs!==docs||current.codes!==codes||current.codedSegments!==codedSegments){onShowToast?.('The canvas changed while refitting. Change the font size again to use your latest edits.');return;}
+        const result=buildWordCloud(data,ready),oldWords=new Map(cloudOptions.cloudWords!.map((w,i)=>[w.word,sourceAnnotations.find(a=>a.id==='suggested:cloud:word:'+i)]));
+        result.annotations=result.annotations.map(a=>{const i=Number(a.id.replace('suggested:cloud:word:','')),w=ready.cloudWords?.[i],old=w?oldWords.get(w.word):undefined;return old?{...old,...a,color:old.color,textColor:old.textColor}:a;});
+        result.annotations=preserveCloudDecorations(result,sourceAnnotations,mapDesign?.description,cloudOptions.cloudWords).annotations;
+        result.design={...result.design,generatedAt:mapDesign?.generatedAt,paletteId:mapDesign?.paletteId,paletteInverted:mapDesign?.paletteInverted};onApplySuggestion(result);
+        const selectedIndex=cloudOptions.cloudWords!.findIndex((_,i)=>'suggested:cloud:word:'+i===current.selectedAnnoId),selectedWord=cloudOptions.cloudWords![selectedIndex]?.word,nextIndex=ready.cloudWords!.findIndex(w=>w.word===selectedWord);setSelectedAnnoId(selectedIndex<0?current.selectedAnnoId:nextIndex<0?null:'suggested:cloud:word:'+nextIndex);onShowToast?.('Word cloud refitted.'+(ready.cloudOmitted?' '+ready.cloudOmitted+' words could not fit.':''));
+      }catch(error){if(version===cloudReflowVersion.current)onShowToast?.(error instanceof Error?error.message:String(error),6000);}finally{if(version===cloudReflowVersion.current)setCloudSizing(undefined);}},250);
+      return;
+    }
+    onUpdateAnnotations(sourceAnnotations.map(a => (a.id === selectedAnnoId ? { ...a, ...patch } : a)));
   }
 
   // Pure-CSS fullscreen overlay (no native Fullscreen API — consistent
@@ -984,85 +1063,20 @@ export default function CodeMap({
     return () => window.removeEventListener('keydown', onKey);
   }, [isFullscreen]);
 
-  function serializeSvg(scale = 1): { xml: string | null; width: number; height: number } {
+  function serializeSvg(scale = 1,physical = false): { xml: string | null; width: number; height: number } {
     const el = svgRef.current;
     if (!el) return { xml: null, width: canvas.w, height: canvas.h };
     const clone = el.cloneNode(true) as SVGSVGElement;
+    clone.querySelectorAll('[data-map-editor],[data-map-edit-outline]').forEach(el=>el.remove());
     const w = Math.max(1, Math.round(canvas.w * scale));
     const h = Math.max(1, Math.round(canvas.h * scale));
-    clone.setAttribute('width', String(w));
-    clone.setAttribute('height', String(h));
-    clone.querySelectorAll('[data-export-font-size]').forEach(label => label.setAttribute('font-size', label.getAttribute('data-export-font-size')!));
-    if (includeLegendInExport) {
-      // Bake the floating legend in as plain SVG elements (no CSS classes,
-      // no foreignObject) so it rasterizes identically in every export path.
-      const ns = 'http://www.w3.org/2000/svg';
-      const g = document.createElementNS(ns, 'g');
-      g.setAttribute('transform', 'translate(16, 16)');
-      const box = document.createElementNS(ns, 'rect');
-      box.setAttribute('x', '0');
-      box.setAttribute('y', '0');
-      box.setAttribute('width', '170');
-      box.setAttribute('rx', '6');
-      box.setAttribute('fill', 'rgba(255,255,255,0.95)');
-      box.setAttribute('stroke', '#cbd5e1');
-      box.setAttribute('stroke-width', '1');
-      g.appendChild(box);
-      const title = document.createElementNS(ns, 'text');
-      title.setAttribute('x', '8');
-      title.setAttribute('y', '15');
-      title.setAttribute('font-size', '11');
-      title.setAttribute('font-weight', '700');
-      title.setAttribute('fill', '#1e293b');
-      title.textContent = 'Legend';
-      g.appendChild(title);
-      const rows: Array<[string, string, boolean]> = [];
-      if (presentKinds.has('hierarchy')) rows.push(['#cbd5e1', 'Hierarchy', false]);
-      if (presentKinds.has('cooccurrence')) rows.push(['#a78bfa', 'Co-occurrence', false]);
-      if (presentKinds.has('custom')) rows.push(['#64748b', 'Custom', true]);
-      let y = 15 + 12;
-      for (const [color, label, dashed] of rows) {
-        const line = document.createElementNS(ns, 'line');
-        line.setAttribute('x1', '8');
-        line.setAttribute('y1', String(y + 6));
-        line.setAttribute('x2', '26');
-        line.setAttribute('y2', String(y + 6));
-        line.setAttribute('stroke', color);
-        line.setAttribute('stroke-width', '2');
-        if (dashed) line.setAttribute('stroke-dasharray', '6 4');
-        g.appendChild(line);
-        const t = document.createElementNS(ns, 'text');
-        t.setAttribute('x', '32');
-        t.setAttribute('y', String(y + 10));
-        t.setAttribute('font-size', '11');
-        t.setAttribute('fill', '#334155');
-        t.textContent = label;
-        g.appendChild(t);
-        y += 16;
-      }
-      if (presentKinds.has('cooccurrence')) {
-        for (const [x1, x2, lw] of [[8, 14, 2], [16, 22, 4], [24, 30, 6]] as Array<[number, number, number]>) {
-          const line = document.createElementNS(ns, 'line');
-          line.setAttribute('x1', String(x1));
-          line.setAttribute('y1', String(y + 6));
-          line.setAttribute('x2', String(x2));
-          line.setAttribute('y2', String(y + 6));
-          line.setAttribute('stroke', '#a78bfa');
-          line.setAttribute('stroke-width', String(lw));
-          g.appendChild(line);
-        }
-        const t = document.createElementNS(ns, 'text');
-        t.setAttribute('x', '36');
-        t.setAttribute('y', String(y + 10));
-        t.setAttribute('font-size', '11');
-        t.setAttribute('fill', '#334155');
-        t.textContent = 'weak → strong';
-        g.appendChild(t);
-        y += 16;
-      }
-      box.setAttribute('height', String(y + 4));
-      clone.appendChild(g);
-    }
+    clone.setAttribute('width', physical?publicationWidthMm+'mm':String(w));
+    clone.setAttribute('height', physical?(publicationWidthMm*canvas.h/canvas.w)+'mm':String(h));
+    clone.style.backgroundColor='#ffffff';clone.style.removeProperty('box-shadow');clone.style.removeProperty('cursor');clone.querySelector('[data-map-paper]')?.setAttribute('fill','#ffffff');
+    const title=document.createElementNS('http://www.w3.org/2000/svg','title');title.textContent=String(mapDesign?.options?.title||projectName||'Research visualization');clone.prepend(title);
+    const desc=document.createElementNS('http://www.w3.org/2000/svg','desc');const selectedDocs=Array.isArray(mapDesign?.options?.docIds)?new Set(mapDesign!.options!.docIds as string[]):new Set<string>();desc.textContent=(mapDesign?.description||'Editable '+(mapDesign?.family||'code map')+' diagram.')+(selectedDocs.size?' Source documents: '+docs.filter(d=>selectedDocs.has(d.id)).slice(0,Number(mapDesign?.options?.docLimit)||24).map(d=>d.name).join('; '):'');clone.prepend(desc);
+    for(const name of ['font-size','stroke','stroke-width','opacity'])clone.querySelectorAll('[data-export-'+name+']').forEach(el=>{el.setAttribute(name,el.getAttribute('data-export-'+name)!);el.removeAttribute('data-export-'+name);});
+    if (!includeLegendInExport) clone.querySelectorAll('[data-map-legend]').forEach(el=>el.remove());
     return {
       xml: `<?xml version="1.0" encoding="UTF-8"?>\n${new XMLSerializer().serializeToString(clone)}`,
       width: w,
@@ -1071,23 +1085,21 @@ export default function CodeMap({
   }
 
   async function exportSvg() {
-    const { xml } = serializeSvg();
+    const { xml } = serializeSvg(1,true);
     if (!xml) return;
     const path = await window.qv.exportText({
-      title: 'Export Code Map (SVG)',
-      defaultName: 'code_map.svg',
+      title: 'Export Visualization (SVG)',
+      defaultName: (mapDesign?.family||'visualization').replace(/-/g,'_')+'.svg',
       content: xml,
       extension: 'svg',
       filterName: 'SVG file'
     });
-    if (path && onShowToast) onShowToast(`Code map exported to ${path}`);
+    if (path && onShowToast) onShowToast(`Visualization exported to ${path}`);
   }
 
   async function exportRaster(kind: 'png' | 'jpeg') {
-    // Rasterize at ≥300 DPI: CSS DPI is 96, so scale the SVG target size up
-    // so the pixel grid is dense enough for print; the clone re-renders at
-    // the larger size instead of being stretch-blurred.
-    const scale = 300 / 96;
+    // Render at the requested pixel resolution. Physical DPI depends on print width.
+    const scale = Math.min(exportScale,8192/Math.max(canvas.w,canvas.h),Math.sqrt(40000000/(canvas.w*canvas.h)));
     const { xml, width, height } = serializeSvg(scale);
     if (!xml) return;
     try {
@@ -1104,11 +1116,11 @@ export default function CodeMap({
       ctx.drawImage(img, 0, 0, width, height);
       const dataUrl = canvas.toDataURL(kind === 'png' ? 'image/png' : 'image/jpeg', 0.92);
       const path = await window.qv.exportImage({
-        title: `Export Code Map (${kind.toUpperCase()})`,
-        defaultName: kind === 'png' ? 'code_map.png' : 'code_map.jpg',
+        title: `Export Visualization (${kind.toUpperCase()})`,
+        defaultName: (mapDesign?.family||'visualization').replace(/-/g,'_')+(kind==='png'?'.png':'.jpg'),
         base64: dataUrl.split(',')[1]
       });
-      if (path && onShowToast) onShowToast(`Code map exported to ${path}`);
+      if (path && onShowToast) onShowToast(`Visualization exported to ${path}`);
     } catch (e: any) {
       if (onShowToast) onShowToast(e.message || String(e));
     }
@@ -1170,8 +1182,185 @@ export default function CodeMap({
 
   const COLOR_PALETTE = ['#0f172a', '#ef4444', '#f59e0b', '#22c55e', '#0ea5e9', '#a78bfa', '#ec4899'];
 
+  const objects:MapObject[]=[...annotations.map((a,i)=>({key:'annotation:'+a.id,id:a.id,kind:'annotation' as const,shape:a.kind==='rect'||a.kind==='circle',group:a.groupId,layer:a.layer??i,box:{x:Math.min(a.x,a.x2??a.x),y:Math.min(a.y,a.y2??a.y),width:a.kind==='arrow'?Math.abs((a.x2??a.x)-a.x):a.width||250,height:a.kind==='arrow'?Math.abs((a.y2??a.y)-a.y):a.height||90}})),...visibleCodes.map((c,i)=>{const p=positions.get(c.id)||{x:0,y:0},r=radiusFor(c.id,false),w=c.mapAppearance?.width||180,h=c.mapAppearance?.height||80;return {key:'code:'+c.id,id:c.id,kind:'code' as const,anchor:p,shape:true,group:c.mapGroupId,layer:c.mapLayer??annotations.length+i,box:c.mapShape==='ellipse'?{x:p.x-w/2,y:p.y-h/2,width:w,height:h}:{x:p.x-Math.max(r,w/2),y:p.y-r,width:Math.max(r*2,w),height:r*2+2+h}};})];
+  const selection=useMapSelection({items:objects,zoom,width:canvas.w,height:canvas.h,active,onApply:(keys,command)=>onObjectCommand?.(keys,command.type==='transform'?{...command,positions:Object.fromEntries(positions)}:command)});
+  multiKeysRef.current=selection.keys;
+  const annotationElements=annotations.map(saved => {
+            const box=resizeLive?.kind==='annotation'&&resizeLive.id===saved.id?resizeLive:null;
+            const a=box?{...saved,x:box.x,y:box.y,width:box.width,height:box.height}:saved;
+            const selected = selectedAnnoId === a.id;
+            const dash = a.lineStyle === 'dashed' ? '8 5' : a.lineStyle === 'dotted' ? '2 5' : undefined;
+            const sw = selected ? 4 : a.labelInside ? 3.5 : 2;
+            // Apply the in-progress drag offset (if this is the annotation
+            // currently being dragged) so it visually follows the pointer;
+            // nothing persists until mouseup.
+            const live = annoLiveOffset?.id === a.id ? annoLiveOffset : null;
+            const attached=(id:string)=>{const node=annotations.find(n=>n.id===id);if(!node)return null;const resize=resizeLive?.id===id?resizeLive:null,offset=annoLiveOffset?.id===id?annoLiveOffset:null;return {...node,...offset,...resize,kind:node.kind};};
+            const from=a.fromAnnotationId?attached(a.fromAnnotationId):null,to=a.toAnnotationId?attached(a.toAnnotationId):null;
+            const center=(node:MapAnnotation)=>({x:node.x+(node.width||0)/2,y:node.y+(node.height||0)/2});
+            const endpoint=(node:MapAnnotation,other:MapAnnotation)=>{const a=center(node),b=center(other);if(node.kind==='circle')return ellipseEndpoint(a,b,node.width||100,node.height||100);const dx=b.x-a.x,dy=b.y-a.y,ratio=Math.max(Math.abs(dx)/((node.width||100)/2),Math.abs(dy)/((node.height||100)/2));return ratio>1?{x:a.x+dx/ratio,y:a.y+dy/ratio}:a;};
+            const start=from&&to?endpoint(from,to):null,end=from&&to?endpoint(to,from):null;
+            const ax = start?.x ?? live?.x ?? a.x;
+            const ay = start?.y ?? live?.y ?? a.y;
+            const ax2 = end?.x ?? live?.x2 ?? a.x2;
+            const ay2 = end?.y ?? live?.y2 ?? a.y2;
+            const select = (ev: React.MouseEvent) => {
+              ev.stopPropagation();
+              if (annoMovedRef.current) { annoMovedRef.current = false; return; }
+              setSelectedKey(null);
+              setSelectedMapCodeId(null);
+              setSelectedLegend(null);setSelectedAnnoId(a.id);
+            };
+            const startMove = (ev: React.MouseEvent) => {
+              if (ev.button !== 0 || annotateMode || a.flow) return;
+              ev.stopPropagation();
+              annoMovedRef.current = false;
+              labelLiveOffsetRef.current = null;
+              setAnnoDragMove({ id: a.id, startX: ev.clientX, startY: ev.clientY, orig: a });
+            };
+            return (
+              <g
+                key={"annotation:"+a.id} transform={selection.transformFor("annotation:"+a.id)} data-map-annotation={a.id} onDoubleClick={event=>{event.stopPropagation();setSelectedMapCodeId(null);setSelectedKey(null);setSelectedLegend(null);setSelectedAnnoId(a.id);beginInline('annotation',a.id);}}
+                onMouseDown={startMove}
+                onClick={select}
+                style={{ cursor: annoDragMove?.id === a.id ? 'grabbing' : 'grab' }}
+              >
+                {a.flow&&<title>{a.flow.sourceLabel+" → "+a.flow.targetLabel+": "+a.flow.value+" "+a.flow.unit}</title>}
+                {a.imageData&&<image href={a.imageData} x={ax} y={ay} width={a.width} height={a.height} opacity={a.fillOpacity??1} preserveAspectRatio="none"/>}
+                {a.kind === 'rect' && !a.polygonPoints && (
+                  <rect
+                    x={ax} y={ay} width={a.width || 0} height={a.height || 0} rx={a.cornerRadius?Math.min(a.width||0,a.height||0)*a.cornerRadius:undefined}
+                    fill={a.fill || "none"} fillOpacity={a.fillOpacity} stroke={a.color} data-export-stroke-width={a.labelInside?3.5:2} strokeWidth={sw} strokeDasharray={dash}
+                  />
+                )}
+                {a.kind==='rect'&&a.polygonPoints&&<polygon points={Array.from({length:a.polygonPoints.length/2},(_,i)=>`${ax+a.polygonPoints![i*2]*(a.width||0)},${ay+a.polygonPoints![i*2+1]*(a.height||0)}`).join(' ')} fill={a.gradientTo?`url(#map-gradient-${a.id.replace(/[^a-zA-Z0-9_-]/g,'-')})`:a.fill||'none'} fillOpacity={a.fillOpacity} stroke={a.color} data-export-stroke-width={a.labelInside?3.5:2} strokeWidth={sw} strokeDasharray={dash}/>}
+                {a.kind === 'circle' && (
+                  <ellipse
+                    cx={ax + (a.width || 0) / 2} cy={ay + (a.height || 0) / 2}
+                    rx={(a.width || 0) / 2} ry={(a.height || 0) / 2}
+                    fill={a.fill||'none'} fillOpacity={a.fillOpacity} stroke={a.color} data-export-stroke-width={a.labelInside?3.5:2} strokeWidth={sw} strokeDasharray={dash}
+                  />
+                )}
+                {a.kind === 'arrow' && (
+                  <path
+                    d={`M ${ax} ${ay} L ${ax2 ?? ax} ${ay2 ?? ay}`}
+                    fill={a.kind==='arrow'?'none':a.fill||'none'} stroke={a.color} data-export-stroke-width={a.labelInside?3.5:2} strokeWidth={sw} strokeDasharray={dash}
+                    markerEnd={a.arrowHead===false?undefined:'url(#arrow-end)'}
+                  />
+                )}
+                {a.kind==='text'&&<>{a.flowNodeLabel&&a.flowLabelPlacement!=='inside'&&<rect x={ax-5} y={ay-3} width={(a.width||250)+10} height={(a.height||70)+6} fill="white" fillOpacity={.88} pointerEvents="none"/>}
+                  {(selected||!a.text)&&<rect x={ax-4} y={a.width?ay-4:ay-(a.fontSize||14)} width={a.width||250} height={a.height||60} fill="transparent" stroke={selected?'#2563eb':'#94a3b8'} strokeDasharray="5 3" data-map-edit-outline/>}
+                  {a.flowNodeLabel?<MapLabel text={a.text||''} x={ax+(a.width||360)/2} y={ay+(a.height||70)/2} width={Math.abs(Math.sin((a.rotation||0)*Math.PI/180))>.7?(a.height||70):(a.width||360)} height={Math.abs(Math.sin((a.rotation||0)*Math.PI/180))>.7?(a.width||360):(a.height||70)} fontSize={a.fontSize||24} color={a.textColor||a.color} fontFamily={a.fontFamily} bold={a.bold!==false} italic={a.italic} underline={a.underline} rotation={a.rotation} writingMode={a.writingMode} textDirection={a.textDirection}/>: (()=>{const fitted=fitMapText(a.text||'',Math.max(20,(a.width||250)-8),Math.max(20,(a.height||90)-8),a.fontSize||14,a.fontFamily,a.bold!==false,a.italic);return <text transform={a.rotation?`rotate(${a.rotation} ${ax+(a.width||250)/2} ${ay+(a.height||90)/2})`:undefined} style={{writingMode:a.writingMode,direction:a.textDirection,unicodeBidi:'plaintext'}} x={ax} y={a.width?ay+fitted.fontSize:ay} fontFamily={a.fontFamily} fontSize={fitted.fontSize} fontWeight={a.bold===false?400:600} fontStyle={a.italic?'italic':undefined} textDecoration={a.underline?'underline':undefined} fill={a.textColor||a.color}>{fitted.lines.map((line,i)=><tspan key={i} x={ax} dy={i?fitted.fontSize*1.16:0}>{line}</tspan>)}</text>;})()}
+                </>}
+                {a.text && a.labelInside && <MapLabel text={a.text} x={ax+(a.width||0)/2} y={ay+(a.height||0)*(a.polygonPoints?.length===6&&a.polygonPoints[0]===.5?.72:.5)} fontSize={a.fontSize||20} max={21} width={(a.width||250)*(a.polygonPoints?.[0]===.5?.5:.78)} height={(a.height||120)*(a.polygonPoints?.length===6&&a.polygonPoints[0]===.5?.35:.72)} color={a.textColor||a.color} fontFamily={a.fontFamily} bold={a.bold!==false} italic={a.italic} underline={a.underline} rotation={a.rotation} writingMode={a.writingMode} textDirection={a.textDirection}/>}
+                {a.text && !a.labelInside && a.kind !== 'text' && (
+                  <text
+                    x={a.kind === 'arrow' ? (ax + (ax2 ?? ax)) / 2 : ax + (a.width || 0) / 2}
+                    y={a.kind === 'arrow' ? (ay + (ay2 ?? ay)) / 2 - 6 : ay - 6}
+                    transform={a.rotation?`rotate(${a.rotation} ${ax+(a.width||0)/2} ${ay-6})`:undefined} style={{writingMode:a.writingMode,direction:a.textDirection,unicodeBidi:'plaintext'}} textAnchor="middle" fontSize={a.fontSize||14} fontFamily={a.fontFamily} fontWeight={a.bold===false?400:600} fontStyle={a.italic?'italic':undefined} textDecoration={a.underline?'underline':undefined} fill={a.textColor||a.color}
+                  >
+                    {a.text}
+                  </text>
+                )}
+              </g>
+            );
+          });
+  const codeElements=visibleCodes.map(c => {
+            const sourcePosition = positions.get(c.id);
+            if (!sourcePosition) return null;
+            const liveBox=resizeLive?.kind==='code'&&resizeLive.id===c.id?resizeLive:null;
+            const pos=liveBox?{x:liveBox.x+liveBox.width/2,y:c.mapShape==='ellipse'?liveBox.y+liveBox.height/2:liveBox.y-radiusFor(c.id,false)-2}:sourcePosition;
+            const r = radiusFor(c.id, foldMode && c.parentId === null);
+            const isDragging = drag?.id === c.id;
+            const isSelectedNode = selectedMapCodeId === c.id;
+            const shape = c.mapShape || 'circle';
+            const appearance = liveBox?{...(c.mapAppearance||{fill:c.color,stroke:c.color,fontSize:16}),width:liveBox.width,height:liveBox.height}:c.mapAppearance;
+            const nodeFill = appearance?.fill || c.color;
+            const isDrawSource = drawSource === c.id;
+            // Fold badges: folded nodes show their subtree's structure AND activity
+            // ("+12 subcodes · 47 coded"), expanded ones show what's on screen
+            // ("− 12 total · 5 shown"). The badge caption doubles as the
+            // expand/collapse affordance (distinct from selection + drag);
+            // clicking the folded node itself toggles too.
+            const totalDesc = foldMode ? (descendantsCache.get(c.id) || 0) : 0;
+            const rolledUp = foldMode ? (rolledUpCounts.get(c.id) || 0) : 0;
+            const shownKids = visibleChildCount.get(c.id) || 0;
+            const isExpanded = foldMode && expandedRoots.has(c.id);
+            const badgeOn = foldMode && ((totalDesc > 0 && !isExpanded) || (isExpanded && shownKids > 0));
+            return (
+              <g
+                key={"code:"+c.id} transform={selection.transformFor("code:"+c.id)} data-map-code={c.id} onDoubleClick={event=>{event.stopPropagation();beginInline('code',c.id);}}
+                onMouseDown={e => handleNodeMouseDown(e, c)}
+                onClick={e => handleNodeClick(e, c)}
+                onContextMenu={e => cycleShape(e, c)}
+                style={{ cursor: 'grab' }}
+              >
+                <title>{c.name}</title>
+                {shape === 'ellipse' && <ellipse cx={pos.x} cy={pos.y} rx={(appearance?.width||180)/2} ry={(appearance?.height||80)/2} fill={nodeFill} data-export-stroke={appearance?.stroke||c.color} data-export-stroke-width={2.5} stroke={isSelectedNode?'#2563eb':appearance?.stroke||c.color} strokeWidth={isSelectedNode?4:2.5}/>}
+                {shape === 'circle' && (
+                  <circle
+                    cx={pos.x} cy={pos.y} r={r}
+                    fill={nodeFill}
+                    data-export-stroke={appearance?.stroke||'rgba(15,23,42,0.25)'} data-export-stroke-width={1.5} stroke={isDragging || isDrawSource ? '#0f172a' : isSelectedNode ? '#3b82f6' : appearance?.stroke || 'rgba(15,23,42,0.25)'}
+                    strokeWidth={(isDragging || isDrawSource || isSelectedNode) ? 3 : 1.5}
+                  />
+                )}
+                {shape === 'square' && (
+                  <rect
+                    x={pos.x - r} y={pos.y - r} width={r * 2} height={r * 2}
+                    rx={3}
+                    fill={nodeFill}
+                    data-export-stroke={appearance?.stroke||'rgba(15,23,42,0.25)'} data-export-stroke-width={1.5} stroke={isDragging || isDrawSource ? '#0f172a' : isSelectedNode ? '#3b82f6' : appearance?.stroke || 'rgba(15,23,42,0.25)'}
+                    strokeWidth={(isDragging || isDrawSource || isSelectedNode) ? 3 : 1.5}
+                  />
+                )}
+                {shape === 'diamond' && (
+                  <polygon
+                    points={`${pos.x},${pos.y - r} ${pos.x + r},${pos.y} ${pos.x},${pos.y + r} ${pos.x - r},${pos.y}`}
+                    fill={nodeFill}
+                    data-export-stroke={appearance?.stroke||'rgba(15,23,42,0.25)'} data-export-stroke-width={1.5} stroke={isDragging || isDrawSource ? '#0f172a' : isSelectedNode ? '#3b82f6' : appearance?.stroke || 'rgba(15,23,42,0.25)'}
+                    strokeWidth={(isDragging || isDrawSource || isSelectedNode) ? 3 : 1.5}
+                  />
+                )}
+                {isDrawSource && (
+                  <circle data-map-edit-outline cx={pos.x} cy={pos.y} r={r + 6} fill="none" stroke="var(--accent)" strokeWidth={2} strokeDasharray="4 3" pointerEvents="none" />
+                )}
+                {shape === 'ellipse' ? <MapLabel text={c.mapLabel??c.name} x={pos.x} y={pos.y} fontSize={appearance?.fontSize||16} max={Math.max(4,Math.floor(((appearance?.width||180)-20)/((appearance?.fontSize||16)*.56)))} color={appearance?.textColor} fontFamily={appearance?.fontFamily||undefined} bold={appearance?.bold!==false} italic={appearance?.italic} underline={appearance?.underline} rotation={appearance?.rotation} writingMode={appearance?.writingMode} textDirection={appearance?.textDirection} width={(appearance?.width||180)*.78} height={(appearance?.height||80)*.72}/> : <MapLabel text={c.mapLabel??truncated(c.name)} x={pos.x} y={pos.y+r+2+(appearance?.height||60)/2} fontSize={appearance?.fontSize||12} width={appearance?.width||180} height={appearance?.height||60} color={appearance?.textColor||'#0f172a'} fontFamily={appearance?.fontFamily} bold={appearance?.bold!==false} italic={appearance?.italic} underline={appearance?.underline} rotation={appearance?.rotation} writingMode={appearance?.writingMode} textDirection={appearance?.textDirection}/>}
+                {badgeOn && (
+                  <g
+                    transform={`translate(${pos.x}, ${pos.y + r + 14 + (labelDeltas.get(c.id) || 0) + 14})`}
+                    onMouseDown={e => e.stopPropagation()}
+                    onContextMenu={e => e.stopPropagation()}
+                    onClick={e => toggleExpand(c.id, e)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <text
+                      x={0}
+                      y={0}
+                      textAnchor="middle"
+                      data-export-font-size="9"
+                      fontSize={Math.max(9, 10 / zoom)}
+                      fontWeight={600}
+                      fill={isExpanded ? '#475569' : '#0f172a'}
+                      stroke="#f8fafc"
+                      strokeWidth={2.5}
+                      paintOrder="stroke"
+                      pointerEvents="none"
+                    >
+                      {isExpanded
+                        ? `− ${totalDesc} total · ${shownKids} shown`
+                        : `+${totalDesc} subcodes · ${rolledUp} coded`}
+                    </text>
+                  </g>
+                )}
+                <title>{c.name}{counts.get(c.id) ? ` (${counts.get(c.id)} coded)` : ''}</title>
+              </g>
+            );
+          });
+  const objectOrder=new Map(objects.map(o=>[o.key,o.layer]));
+  const objectElements=[...annotationElements,...codeElements].filter(Boolean).sort((a,b)=>(objectOrder.get(String(a!.key))||0)-(objectOrder.get(String(b!.key))||0));
   return (
-    <div style={{
+    <div className={'visualization-editor'+(inspectorOpen?'':' inspector-collapsed')} style={{
       display: 'flex',
       flexDirection: 'column',
       flex: 1,
@@ -1186,9 +1375,10 @@ export default function CodeMap({
         boxSizing: 'border-box'
       } : { position: 'relative' })
     }}>
-      <div className="map-toolbar" aria-label="Code Map tools">
-        <strong className="map-title">Code Map</strong>
-        <ToolMenu label="View">
+      {designOpen&&onApplySuggestion&&<MapSuggestions projectId={projectId} name={annotations.find(a=>a.id===mapDesign?.hubId)?.text||projectName||'Research themes'} codes={codes} segments={codedSegments} initialDesign={mapDesign} onApply={s=>onApplySuggestion({...s,design:{...s.design,family:'code-map'}})} onClose={()=>setDesignOpen(false)}/>}
+      <div className="map-toolbar" aria-label="Visualization tools">
+        <div className="map-header-actions"><strong className="map-title">{visualizationTypes.find(t=>t.id===mapDesign?.family)?.name||'Code map'}</strong><button className="mini-btn" title="All visualization types" aria-label="All visualization types" onClick={onLibrary}>▦</button><button className="mini-btn" title="Edit visualization settings" aria-label={'Edit '+(visualizationTypes.find(t=>t.id===mapDesign?.family)?.name||'Code map')+' settings'} onClick={()=>mapDesign?.family&&mapDesign.family!=='code-map'?onConfigure?.():setDesignOpen(true)} disabled={!onApplySuggestion}>⚙</button>
+        </div><aside className="map-tools-rail" aria-label="Drawing tools"><ToolMenu label="View"><label>Find a code<input aria-label="Find code on map" value={findCode} onChange={e=>setFindCode(e.target.value)}/></label>{findCode.trim()&&<div className="map-code-results">{codes.filter(c=>c.name.toLocaleLowerCase().includes(findCode.toLocaleLowerCase())).slice(0,20).map(c=><button key={c.id} onClick={()=>{if(hiddenIds.has(c.id))onUpdateHiddenMapCodes(hiddenMapCodeIds.filter(id=>id!==c.id));setViewMode('full');setSelectedLegend(null);setSelectedMapCodeId(c.id);setJumpCode(c.id);setFindCode('');}}>{c.name}</button>)}</div>}
         <select
           value={viewMode}
           onChange={e => handleViewModeChange(e.target.value as 'auto' | 'full' | 'custom')}
@@ -1236,7 +1426,7 @@ export default function CodeMap({
             checked={showCooc}
             onChange={e => setShowCooc(e.target.checked)}
           />
-          Co-occurrence ({coocCount})
+          {mapDesign&&mapDesign.mode!=='manual'?`Shared-document links (${edges.filter(e=>e.kind==='cooccurrence').length} of ${coocCount})`:`Co-occurrence (${coocCount})`}
         </label>
         {showCooc && (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
@@ -1263,30 +1453,10 @@ export default function CodeMap({
         >
           {drawMode ? 'Cancel draw' : '✏️ Draw edge'}
         </button>
-        <button
-          className="mini-btn"
-          style={annotateMode ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
-          onClick={() => { setAnnotateMode(m => !m); setSelectedKey(null); setSelectedAnnoId(null); }}
-          title="Draw free-standing annotation shapes — not tied to any code"
-        >
-          ✏️ Annotate
-        </button>
-        {annotateMode && (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }} title="Annotation shape — drag on empty canvas to draw; text places a labeled note">
-            {(['rect', 'circle', 'arrow', 'text'] as const).map(s => (
-              <button
-                key={s}
-                className="mini-btn"
-                style={{ padding: '1px 5px', fontSize: '11px', ...(annotateShape === s ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}) }}
-                onClick={() => setAnnotateShape(s)}
-              >
-                {s}
-              </button>
-            ))}
-          </span>
-        )}
+        {annotateMode&&<button onClick={()=>setAnnotateMode(false)}>Cancel shape drawing</button>}
         </ToolMenu>
-        <ToolMenu label="Canvas">
+        <ToolMenu label="Shapes"><DrawingShapes selected={annotateShape} onSelect={shape=>{setAnnotateShape(shape.id);setAnnotateMode(true);setDrawMode(false);setSelectedKey(null);setSelectedAnnoId(null);}}/></ToolMenu>
+        <ToolMenu label="Arrange">{selection.toolbar}</ToolMenu><ToolMenu label="Colours"><MapPaletteGallery custom={customMapPalettes} selected={mapDesign?.paletteId} inverted={mapDesign?.paletteInverted} onApply={onApplyPalette} onSave={onSavePalette}/></ToolMenu><ToolMenu label="Canvas">
         <select
           value={customMode ? 'custom' : String(presetIdx)}
           onChange={e => selectCanvasPreset(e.target.value)}
@@ -1370,96 +1540,7 @@ export default function CodeMap({
           ➕ Add codes
         </button>
         </ToolMenu>
-        <ToolMenu label="Export">
-        <label className="mini-label" style={{ fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }} title="Bake the legend into exported SVG / PNG / JPEG">
-          <input
-            type="checkbox"
-            checked={includeLegendInExport}
-            onChange={e => setIncludeLegendInExport(e.target.checked)}
-          />
-          Export legend
-        </label>
-        <button className="mini-btn" onClick={exportSvg}>⬇️ SVG</button>
-        <button className="mini-btn" onClick={() => exportRaster('png')}>⬇️ PNG</button>
-        <button className="mini-btn" onClick={() => exportRaster('jpeg')}>⬇️ JPEG</button>
-        </ToolMenu>
-        <div className="map-zoom">
-          <button title="Zoom out" aria-label="Zoom out" onClick={() => manualZoom(zoom - 0.1)}>−</button>
-          <input aria-label="Map zoom" type="range" min={10} max={400} step={10} value={Math.max(10, Math.round(zoom * 100))} onChange={e => manualZoom(Number(e.target.value) / 100)} />
-          <span>{Math.round(zoom * 100)}%</span>
-          <button title="Zoom in" aria-label="Zoom in" onClick={() => manualZoom(zoom + 0.1)}>+</button>
-          <button aria-pressed={fitToWindow} onClick={() => setFitToWindow(true)}>Fit</button>
-          <button title="Reset to actual size" onClick={() => manualZoom(1)}>100%</button>
-        </div>
-        <button
-          className="mini-btn"
-          onClick={() => setIsFullscreen(v => !v)}
-          title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Expand the whole map panel to fill the window'}
-        >
-          {isFullscreen ? '✕ Exit fullscreen' : '⛶ Fullscreen'}
-        </button>
-        <ToolMenu label="Help">
-          <p>Drag nodes to rearrange; right-click a node to change its shape. Node size reflects coding frequency.</p>
-          <p>Click a leaf node to select it. Remove from map hides it; Add codes brings it back. Click a folded node or its + badge to expand or collapse it.</p>
-          <p>Fit shows the whole canvas and follows window resizing. Zoom in for detail; canvas size and export resolution are independent of screen zoom.</p>
-        </ToolMenu>
-        {drawMode && <span className="map-mode">Drawing edge</span>}
-        {annotateMode && <span className="map-mode">Annotating · {annotateShape}</span>}
-      </div>
-
-      {showAddCodes && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 40,
-            right: 12,
-            zIndex: 20,
-            background: 'var(--panel)',
-            border: '1px solid var(--border)',
-            borderRadius: '6px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            padding: '8px',
-            maxHeight: 260,
-            overflowY: 'auto',
-            minWidth: 220
-          }}
-        >
-          <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6 }}>Add codes to canvas</div>
-          {hiddenMapCodeIds.length === 0 && (
-            <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>All codes are on the canvas.</div>
-          )}
-          {hiddenMapCodeIds.map(id => {
-            const c = codes.find(x => x.id === id);
-            if (!c) return null;
-            return (
-              <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, padding: '2px 0' }}>
-                <span className="code-swatch" style={{ background: c.color, width: 10, height: 10, borderRadius: 2, flexShrink: 0 }} />
-                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.name}>{c.name}</span>
-                <button
-                  className="mini-btn"
-                  style={{ fontSize: 10, padding: '1px 5px' }}
-                  onClick={() => {
-                    onUpdateHiddenMapCodes(hiddenMapCodeIds.filter(x => x !== id));
-                    if (onShowToast) onShowToast(`Added "${c.name}" to the canvas.`);
-                  }}
-                >
-                  Add
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {drawMode && (
-        <div className="section-hint" style={{ marginBottom: 6 }}>
-          {drawSource
-            ? <>Click a <strong>second</strong> node to connect it to <strong>{shownCodes.find(c => c.id === drawSource)?.name || '…'}</strong>.</>
-            : <>Click the <strong>source</strong> node to start a custom edge.</>}
-        </div>
-      )}
-
-      {selectedEdge && (
+        <button className="mini-btn" aria-label="Edit text / fonts" title="Text formatting" aria-pressed={textEditorOpen} onClick={()=>setTextEditorOpen(v=>!v)}>T</button><ToolMenu label="Link">{selectedEdge && (<><label>Line colour<MapColorPicker label="Map relationship colour" value={selectedEdge.style?.color||mapColors[selectedEdge.kind]} onChange={color=>commitStyle(selectedEdge,{color})}/></label>
         <div className="sort-row" style={{ gap: '8px', marginBottom: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
           <span style={{ fontSize: '12px', fontWeight: 600 }}>
             {selectedEdge.kind === 'custom'
@@ -1521,74 +1602,6 @@ export default function CodeMap({
             )}
           </span>
 
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-            <button
-              className="mini-btn"
-              style={{ padding: '1px 6px', fontSize: '11px' }}
-              onClick={() => commitStyle(selectedEdge, { color: undefined })}
-              title="Reset to default color"
-            >
-              ⬤
-            </button>
-            {COLOR_PALETTE.map(col => (
-              <button
-                key={col}
-                className="mini-btn"
-                style={{
-                  width: '16px', height: '16px', padding: 0, borderRadius: '50%',
-                  backgroundColor: col,
-                  border: selectedEdge.style?.color === col ? '2px solid var(--accent)' : '1px solid var(--border)'
-                }}
-                onClick={() => commitStyle(selectedEdge, { color: col })}
-                title={col}
-              />
-            ))}
-          </span>
-
-          <input
-            type="text"
-            placeholder="Edge label…"
-            defaultValue={selectedEdge.style?.label || ''}
-            onBlur={e => {
-              const v = e.target.value.trim();
-              if (v !== (selectedEdge.style?.label || '')) commitStyle(selectedEdge, { label: v || undefined });
-            }}
-            onKeyDown={e => {
-              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-            }}
-            style={{ fontSize: '12px', padding: '2px 6px', width: '130px' }}
-          />
-
-          {selectedEdge.style?.label && (
-            <>
-              <select
-                value={selectedEdge.style?.labelFontSize || 12}
-                onChange={e => commitStyle(selectedEdge, { labelFontSize: Number(e.target.value) })}
-                style={{ fontSize: '12px', padding: '2px 4px' }}
-                title="Label font size"
-              >
-                {[10, 12, 14, 16, 20, 24].map(sz => (
-                  <option key={sz} value={sz}>{sz}px</option>
-                ))}
-              </select>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                {COLOR_PALETTE.map(col => (
-                  <button
-                    key={col}
-                    className="mini-btn"
-                    style={{
-                      width: '14px', height: '14px', padding: 0, borderRadius: '50%',
-                      backgroundColor: col,
-                      border: selectedEdge.style?.labelColor === col ? '2px solid var(--accent)' : '1px solid var(--border)'
-                    }}
-                    onClick={() => commitStyle(selectedEdge, { labelColor: col })}
-                    title={`Label color: ${col}`}
-                  />
-                ))}
-              </span>
-            </>
-          )}
-
           {selectedEdge.style && selectedEdge.kind === 'custom' && (
             <button
               className="mini-btn"
@@ -1607,183 +1620,123 @@ export default function CodeMap({
               ↺ Reset style
             </button>
           )}
+        </div></>
+      )}{!selectedEdge&&<small>Select a relationship to change its line, arrow or colour.</small>}</ToolMenu><ToolMenu label="Node">
+        {(()=>{const code=codes.find(c=>c.id===selectedMapCodeId);if(!code)return <p>Select a node to edit its style or open its research records.</p>;const appearance=code.mapAppearance||{fill:code.color,stroke:code.color,width:180,height:80,fontSize:16};return <><strong>{code.name}</strong><small>{counts.get(code.id)||0} directly coded passages</small>{onOpenCode&&<button onClick={()=>onOpenCode(code.id)}>Open code details</button>}{onOpenCodeMemo&&<button disabled={!code.summary.trim()} onClick={()=>onOpenCodeMemo(code.id)}>Open code memo</button>}<label>Node shape<select aria-label="Node shape" value={code.mapShape||'circle'} onChange={e=>onUpdateCode(code.id,{mapShape:e.target.value as Code['mapShape']})}>{SHAPES.map(shape=><option key={shape}>{shape}</option>)}</select></label><label>Map fill<MapColorPicker label="Map node fill" value={appearance.fill} onChange={fill=>onUpdateCode(code.id,{mapAppearance:{...appearance,fill}})}/></label><label>Map border<MapColorPicker label="Map node border" value={appearance.stroke} onChange={stroke=>onUpdateCode(code.id,{mapAppearance:{...appearance,stroke}})}/></label><button onClick={()=>onUpdateCode(code.id,{mapAppearance:undefined,mapShape:'circle'})}>Reset node style</button></>;})()}
+        </ToolMenu><ToolMenu label="Legend"><button onClick={()=>setShowLegend(v=>!v)}>{showLegend?'Hide legend':'Show legend'}</button><label>Columns<select aria-label="Legend columns" value={legendSettings.columns||1} onChange={e=>setLegendSettings(v=>({...v,columns:Number(e.target.value)}))}><option value={1}>1</option><option value={2}>2</option><option value={3}>3</option></select></label><button onClick={()=>setLegendSettings({})}>Reset legend</button><small>Double-click labels to edit. Drag the background to move; drag the corner to resize. Save a draft to keep your changes.</small>{[...legendEntries].sort((a,b)=>(legendSettings.order?.indexOf(a.key)??-1)-(legendSettings.order?.indexOf(b.key)??-1)).map((entry,i,rows)=><div key={entry.key} className="map-draft-row"><label><input type="checkbox" aria-label={'Show legend entry '+entry.label} checked={!legendSettings.hidden?.includes(entry.key)} onChange={e=>setLegendSettings(v=>({...v,hidden:e.target.checked?(v.hidden||[]).filter(k=>k!==entry.key):[...(v.hidden||[]),entry.key]}))}/>{legendSettings.labels?.[entry.key]??entry.label}</label>{[-1,1].map(d=><button key={d} aria-label={(d<0?'Move legend entry up ':'Move legend entry down ')+entry.label} disabled={i+d<0||i+d>=rows.length} onClick={()=>{const order=rows.map(r=>r.key);[order[i],order[i+d]]=[order[i+d],order[i]];setLegendSettings(v=>({...v,order}));}}>{d<0?'↑':'↓'}</button>)}</div>)}</ToolMenu><ToolMenu label="Drafts"><label>Draft name<input aria-label="Map draft name" value={draftName} onChange={e=>setDraftName(e.target.value)} placeholder="e.g. Findings — first draft"/></label><button disabled={!draftName.trim()||!onSaveDraft} onClick={()=>{onSaveDraft?.(draftName,{cloudStopDraft,width:canvas.w,height:canvas.h,viewMode,expandedRoots:Array.from(expandedRoots),childrenPerRoot,showCooc,minShared,showLegend,includeLegendInExport,legendPos,exportScale,publicationWidthMm,legend:legendSettings});setDraftMessage('Draft stored in this project.');}}>Save map draft</button>{draftMessage&&<small role="status">{draftMessage}</small>}<small>Using an existing name replaces that draft. Layouts store links to codes, not copies of transcripts.</small>{drafts?.map(d=><div className="map-draft-row" key={d.id}><span>{d.name}</span><button onClick={()=>{onRestoreDraft?.(d.id);setDraftName(d.name);setDraftMessage('Draft loaded.');}}>Load</button><button aria-label={'Delete map draft '+d.name} onClick={()=>onDeleteDraft?.(d.id)}>Delete</button></div>)}</ToolMenu><ToolMenu label="Export"><label>Image resolution<select aria-label="Map export resolution" value={exportScale} onChange={e=>setExportScale(Number(e.target.value))}><option value={1}>1×</option><option value={2}>2×</option><option value={3.125}>High resolution (3.125×)</option></select></label><small>SVG retains vector text/shapes; PNG/JPEG use the selected pixel resolution.</small><label>Printed width (mm)<input aria-label="Figure print width" type="number" min={60} max={500} value={publicationWidthMm} onChange={e=>{const value=Number(e.target.value);if(value>=60&&value<=500){setPublicationWidthMm(value);setPrintCheck('');}}}/></label><button onClick={()=>{const sizes=Array.from(svgRef.current?.querySelectorAll('text')||[]).filter(el=>includeLegendInExport||!el.closest('[data-map-legend]')).map(el=>Number(el.getAttribute('data-export-font-size')||el.getAttribute('font-size'))).filter(n=>n>0),pt=sizes.length?Math.min(...sizes)*publicationWidthMm/canvas.w*72/25.4:0,scale=Math.min(exportScale,8192/Math.max(canvas.w,canvas.h),Math.sqrt(40000000/(canvas.w*canvas.h)));setPrintCheck((pt?'Smallest text ≈ '+pt.toFixed(1)+' pt. ':'No figure text. ')+Math.round(canvas.w*scale)+' × '+Math.round(canvas.h*scale)+' pixels; ≈ '+Math.round(canvas.w*scale/publicationWidthMm*25.4)+' dpi at this width. '+(pt&&pt<8?'For small text, reduce items, enlarge fonts or use a wider figure.':''));}}>Check print readability</button>{printCheck&&<small role="status">{printCheck}</small>}
+        <label className="mini-label" style={{ fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }} title="Bake the legend into exported SVG / PNG / JPEG">
+          <input
+            type="checkbox"
+            checked={includeLegendInExport}
+            onChange={e => setIncludeLegendInExport(e.target.checked)}
+          />
+          Export legend
+        </label>
+        <button className="mini-btn" onClick={exportSvg}>⬇️ SVG</button>
+        <button className="mini-btn" onClick={() => exportRaster('png')}>⬇️ PNG</button>
+        <button className="mini-btn" onClick={() => exportRaster('jpeg')}>⬇️ JPEG</button>
+        </ToolMenu>
+        </aside><div className="map-header-view"><button className="mini-btn" aria-label="Toggle inspector" title="Show/hide inspector" aria-pressed={inspectorOpen} onClick={()=>setInspectorOpen(v=>!v)}>☷</button><div className="map-zoom">
+          <button title="Zoom out" aria-label="Zoom out" onClick={() => manualZoom(zoom - 0.1)}>−</button>
+          <input aria-label="Map zoom" type="range" min={10} max={400} step={10} value={Math.max(10, Math.round(zoom * 100))} onChange={e => manualZoom(Number(e.target.value) / 100)} />
+          <span>{Math.round(zoom * 100)}%</span>
+          <button title="Zoom in" aria-label="Zoom in" onClick={() => manualZoom(zoom + 0.1)}>+</button>
+          <button aria-pressed={fitToWindow} onClick={() => setFitToWindow(true)}>Fit</button>
+          <button title="Reset to actual size" onClick={() => manualZoom(1)}>100%</button>
         </div>
-      )}
+        <button
+          className="mini-btn"
+          onClick={() => setIsFullscreen(v => !v)}
+          title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Expand the whole map panel to fill the window'}
+        >
+          {isFullscreen ? '✕ Exit fullscreen' : '⛶ Fullscreen'}
+        </button>
+        <ToolMenu label="Help">
+          <p>Drag nodes to rearrange; right-click a node to change its shape. Node size reflects coding frequency.</p>
+          <p>Click a leaf node to select it. Remove from map hides it; Add codes brings it back. Click a folded node or its + badge to expand or collapse it.</p>
+          <p>Fit shows the whole canvas and follows window resizing. Zoom in for detail; canvas size and export resolution are independent of screen zoom.</p>
+        </ToolMenu>
+        {drawMode && <span className="map-mode">Drawing edge</span>}
+        {annotateMode && <span className="map-mode">Drawing · {drawingShapes.find(s=>s.id===annotateShape)?.name}</span>}
+      </div>
+      </div>
 
-      {selectedAnno && (
-        <div className="sort-row" style={{ gap: '8px', marginBottom: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontSize: '12px', fontWeight: 600 }}>
-            Annotation · {selectedAnno.kind}
-          </span>
+      <aside className="map-inspector" aria-label="Text and appearance inspector" hidden={!inspectorOpen}><h3>Inspector</h3>{cloudSizing&&<p role="status">Refitting words…</p>}
 
-          {selectedAnno.kind !== 'text' && (
-            <select
-              value={selectedAnno.lineStyle}
-              onChange={e => updateSelectedAnno({ lineStyle: e.target.value as MapAnnotation['lineStyle'] })}
-              style={{ fontSize: '12px', padding: '2px 4px' }}
-            >
-              <option value="solid">Solid</option>
-              <option value="dashed">Dashed</option>
-              <option value="dotted">Dotted</option>
-            </select>
-          )}
 
-          {selectedAnno.kind === 'text' && (
-            <>
-              <button
-                className="mini-btn"
-                onClick={() => {
-                  setEditingAnnoId(selectedAnno.id);
-                  openTextPrompt(selectedAnno.x, selectedAnno.y, window.innerWidth / 2 - 90, 140);
-                }}
-              >
-                ✏️ Edit text
-              </button>
-              <select
-                value={selectedAnno.fontSize ?? 14}
-                onChange={e => updateSelectedAnno({ fontSize: Number(e.target.value) })}
-                style={{ fontSize: '12px', padding: '2px 4px' }}
-                title="Font size"
-              >
-                {[10, 12, 14, 16, 20, 24, 32].map(sz => (
-                  <option key={sz} value={sz}>{sz}px</option>
-                ))}
-              </select>
-              <button
-                className="mini-btn"
-                style={{ fontWeight: 700, ...(selectedAnno.bold !== false ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}) }}
-                onClick={() => updateSelectedAnno({ bold: selectedAnno.bold === false })}
-                title="Bold"
-              >
-                B
-              </button>
-              <button
-                className="mini-btn"
-                style={{ fontStyle: 'italic', ...(selectedAnno.italic ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}) }}
-                onClick={() => updateSelectedAnno({ italic: !selectedAnno.italic })}
-                title="Italic"
-              >
-                I
-              </button>
-            </>
-          )}
-
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-            {COLOR_PALETTE.map(col => (
-              <button
-                key={col}
-                className="mini-btn"
-                style={{
-                  width: '16px', height: '16px', padding: 0, borderRadius: '50%',
-                  backgroundColor: col,
-                  border: selectedAnno.color === col ? '2px solid var(--accent)' : '1px solid var(--border)'
-                }}
-                onClick={() => updateSelectedAnno({ color: col })}
-                title={col}
-              />
-            ))}
-          </span>
-
-          <button
-            className="mini-btn"
-            style={{ color: '#ef4444' }}
-            onClick={() => {
-              onUpdateAnnotations(annotations.filter(a => a.id !== selectedAnno.id));
-              setSelectedAnnoId(null);
-            }}
-          >
-            🗑 Delete
-          </button>
-        </div>
-      )}
-
-      {textPrompt && (
-        <input
-          ref={annoTextRef}
-          autoFocus
-          defaultValue={editingAnnoId ? (annotations.find(a => a.id === editingAnnoId)?.text || '') : ''}
-          placeholder="Annotation label…"
+      <div className="map-format-strip">{textEditorOpen&&(()=>{const node=codes.find(c=>c.id===selectedMapCodeId);if(selectedLegend&&showLegend)return <MapTextEditor label={selectedLegend==='title'?'Legend title':'Legend entry'} style={{fontSize:14,...legendSettings,...legendSettings.styles?.[selectedLegend]}} onEdit={()=>setLegendEditRequest(n=>n+1)} onStyle={patch=>setLegendSettings(v=>selectedLegend==='title'?{...v,...patch}:{...v,styles:{...v.styles,[selectedLegend]:{...v.styles?.[selectedLegend],...patch}}})} onDelete={()=>{if(selectedLegend==='title')setShowLegend(false);else setLegendSettings(v=>({...v,hidden:[...(v.hidden||[]),selectedLegend]}));setSelectedLegend(null);}}/>;if(selectedAnno)return <MapTextEditor key={'annotation:'+selectedAnno.id} label="Annotation / topic text" text={selectedAnno.text||''} style={{...selectedAnno,fontSize:(cloudSizing?.id===selectedAnno.id?cloudSizing.size:selectedAnno.fontSize)||(selectedAnno.labelInside?20:14),textColor:selectedAnno.textColor||selectedAnno.color}} onEdit={()=>beginInline('annotation',selectedAnno.id)} onStyle={patch=>updateSelectedAnno(selectedAnno.kind==='text'&&patch.textColor?{...patch,color:patch.textColor}:patch)} onDelete={()=>{onUpdateAnnotations(annotations.filter(a=>a.id!==selectedAnno.id&&a.fromAnnotationId!==selectedAnno.id&&a.toAnnotationId!==selectedAnno.id));setSelectedAnnoId(null);}}/>;if(selectedEdge)return <MapTextEditor key={'edge:'+selectedEdge.key} label="Relationship label" text={selectedEdge.style?.label||''} style={{fontFamily:selectedEdge.style?.labelFontFamily,fontSize:selectedEdge.style?.labelFontSize||12,rotation:selectedEdge.style?.labelRotation,writingMode:selectedEdge.style?.labelWritingMode,textDirection:selectedEdge.style?.labelTextDirection,textColor:selectedEdge.style?.labelColor||'#334155',bold:selectedEdge.style?.labelBold,italic:selectedEdge.style?.labelItalic,underline:selectedEdge.style?.labelUnderline}} onEdit={()=>beginInline('edge',selectedEdge.key)} onStyle={patch=>commitStyle(selectedEdge,{...(patch.rotation!==undefined?{labelRotation:patch.rotation}:{}),...(patch.writingMode!==undefined?{labelWritingMode:patch.writingMode}:{}),...(patch.textDirection!==undefined?{labelTextDirection:patch.textDirection}:{}),...(patch.fontFamily!==undefined?{labelFontFamily:patch.fontFamily}:{}),...(patch.fontSize!==undefined?{labelFontSize:patch.fontSize}:{}),...(patch.textColor!==undefined?{labelColor:patch.textColor}:{}),...(patch.bold!==undefined?{labelBold:patch.bold}:{}),...(patch.italic!==undefined?{labelItalic:patch.italic}:{}),...(patch.underline!==undefined?{labelUnderline:patch.underline}:{})})}/>;if(node){const appearance=node.mapAppearance||{fill:node.color,stroke:node.color,width:180,height:80,fontSize:16};return <MapTextEditor key={'code:'+node.id} label={'Code label — '+node.name} text={node.mapLabel??node.name} style={appearance} onEdit={()=>beginInline('code',node.id)} onStyle={patch=>onUpdateCode(node.id,{mapAppearance:{...appearance,...patch}})} onRename={()=>beginInline('rename',node.id)}/>;}return <p className="map-text-hint">Double-click a label to edit it in place. Select an item for formatting.</p>;})()}
+      </div>
+      <div className="visualization-detail-strip">{selectedAnno?.flowNodeLabel&&<section aria-label="Sankey label placement"><strong>Node label placement</strong><label>Position<select aria-label="Sankey label position" value={selectedAnno.flowLabelPlacement||'free'} onChange={e=>updateSelectedAnno({flowLabelPlacement:e.target.value as MapAnnotation['flowLabelPlacement'],...(e.target.value==='inside'?{flowLabelDistance:2}:{})})}><option value="free">Free position</option><option value="inside">Inside bar</option><option value="outside-right">Outside right</option><option value="outside-left">Outside left</option><option value="above">Above bar</option><option value="below">Below bar</option></select></label><label>{selectedAnno.flowLabelPlacement==='inside'?'Inner padding':'Distance from boundary'}<input aria-label="Sankey label boundary distance" type="number" min={0} max={300} value={selectedAnno.flowLabelDistance??14} onChange={e=>updateSelectedAnno({flowLabelDistance:Math.max(0,Math.min(300,Number(e.target.value)||0))})}/></label><small>Anchored labels follow their bar. Text fits the available box; use Free position for manual placement.</small></section>}
+      {selectedAnno&&selectedAnno.kind!=='text'&&<div className="visualization-source-links">{selectedAnno.kind!=='arrow'&&<MapColorPicker label="Shape fill" value={selectedAnno.fill||'#ffffff'} onChange={fill=>updateSelectedAnno({fill})}/>}<MapColorPicker label="Shape border" value={selectedAnno.color} onChange={color=>updateSelectedAnno({color})}/><label>Opacity <input aria-label="Shape opacity" type="range" min={.1} max={1} step={.05} value={selectedAnno.fillOpacity??1} onChange={e=>updateSelectedAnno({fillOpacity:Number(e.target.value)})}/></label></div>}
+      {selectedAnno&&(selectedAnno.sourceDocIds?.length||selectedAnno.sourceCodeIds?.length)?<div className="visualization-source-links map-inspector-evidence"><strong>Sources:</strong>{selectedAnno.sourceDocIds?.map(id=>{const doc=docs.find(d=>d.id===id);return doc?<button key={id} onClick={()=>onOpenDocument?.(id)}>{doc.name}</button>:null;})}{selectedAnno.sourceCodeIds?.map(id=>{const code=codes.find(c=>c.id===id);return code?<button key={'code:'+id} onClick={()=>onOpenCode?.(id)}>{code.name}</button>:null;})}</div>:null}
+      </div>
+      {mapDesign?.family==='word-cloud'&&onApplySuggestion&&<CloudStopWords value={cloudStopDraft} onChange={setCloudStopDraft} options={mapDesign.options} data={{id:projectId,name:projectName||'Word cloud',codes,docs,codedSegments}} palette={basePalette} inverted={mapDesign.paletteInverted} annotations={sourceAnnotations} description={mapDesign.description} onApply={onApplySuggestion}/>}
+      {mapDesign?.family&&<div className="visualization-snapshot">Editable snapshot · {visualizationTypes.find(t=>t.id===mapDesign.family)?.name} · Use ⚙ for this graph’s settings; ▦ for all types. Your working canvas is kept when you leave. Save a named draft to keep another version.</div>}
+      </aside>
+      {showAddCodes && (
+        <div
           style={{
-            position: 'fixed',
-            top: textPrompt.ty + 14,
-            left: textPrompt.tx,
-            zIndex: 30,
-            fontSize: '12px',
-            padding: '2px 6px',
-            width: '180px',
-            border: '1px solid var(--accent)',
-            borderRadius: '4px'
+            position: 'absolute',
+            top: 40,
+            right: 12,
+            zIndex: 20,
+            background: 'var(--panel)',
+            border: '1px solid var(--border)',
+            borderRadius: '6px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            padding: '8px',
+            maxHeight: 260,
+            overflowY: 'auto',
+            minWidth: 220
           }}
-          onKeyDown={e => {
-            if (e.key === 'Enter') commitTextPrompt();
-            if (e.key === 'Escape') closeTextPrompt();
-          }}
-          onBlur={commitTextPrompt}
-        />
+        >
+          <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6 }}>Add codes to canvas</div>
+          {hiddenMapCodeIds.length === 0 && (
+            <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>All codes are on the canvas.</div>
+          )}
+          {hiddenMapCodeIds.map(id => {
+            const c = codes.find(x => x.id === id);
+            if (!c) return null;
+            return (
+              <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, padding: '2px 0' }}>
+                <span className="code-swatch" style={{ background: c.color, width: 10, height: 10, borderRadius: 2, flexShrink: 0 }} />
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.name}>{c.name}</span>
+                <button
+                  className="mini-btn"
+                  style={{ fontSize: 10, padding: '1px 5px' }}
+                  onClick={() => {
+                    onUpdateHiddenMapCodes(hiddenMapCodeIds.filter(x => x !== id));
+                    if (onShowToast) onShowToast(`Added "${c.name}" to the canvas.`);
+                  }}
+                >
+                  Add
+                </button>
+              </div>
+            );
+          })}
+        </div>
       )}
 
-      {/* The legend must NEVER live inside the zoomed/scrolling inner div:
-          absolute positioning inside a scroller anchors to its scrollable
-          content (content-bottom etc.), so the legend scrolled off — or
-          vanished at any non-default zoom. It is a sibling of the scroll
-          container here, pinned to the outer wrapper: fixed regardless of
-          zoom level or scroll position. Outer wrapper also gives the
-          scroll container its (absolute) bounds. */}
-      <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
-        {showLegend && (
-          <div
-            style={{
-              position: 'absolute', top: legendPos.y, left: legendPos.x, zIndex: 10,
-              background: 'var(--panel)', border: '1px solid var(--border)',
-              borderRadius: '6px', padding: '6px 10px', fontSize: '11px',
-              color: 'var(--text-dim)', boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
-              cursor: 'grab', userSelect: 'none'
-            }}
-            onMouseDown={e => {
-              if (e.button !== 0) return;
-              e.stopPropagation();
-              setLegendDrag({ startX: e.clientX, startY: e.clientY, origX: legendPos.x, origY: legendPos.y });
-            }}
-          >
-            <div style={{ fontWeight: 600, marginBottom: 4, color: 'var(--text)' }}>Legend</div>
-            {presentKinds.has('hierarchy') && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ display: 'inline-block', borderTop: '2px solid #cbd5e1', width: 14 }} />
-                Hierarchy
-              </div>
-            )}
-            {presentKinds.has('cooccurrence') && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ display: 'inline-block', borderTop: '2px solid #a78bfa', width: 14 }} />
-                Co-occurrence
-              </div>
-            )}
-            {presentKinds.has('custom') && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ display: 'inline-block', borderTop: '2px dashed #64748b', width: 14 }} />
-                Custom
-              </div>
-            )}
-            {presentKinds.has('cooccurrence') && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                <span style={{ display: 'inline-block', borderTop: '3px solid #a78bfa', width: 8 }} />
-                <span style={{ display: 'inline-block', borderTop: '5px solid #a78bfa', width: 8 }} />
-                <span style={{ display: 'inline-block', borderTop: '8px solid #a78bfa', width: 8 }} />
-                <span style={{ color: 'var(--text)' }}>weak → strong</span>
-              </div>
-            )}
-          </div>
-        )}
+      {drawMode && (
+        <div className="section-hint" style={{ marginBottom: 6 }}>
+          {drawSource
+            ? <>Click a <strong>second</strong> node to connect it to <strong>{shownCodes.find(c => c.id === drawSource)?.name || '…'}</strong>.</>
+            : <>Click the <strong>source</strong> node to start a custom edge.</>}
+        </div>
+      )}
+
+      <div className="map-canvas-frame" style={{ flex: 1, minHeight: 0, position: 'relative' }}>
         <div ref={viewportRef} className="map-viewport">
-        <div style={{ width: `${canvas.w * zoom}px`, height: `${canvas.h * zoom}px`, margin: '20px' }}>
+        <div className="map-stage" style={{width:canvas.w*zoom+40,height:canvas.h*zoom+40}}>
         <svg
           ref={svgRef}
+          onMouseDownCapture={selection.capture} onClickCapture={selection.onClickCapture}
           viewBox={`0 0 ${canvas.w} ${canvas.h}`}
           width={canvas.w * zoom}
           height={canvas.h * zoom}
           style={{
             display: 'block',
-            backgroundColor: 'white',
+            backgroundColor: mapDesign&&mapDesign.mode!=='manual'?'#fffcf6':'white',
             boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
             cursor: annotateMode ? 'crosshair' : (drag ? 'grabbing' : 'grab')
           }}
@@ -1795,18 +1748,13 @@ export default function CodeMap({
             if (e.target !== e.currentTarget) return;
             annoClickGuardRef.current = true;
             const pt = toViewBox(e);
-            if (annotateShape === 'text') {
-              setEditingAnnoId(null); // always a fresh create here, never an edit
-              openTextPrompt(pt.x, pt.y, e.clientX, e.clientY);
-              return;
-            }
             setAnnoDrag({ x0: pt.x, y0: pt.y, shape: annotateShape });
             const start = { x0: pt.x, y0: pt.y, x1: pt.x, y1: pt.y };
             annoPreviewRef.current = start;
             setAnnoPreview(start);
           }}
           onClick={() => {
-            setSelectedKey(null);
+            setSelectedLegend(null);setSelectedKey(null);
             setSelectedMapCodeId(null);
             setDrawMode(false);
             setDrawSource(null);
@@ -1814,7 +1762,9 @@ export default function CodeMap({
             annoClickGuardRef.current = false;
           }}
         >
-          <defs>
+          <rect data-map-paper width={canvas.w} height={canvas.h} fill={mapDesign&&mapDesign.mode!=='manual'?'#fffcf6':'#ffffff'} pointerEvents="none"/>
+          <defs>{annotations.filter(a=>a.gradientTo).map(a=><linearGradient key={a.id} id={'map-gradient-'+a.id.replace(/[^a-zA-Z0-9_-]/g,'-')}><stop offset="0%" stopColor={a.fill}/><stop offset="100%" stopColor={a.gradientTo}/></linearGradient>)}
+            {mapDesign?.hubId&&(()=>{const hub=annotations.find(a=>a.id===mapDesign.hubId);if(!hub)return null;const live=annoLiveOffset?.id===hub.id?annoLiveOffset:null;return <mask id="map-topic-mask"><rect width={canvas.w} height={canvas.h} fill="white"/><ellipse cx={(live?.x??hub.x)+(hub.width||0)/2} cy={(live?.y??hub.y)+(hub.height||0)/2} rx={(hub.width||0)/2+3} ry={(hub.height||0)/2+3} fill="black"/></mask>;})()}
             <marker id="arrow-end" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke" />
             </marker>
@@ -1826,110 +1776,22 @@ export default function CodeMap({
           {/* Annotations — free-standing shapes, drawn below edges and nodes
               in z-order so they read as marks on the paper, not competing
               code nodes. */}
-          {annotations.map(a => {
-            const selected = selectedAnnoId === a.id;
-            const dash = a.lineStyle === 'dashed' ? '8 5' : a.lineStyle === 'dotted' ? '2 5' : undefined;
-            const sw = selected ? 3 : 2;
-            // Apply the in-progress drag offset (if this is the annotation
-            // currently being dragged) so it visually follows the pointer;
-            // nothing persists until mouseup.
-            const live = annoLiveOffset?.id === a.id ? annoLiveOffset : null;
-            const ax = live?.x ?? a.x;
-            const ay = live?.y ?? a.y;
-            const ax2 = live?.x2 ?? a.x2;
-            const ay2 = live?.y2 ?? a.y2;
-            const select = (ev: React.MouseEvent) => {
-              ev.stopPropagation();
-              if (annoMovedRef.current) { annoMovedRef.current = false; return; }
-              setSelectedKey(null);
-              setSelectedAnnoId(a.id);
-            };
-            const startMove = (ev: React.MouseEvent) => {
-              if (ev.button !== 0 || annotateMode) return;
-              ev.stopPropagation();
-              annoMovedRef.current = false;
-              labelLiveOffsetRef.current = null;
-              setAnnoDragMove({ id: a.id, startX: ev.clientX, startY: ev.clientY, orig: a });
-            };
-            return (
-              <g
-                key={a.id}
-                onMouseDown={startMove}
-                onClick={select}
-                style={{ cursor: annoDragMove?.id === a.id ? 'grabbing' : 'grab' }}
-              >
-                {a.kind === 'rect' && (
-                  <rect
-                    x={ax} y={ay} width={a.width || 0} height={a.height || 0}
-                    fill="none" stroke={a.color} strokeWidth={sw} strokeDasharray={dash}
-                  />
-                )}
-                {a.kind === 'circle' && (
-                  <ellipse
-                    cx={ax + (a.width || 0) / 2} cy={ay + (a.height || 0) / 2}
-                    rx={(a.width || 0) / 2} ry={(a.height || 0) / 2}
-                    fill="none" stroke={a.color} strokeWidth={sw} strokeDasharray={dash}
-                  />
-                )}
-                {a.kind === 'arrow' && (
-                  <path
-                    d={`M ${ax} ${ay} L ${ax2 ?? ax} ${ay2 ?? ay}`}
-                    fill="none" stroke={a.color} strokeWidth={sw} strokeDasharray={dash}
-                    markerEnd="url(#arrow-end)"
-                  />
-                )}
-                {a.kind === 'text' && (
-                  <text
-                    x={ax} y={ay}
-                    fontSize={a.fontSize ?? 14}
-                    fontWeight={a.bold === false ? 400 : 600}
-                    fontStyle={a.italic ? 'italic' : 'normal'}
-                    fill={a.color}
-                  >
-                    {a.text || ''}
-                  </text>
-                )}
-                {a.text && a.kind !== 'text' && (
-                  <text
-                    x={a.kind === 'arrow' ? (ax + (ax2 ?? ax)) / 2 : ax + (a.width || 0) / 2}
-                    y={a.kind === 'arrow' ? (ay + (ay2 ?? ay)) / 2 - 6 : ay - 6}
-                    textAnchor="middle" fontSize={12} fontWeight={600} fill={a.color}
-                  >
-                    {a.text}
-                  </text>
-                )}
-              </g>
-            );
-          })}
-          {annoPreview && (
-            <g pointerEvents="none" opacity={0.5}>
-              {annoDrag?.shape === 'arrow' ? (
-                <path d={`M ${annoPreview.x0} ${annoPreview.y0} L ${annoPreview.x1} ${annoPreview.y1}`} fill="none" stroke={DEFAULT_COLORS.custom} strokeWidth={2} markerEnd="url(#arrow-end)" />
-              ) : annoDrag?.shape === 'circle' ? (
-                <ellipse
-                  cx={(annoPreview.x0 + annoPreview.x1) / 2} cy={(annoPreview.y0 + annoPreview.y1) / 2}
-                  rx={Math.abs(annoPreview.x1 - annoPreview.x0) / 2} ry={Math.abs(annoPreview.y1 - annoPreview.y0) / 2}
-                  fill="none" stroke={DEFAULT_COLORS.custom} strokeWidth={2}
-                />
-              ) : (
-                <rect
-                  x={Math.min(annoPreview.x0, annoPreview.x1)} y={Math.min(annoPreview.y0, annoPreview.y1)}
-                  width={Math.abs(annoPreview.x1 - annoPreview.x0)} height={Math.abs(annoPreview.y1 - annoPreview.y0)}
-                  fill="none" stroke={DEFAULT_COLORS.custom} strokeWidth={2}
-                />
-              )}
-            </g>
-          )}
+          {annoPreview&&(()=>{const shape=drawingShapes.find(s=>s.id===annoDrag?.shape)||drawingShapes[0],a=drawingAnnotation(shape,annoPreview,'preview',mapColors.custom);return <g pointerEvents="none" opacity={.6}>{a.kind==='arrow'?<path d={`M ${a.x} ${a.y} L ${a.x2} ${a.y2}`} fill="none" stroke={a.color} strokeWidth={2} markerEnd={a.arrowHead?'url(#arrow-end)':undefined}/>:a.kind==='circle'?<ellipse cx={a.x+(a.width||0)/2} cy={a.y+(a.height||0)/2} rx={(a.width||0)/2} ry={(a.height||0)/2} fill={a.fill} stroke={a.color}/>:a.polygonPoints?<polygon points={Array.from({length:a.polygonPoints.length/2},(_,i)=>`${a.x+a.polygonPoints![i*2]*(a.width||0)},${a.y+a.polygonPoints![i*2+1]*(a.height||0)}`).join(' ')} fill={a.fill} stroke={a.color}/>:<rect x={a.x} y={a.y} width={a.width} height={a.height} rx={a.cornerRadius?Math.min(a.width||0,a.height||0)*a.cornerRadius:undefined} fill={a.fill||'none'} stroke={a.color}/>}</g>;})()}
 
+          {mapDesign?.hubId&&(()=>{const hub=annotations.find(a=>a.id===mapDesign.hubId);if(!hub)return null;const live=annoLiveOffset?.id===hub.id?annoLiveOffset:null;const center={x:(live?.x??hub.x)+(hub.width||0)/2,y:(live?.y??hub.y)+(hub.height||0)/2};return mapDesign.rootIds.filter(id=>visibleIds.has(id)).map(id=>{const pos=positions.get(id),code=codes.find(c=>c.id===id);if(!pos||!code)return null;const a=ellipseEndpoint(center,pos,hub.width||320,hub.height||210),b=ellipseEndpoint(pos,center,code.mapAppearance?.width||180,code.mapAppearance?.height||80);return <path key={id} data-topic-link={id} d={edgePath(a,b,true)} fill="none" stroke={code.mapAppearance?.stroke||code.color} strokeWidth={4} opacity={.8} pointerEvents="none"/>;});})()}
           {/* Edges */}
           {edges.map(e => {
             const from = positions.get(e.fromId);
             const to = positions.get(e.toId);
             if (!from || !to) return null;
-            const style = e.style;
+            const liveEdge=resizeLive?.kind==='edge'&&resizeLive.id===e.key?resizeLive:null;
+            const style=liveEdge?{...e.style,labelWidth:liveEdge.width,labelHeight:liveEdge.height,labelDx:liveEdge.x+liveEdge.width/2-(from.x+to.x)/2,labelDy:liveEdge.y+liveEdge.height/2-((from.y+to.y)/2-6)}:e.style;
             const isSelected = selectedKey === e.key;
-            const color = style?.color || DEFAULT_COLORS[e.kind];
-            const d = edgePath(from, to, (style?.curve || 'straight') === 'curved');
+            const color = style?.color || mapColors[e.kind];
+            const fromCode=codes.find(c=>c.id===e.fromId),toCode=codes.find(c=>c.id===e.toId);
+            const a=ellipseEndpoint(from,to,fromCode?.mapAppearance?.width||radiusFor(e.fromId,false)*2,fromCode?.mapAppearance?.height||radiusFor(e.fromId,false)*2);
+            const b=ellipseEndpoint(to,from,toCode?.mapAppearance?.width||radiusFor(e.toId,false)*2,toCode?.mapAppearance?.height||radiusFor(e.toId,false)*2);
+            const d = edgePath(a, b, (style?.curve || 'straight') === 'curved');
             const dash =
               (style?.lineStyle || 'solid') === 'dashed' ? '8 5'
                 : (style?.lineStyle || 'solid') === 'dotted' ? '2 5' : undefined;
@@ -1952,7 +1814,7 @@ export default function CodeMap({
               y: (from.y + to.y) / 2 - 6 + (liveLabel ? liveLabel.dy : (style?.labelDy || 0))
             };
             return (
-              <g key={e.key}>
+              <g key={e.key} onDoubleClick={event=>{event.stopPropagation();setSelectedLegend(null);setSelectedKey(e.key);beginInline('edge',e.key);}} data-map-edge={e.key} mask={e.kind==='cooccurrence'&&annotations.some(a=>a.id===mapDesign?.hubId)?'url(#map-topic-mask)':undefined}>
                 {isCooc && (
                   <title>{(sharedDocs.get(pairKey) || 1)} shared document{(sharedDocs.get(pairKey) || 1) === 1 ? '' : 's'}</title>
                 )}
@@ -1963,13 +1825,13 @@ export default function CodeMap({
                   strokeWidth={16}
                   pointerEvents="stroke"
                   style={{ cursor: 'pointer' }}
-                  onClick={ev => { ev.stopPropagation(); setSelectedKey(e.key); setSelectedAnnoId(null); }}
+                  onClick={ev => { ev.stopPropagation(); setSelectedLegend(null);setSelectedKey(e.key); setSelectedAnnoId(null); }}
                 />
                 <path
                   d={d}
                   fill="none"
                   stroke={color}
-                  strokeWidth={isSelected ? width + 2 : width}
+                  data-export-stroke-width={width} data-export-opacity={isCooc && style?.width==null?opacityFor(pairKey):.9} strokeWidth={isSelected ? width + 2 : width}
                   strokeDasharray={dash}
                   markerEnd={markerEnd}
                   markerStart={markerStart}
@@ -1977,18 +1839,7 @@ export default function CodeMap({
                   opacity={opacity}
                 />
                 {style?.label && (
-                  <text
-                    x={labelPos.x}
-                    y={labelPos.y}
-                    textAnchor="middle"
-                    fontSize={style?.labelFontSize || 12}
-                    fontWeight={600}
-                    fill={style?.labelColor || '#334155'}
-                    stroke="#f8fafc"
-                    strokeWidth={3}
-                    paintOrder="stroke"
-                    cursor="move"
-                    onMouseDown={ev => {
+                  <g style={{cursor:'move'}} onMouseDown={ev => {
                       if (ev.button !== 0) return;
                       ev.stopPropagation();
                       labelLiveOffsetRef.current = null;
@@ -1997,117 +1848,57 @@ export default function CodeMap({
                         startX: ev.clientX, startY: ev.clientY,
                         origDx: style?.labelDx || 0, origDy: style?.labelDy || 0
                       });
-                    }}
-                  >
-                    {style.label}
-                  </text>
+                    }}><MapLabel text={style.label} x={labelPos.x} y={labelPos.y} fontSize={style.labelFontSize||12} width={style.labelWidth||250} height={style.labelHeight||70} color={style.labelColor||'#334155'} fontFamily={style.labelFontFamily} bold={style.labelBold!==false} italic={style.labelItalic} underline={style.labelUnderline} rotation={style.labelRotation} writingMode={style.labelWritingMode} textDirection={style.labelTextDirection}/></g>
                 )}
               </g>
             );
           })}
 
           {/* Nodes */}
-          {visibleCodes.map(c => {
-            const pos = positions.get(c.id);
-            if (!pos) return null;
-            const r = radiusFor(c.id, foldMode && c.parentId === null);
-            const isDragging = drag?.id === c.id;
-            const isSelectedNode = selectedMapCodeId === c.id;
-            const shape = c.mapShape || 'circle';
-            const isDrawSource = drawSource === c.id;
-            // Fold badges: folded nodes show their subtree's structure AND activity
-            // ("+12 subcodes · 47 coded"), expanded ones show what's on screen
-            // ("− 12 total · 5 shown"). The badge caption doubles as the
-            // expand/collapse affordance (distinct from selection + drag);
-            // clicking the folded node itself toggles too.
-            const totalDesc = foldMode ? (descendantsCache.get(c.id) || 0) : 0;
-            const rolledUp = foldMode ? (rolledUpCounts.get(c.id) || 0) : 0;
-            const shownKids = visibleChildCount.get(c.id) || 0;
-            const isExpanded = foldMode && expandedRoots.has(c.id);
-            const badgeOn = foldMode && ((totalDesc > 0 && !isExpanded) || (isExpanded && shownKids > 0));
-            return (
-              <g
-                key={c.id}
-                onMouseDown={e => handleNodeMouseDown(e, c)}
-                onClick={e => handleNodeClick(e, c)}
-                onContextMenu={e => cycleShape(e, c)}
-                style={{ cursor: 'grab' }}
-              >
-                <title>{c.name}</title>
-                {shape === 'circle' && (
-                  <circle
-                    cx={pos.x} cy={pos.y} r={r}
-                    fill={c.color}
-                    stroke={isDragging || isDrawSource ? '#0f172a' : isSelectedNode ? '#3b82f6' : 'rgba(15,23,42,0.25)'}
-                    strokeWidth={(isDragging || isDrawSource || isSelectedNode) ? 3 : 1.5}
-                  />
-                )}
-                {shape === 'square' && (
-                  <rect
-                    x={pos.x - r} y={pos.y - r} width={r * 2} height={r * 2}
-                    rx={3}
-                    fill={c.color}
-                    stroke={isDragging || isDrawSource ? '#0f172a' : isSelectedNode ? '#3b82f6' : 'rgba(15,23,42,0.25)'}
-                    strokeWidth={(isDragging || isDrawSource || isSelectedNode) ? 3 : 1.5}
-                  />
-                )}
-                {shape === 'diamond' && (
-                  <polygon
-                    points={`${pos.x},${pos.y - r} ${pos.x + r},${pos.y} ${pos.x},${pos.y + r} ${pos.x - r},${pos.y}`}
-                    fill={c.color}
-                    stroke={isDragging || isDrawSource ? '#0f172a' : isSelectedNode ? '#3b82f6' : 'rgba(15,23,42,0.25)'}
-                    strokeWidth={(isDragging || isDrawSource || isSelectedNode) ? 3 : 1.5}
-                  />
-                )}
-                {isDrawSource && (
-                  <circle cx={pos.x} cy={pos.y} r={r + 6} fill="none" stroke="var(--accent)" strokeWidth={2} strokeDasharray="4 3" pointerEvents="none" />
-                )}
-                <text
-                  x={pos.x}
-                  y={pos.y + r + 14 + (labelDeltas.get(c.id) || 0)}
-                  textAnchor="middle"
-                  data-export-font-size="12"
-                  fontSize={screenLabelSize}
-                  fill="#0f172a"
-                  style={{ pointerEvents: 'none', userSelect: 'none' }}
-                >
-                  {truncated(c.name)}
-                </text>
-                {badgeOn && (
-                  <g
-                    transform={`translate(${pos.x}, ${pos.y + r + 14 + (labelDeltas.get(c.id) || 0) + 14})`}
-                    onMouseDown={e => e.stopPropagation()}
-                    onContextMenu={e => e.stopPropagation()}
-                    onClick={e => toggleExpand(c.id, e)}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <text
-                      x={0}
-                      y={0}
-                      textAnchor="middle"
-                      data-export-font-size="9"
-                      fontSize={Math.max(9, 10 / zoom)}
-                      fontWeight={600}
-                      fill={isExpanded ? '#475569' : '#0f172a'}
-                      stroke="#f8fafc"
-                      strokeWidth={2.5}
-                      paintOrder="stroke"
-                      pointerEvents="none"
-                    >
-                      {isExpanded
-                        ? `− ${totalDesc} total · ${shownKids} shown`
-                        : `+${totalDesc} subcodes · ${rolledUp} coded`}
-                    </text>
-                  </g>
-                )}
-                <title>{c.name}{counts.get(c.id) ? ` (${counts.get(c.id)} coded)` : ''}</title>
-              </g>
-            );
-          })}
+          {objectElements}
+          {showLegend&&<MapLegend entries={legendEntries} settings={legendSettings} position={legendPos} zoom={zoom} selected={selectedLegend} editRequest={legendEditRequest} onSelect={key=>{setSelectedLegend(key);setSelectedAnnoId(null);setSelectedKey(null);setSelectedMapCodeId(null);setTextEditorOpen(true);}} onSettings={setLegendSettings} onPosition={setLegendPos}/> }
+          {selection.overlay}
+          {selection.keys.length<2&&!selectedAnno?.flow&&!inlineEdit&&(()=>{const kind=selectedAnno?'annotation':selectedEdge?'edge':selectedMapCodeId?'code':null,id=selectedAnno?.id||selectedEdge?.key||selectedMapCodeId;if(!kind||!id)return null;const box=resizeLive?.id===id?resizeLive:textBox(kind,id);if(!box)return null;const size=8/zoom;return <g data-map-edit-outline><rect x={box.x} y={box.y} width={box.width} height={box.height} fill="none" stroke="#2563eb" strokeWidth={1/zoom} strokeDasharray={4/zoom+' '+3/zoom} pointerEvents="none"/>{[['nw',0,0],['n',.5,0],['ne',1,0],['e',1,.5],['se',1,1],['s',.5,1],['sw',0,1],['w',0,.5]].map(([handle,px,py])=><rect key={handle} data-map-resize={handle} x={box.x+Number(px)*box.width-size/2} y={box.y+Number(py)*box.height-size/2} width={size} height={size} fill="white" stroke="#2563eb" strokeWidth={1/zoom} style={{cursor:handle+'-resize'}} onMouseDown={event=>{event.preventDefault();event.stopPropagation();resizeLiveRef.current=null;setResizeDrag({kind,id,handle:String(handle),startX:event.clientX,startY:event.clientY,box});}} onClick={event=>event.stopPropagation()}/>)}</g>;})()}
+          {inlineEdit&&(()=>{
+            const code=codes.find(c=>c.id===inlineEdit.id),anno=annotations.find(a=>a.id===inlineEdit.id),edge=edges.find(e=>e.key===inlineEdit.id);
+            let x=0,y=0,width=250,height=90,style:React.CSSProperties={},align:'left'|'center'='left';
+            if(inlineEdit.kind==='code'||inlineEdit.kind==='rename'){if(!code)return null;const pos=positions.get(code.id);if(!pos)return null;const a=code.mapAppearance;const ellipse=code.mapShape==='ellipse';width=a?.width||200;height=ellipse?a?.height||90:80;x=pos.x-width/2;y=ellipse?pos.y-height/2:pos.y+radiusFor(code.id,false)+2;align='center';style={fontFamily:a?.fontFamily,fontSize:a?.fontSize||16,color:a?.textColor||'#253047',fontWeight:a?.bold===false?400:600,fontStyle:a?.italic?'italic':undefined,textDecoration:a?.underline?'underline':undefined};}
+            else if(inlineEdit.kind==='annotation'){if(!anno)return null;const inside=anno.labelInside;const font=anno.fontSize||(inside?20:14);width=anno.width||250;height=anno.height||90;x=anno.x;y=anno.width?anno.y:anno.y-font;if(inside)align='center';else if(anno.kind!=='text'){align='center';y=anno.kind==='arrow'?(anno.y+(anno.y2??anno.y))/2-6-height/2:anno.y-6-height/2;if(anno.kind==='arrow')x=(anno.x+(anno.x2??anno.x))/2-width/2;}style={fontFamily:anno.fontFamily,fontSize:font,color:anno.textColor||anno.color,fontWeight:anno.bold===false?400:600,fontStyle:anno.italic?'italic':undefined,textDecoration:anno.underline?'underline':undefined};}
+            else {if(!edge)return null;const from=positions.get(edge.fromId),to=positions.get(edge.toId);if(!from||!to)return null;x=(from.x+to.x)/2+(edge.style?.labelDx||0)-125;y=(from.y+to.y)/2+(edge.style?.labelDy||0)-30;align='center';style={fontFamily:edge.style?.labelFontFamily,fontSize:edge.style?.labelFontSize||12,color:edge.style?.labelColor||'#334155',fontWeight:edge.style?.labelBold===false?400:600,fontStyle:edge.style?.labelItalic?'italic':undefined,textDecoration:edge.style?.labelUnderline?'underline':undefined};}
+            return <foreignObject data-map-editor x={x} y={y} width={width} height={Math.max(50,height)} onMouseDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()} onDoubleClick={e=>e.stopPropagation()}><textarea autoFocus aria-label="Edit map text in place" value={inlineEdit.value} placeholder="Type here…" style={{...style,textAlign:align,width:'100%',height:'100%',boxSizing:'border-box',resize:'none',padding:8,lineHeight:1.16,background:'rgba(255,255,255,.96)',border:'2px solid #2563eb',borderRadius:4}} onChange={event=>{const next={...inlineEdit,value:event.target.value};inlineEditRef.current=next;setInlineEdit(next);}} onBlur={()=>endInline(true)} onKeyDown={event=>{event.stopPropagation();if(event.key==='Escape'){event.preventDefault();endInline(false);}else if((event.ctrlKey||event.metaKey)&&(event.key==='Enter'||event.key.toLowerCase()==='s')){event.preventDefault();endInline(true);}}}/></foreignObject>;
+          })()}
         </svg>
         </div>
       </div>
       </div>
     </div>
   );
+}
+
+// Keep map navigation state, but refresh its graph only when it is visible.
+const CachedCodeMap = React.memo(CodeMap, (previous, next) => previous.active === false && next.active === false && previous.projectId === next.projectId);
+
+
+export default function DeferredCodeMap(props: Props) {
+  const [enabledProject,setEnabledProject] = useState<string|null>(null);
+  const [family,setFamily]=useState<VisualizationKind|null>(null);
+  const workingView=useRef<CodeMapView>();
+
+  useEffect(()=>{setEnabledProject(null);setFamily(null);workingView.current=undefined;},[props.projectId]);
+  if(props.active===false)return null;
+  const data={id:props.projectId,name:props.projectName||'Research themes',codes:props.codes,analysisPeriods:props.analysisPeriods,docs:props.docs||[],codedSegments:props.codedSegments};
+  const apply=(suggestion:MapSuggestion)=>{workingView.current=undefined;props.onApplySuggestion?.(suggestion);setFamily(null);setEnabledProject(props.projectId);};
+  if(enabledProject!==props.projectId){
+    if(family&&family!=='code-map')return <VisualizationSetup key={family+props.projectId} family={family} data={data} previous={props.mapDesign} onApply={apply} onBack={()=>setFamily(null)}/>;
+    return <section className="visualization-library" aria-label="Visualization library">
+      <header><div><h2>Visualization</h2><p>Choose a type, choose a preset, then generate. Nothing is compiled until you ask.</p></div><button onClick={()=>setEnabledProject(props.projectId)}>Open current canvas</button></header>
+      <div className="visualization-grid">{visualizationTypes.map(type=><button key={type.id} className="visualization-card" onClick={()=>setFamily(type.id)} aria-label={'Create '+type.name}><VisualizationIcon type={type.icon}/><strong>{type.name}</strong><span>{type.description}</span></button>)}</div>
+      {(props.drafts||[]).length>0&&<div className="map-draft-list"><h3>Saved drafts</h3>{props.drafts!.map(d=><div className="map-draft-row" key={d.id}><span>{d.name} · {visualizationTypes.find(t=>t.id===d.design?.family)?.name||'Code map'}</span><button onClick={()=>{workingView.current=undefined;props.onRestoreDraft?.(d.id);setEnabledProject(props.projectId);}}>Open draft</button></div>)}</div>}
+      {family==='code-map'&&<MapSuggestions projectId={props.projectId} name={data.name} codes={props.codes} segments={props.codedSegments} onApply={s=>apply({...s,replaceCanvas:true,design:{...s.design,family:'code-map'}})} onClose={()=>setFamily(null)}/>}
+    </section>;
+  }
+  return <>
+    {family&&family!=='code-map'&&<VisualizationSetup key={family+props.projectId} family={family} data={data} previous={props.mapDesign} onApply={apply} onBack={()=>setFamily(null)} returnToCanvas/>}
+    <div style={{display:family?'none':'flex',flex:1,minHeight:0,flexDirection:'column'}}><CachedCodeMap {...props} onApplySuggestion={apply} mapView={workingView.current||props.mapView} onRestoreDraft={id=>{workingView.current=undefined;props.onRestoreDraft?.(id);}} onRememberView={view=>{workingView.current=view;props.onRememberView?.(view);}} active={!family} onConfigure={()=>setFamily(props.mapDesign?.family||'code-map')} onLibrary={()=>{setEnabledProject(null);setFamily(null);}} /></div>
+  </>;
 }

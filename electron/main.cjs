@@ -345,7 +345,10 @@ async function extractText(filePath) {
 // ---------------------------------------------------------------------
 ipcMain.handle('projects:list', () => listProjects());
 ipcMain.handle('projects:load', (_e, id) => loadProject(id));
-ipcMain.handle('projects:save', (_e, project, metadata) => saveProject(project, metadata));
+ipcMain.handle('projects:save', (_e, project, metadata) => {
+  const saved = saveProject(project, metadata);
+  return { id: saved.id, updatedAt: saved.updatedAt };
+});
 ipcMain.handle('projects:history', (_e, id) => projectHistory.readHistory(db, id));
 ipcMain.handle('projects:checkpoint', (_e, id, label) => {
   const project = loadProject(id); if (!project) throw new Error('Project not found.');

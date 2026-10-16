@@ -19,7 +19,10 @@ export interface OriginalSource {
   textChanged?: boolean; // Original remains unchanged when the coding text is edited
 }
 
+export interface AnalysisPeriod {id:ID;label:string;order:number;}
+
 export interface SourceDoc {
+  periodId?:ID;
   id: ID;
   folderId: ID | null;
   name: string;
@@ -30,6 +33,7 @@ export interface SourceDoc {
   original?: OriginalSource; // optional original binary; older text-only projects need no migration
 }
 
+export interface MapTextOrientation {rotation?:number;writingMode?:'horizontal-tb'|'vertical-rl'|'vertical-lr';textDirection?:'ltr'|'rtl';}
 export interface Code {
   createdAt: number;
   id: ID;
@@ -39,7 +43,10 @@ export interface Code {
   summary: string;       // memo / analytic note text
   definition?: string;   // coding definition: what counts as an instance of this code (codebook rule)
   mapPosition?: { x: number; y: number };  // cached node position for the Code Map view
-  mapShape?: 'circle' | 'square' | 'diamond';  // node shape on the Code Map (defaults to circle)
+  mapShape?: 'circle' | 'square' | 'diamond' | 'ellipse';
+  mapLabel?: string;
+  mapGroupId?:string; mapLayer?:number; mapScale?:number;
+  mapAppearance?: { paletteKey?:string; fill: string; stroke: string; width: number; height: number; fontSize: number; fontFamily?:string; textColor?:string; bold?:boolean; italic?:boolean; underline?:boolean } & MapTextOrientation;
   sortIndex?: number;    // explicit sibling order within the same parent (Code Map tree reorder)
 }
 
@@ -54,19 +61,24 @@ export interface MapEdgeStyle {
   lineStyle: 'solid' | 'dashed' | 'dotted';
   curve: 'straight' | 'curved';
   arrow: 'none' | 'end' | 'both';
+  paletteKey?:string;
   color?: string;      // overrides the default per-kind color if set
   width?: number;      // overrides the computed line width (1-8) if set
   label?: string;       // optional user-added text on the edge
   labelDx?: number;       // label offset from the edge midpoint, viewBox px (drag-to-move)
   labelDy?: number;       // label offset from the edge midpoint, viewBox px
   labelFontSize?: number; // label size — defaults to 12 if unset
+  labelRotation?:number;labelWritingMode?:MapTextOrientation['writingMode'];labelTextDirection?:MapTextOrientation['textDirection'];
   labelColor?: string;    // label color — defaults to '#334155' if unset
+  labelFontFamily?:string; labelBold?:boolean; labelItalic?:boolean; labelUnderline?:boolean; labelWidth?:number; labelHeight?:number;
 }
 
 // A free-standing diagram mark on the Code Map canvas — deliberately NOT tied
 // to any code: annotation layer shapes (rect/circle bounding boxes, arrows,
 // text notes) drawn by the user for interpretation notes, labels, callouts.
-export interface MapAnnotation {
+export interface MapAnnotation extends MapTextOrientation {
+  paletteKey?:string;
+  groupId?:string; layer?:number;
   id: ID;
   kind: 'rect' | 'circle' | 'arrow' | 'text';
   x: number; y: number;      // top-left or center depending on kind
@@ -78,9 +90,59 @@ export interface MapAnnotation {
     fontSize?: number;   // text annotations only — defaults to 14 if unset
   bold?: boolean;      // defaults to true if unset
   italic?: boolean;    // defaults to false if unset
+  fill?: string;
+  shapeType?:string; cornerRadius?:number;
+  flow?:{sourceId:string;targetId:string;sourceOffset:number;targetOffset:number;sourceShare:number;targetShare:number;circular?:boolean;lane?:number;value:number;unit:string;sourceLabel:string;targetLabel:string};
+  gradientTo?:string; gradientKey?:string; flowNodeLabel?:boolean; flowLabelNodeId?:string; flowLabelPlacement?:'inside'|'outside-left'|'outside-right'|'above'|'below'|'free'; flowLabelDistance?:number; flowLabelOutsideSize?:{width:number;height:number};
+  imageData?:string;
+
+  fillOpacity?:number; polygonPoints?:number[];
+  legendLabel?:string; sourceDocIds?:ID[]; sourceCodeIds?:ID[];
+  fromAnnotationId?:ID; toAnnotationId?:ID; arrowHead?:boolean;
+  labelInside?: boolean;
+  fontFamily?:string; textColor?:string; underline?:boolean;
+}
+
+export type VisualizationKind = 'code-map'|'mind-map'|'hierarchy'|'heat-map'|'word-tree'|'process'|'journey'|'pyramid'|'venn'|'honeycomb'|'ecology'|'manual'|'histomap'|'dendrogram'|'sankey'|'word-cloud';
+export interface MapDesign {
+  paletteId?:string; paletteInverted?:boolean;
+  family?:VisualizationKind; generatedAt?:number; description?:string; options?:Record<string,unknown>;
+  mode: 'simple' | 'detailed' | 'manual';
+  width: number; height: number;
+  maxLinks: number;
+  hubId?: string;
+  rootIds: ID[];
+}
+
+export interface MapLegendSettings extends MapTextOrientation {
+  title?:string; width?:number; height?:number; columns?:number;
+  fontFamily?:string; fontSize?:number; textColor?:string; bold?:boolean; italic?:boolean; underline?:boolean;
+  hidden?:string[]; order?:string[]; labels?:Record<string,string>;
+  styles?:Record<string,{fontFamily?:string;fontSize?:number;textColor?:string;bold?:boolean;italic?:boolean;underline?:boolean}&MapTextOrientation>;
+}
+export interface CodeMapView {
+  cloudStopDraft?:string;
+  width: number; height: number;
+  viewMode: 'auto' | 'full' | 'custom';
+  expandedRoots: ID[];
+  childrenPerRoot: number | 'all';
+  showCooc: boolean; minShared: number;
+  showLegend: boolean; includeLegendInExport: boolean;
+  legendPos: {x:number;y:number};
+  exportScale?:number;
+  publicationWidthMm?:number;
+  legend?:MapLegendSettings;
+  zoom?:number; fitToWindow?:boolean;
+}
+export interface CodeMapDraft {
+  id: ID; name: string; updatedAt: number;
+  nodes: Array<Pick<Code,'id'|'mapPosition'|'mapShape'|'mapAppearance'|'mapLabel'|'mapGroupId'|'mapLayer'|'mapScale'>>;
+  annotations: MapAnnotation[]; edges: MapEdgeStyle[]; hiddenIds: ID[];
+  design?: MapDesign; view: CodeMapView;
 }
 
 export interface CodedSegment {
+  periodId?:ID;
   id: ID;
   docId: ID;
   codeId: ID;
@@ -160,6 +222,7 @@ export interface ActivityEntry { id: number; at: number; actor: string; summary:
 export interface ProjectSnapshot { id: number; at: number; label: string; automatic: boolean; sizeBytes: number }
 
 export interface Project {
+  analysisPeriods?:AnalysisPeriod[];
   id: ID;
   name: string;
   createdAt: number;
@@ -175,6 +238,10 @@ export interface Project {
   mapEdgeStyles?: MapEdgeStyle[]; // manual styling overrides / custom edges for the Code Map
   mapAnnotations?: MapAnnotation[]; // free-standing annotation shapes on the Code Map (not tied to codes)
   hiddenMapCodeIds?: ID[];  // codes deliberately removed from the Code Map canvas (still in the codebook)
+  customMapPalettes?: Array<{id:string;name:string;note:string;colors:string[];scale:string;ramp?:string[]}>;
+  mapDesign?: MapDesign;
+  mapView?: CodeMapView;
+  mapDrafts?: CodeMapDraft[];
   coderName?: string;   // this project's coder identity, stamped onto segments when merged into another project
   cases?: ResearchCase[];
   groups?: ResearchGroup[];

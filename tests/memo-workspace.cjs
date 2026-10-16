@@ -2,6 +2,13 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 require.extensions['.ts']=(m,f)=>m._compile(ts.transpileModule(fs.readFileSync(f,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,f);
 const {listMemoRecords,updateMemoText,memoExportRows}=require('../src/lib/memoTools.ts');
 const {buildMemoWorkbook}=require('../electron/memoWorkbook.cjs');
+test('blank annotations remain discoverable, and clearing one removes only that annotation',()=>{
+ const p={docs:[{id:'d',name:'Interview',content:'Water costs.'}],codes:[],codedSegments:[],annotations:[{id:'a',docId:'d',start:0,end:5,text:'Water',note:'Reflection'},{id:'empty',docId:'d',start:6,end:11,text:'costs',note:''}]};
+ const records=listMemoRecords(p);assert.equal(records.length,2);const record=records.find(m=>m.origin.id==='a');
+ const revised=updateMemoText(p,record,'Revised');assert.equal(revised.annotations[0].start,0);assert.equal(revised.annotations[0].text,'Water');
+ const deleted=updateMemoText(p,record,' \n ');assert.deepEqual(deleted.annotations.map(a=>a.id),['empty']);assert.equal(p.annotations.length,2);assert.equal(deleted.docs[0].content,'Water costs.');
+ const emptyRecord=listMemoRecords(deleted).find(m=>m.origin.id==='empty');assert.ok(emptyRecord);assert.deepEqual(updateMemoText(deleted,emptyRecord,'').annotations,[]);
+});
 test('collector covers every note field and editing retains original coding and sources',()=>{
  const p={id:'p',name:'Study',folders:[],docs:[{id:'d',name:'Interview',content:'Evidence',notes:'Document'}],codes:[{id:'c',name:'Theme',summary:'Code'}],codedSegments:[{id:'s',docId:'d',codeId:'c',text:'Evidence',start:0,end:8,note:'Quote',createdAt:1}],images:[{id:'i',name:'Photo',notes:'Image'}],codedRegions:[{id:'r',imageId:'i',codeId:'c',note:'Region'}],frameworkCells:[{id:'f',docId:'d',codeId:'c',text:'Framework'}],relationNotes:[{id:'x',codeAId:'c',codeBId:'b',note:'Relationship'}],cases:[{id:'person',name:'Participant',notes:'Case',links:[{docId:'d'}]}],annotations:[{id:'a',docId:'d',note:'Annotation'}],mapAnnotations:[{id:'map',text:'Map'}],mapEdgeStyles:[{id:'edge',fromCodeId:'c',toCodeId:'b',label:'Edge'}],memos:[{id:'m',title:'Project',text:'Standalone',kind:'journal',docIds:['d'],codeIds:[],caseIds:[],segmentIds:[],createdAt:1,updatedAt:1}]};
  const records=listMemoRecords(p);assert.equal(records.length,12);assert.equal(new Set(records.map(r=>r.id)).size,12);

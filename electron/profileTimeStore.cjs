@@ -5,7 +5,8 @@ function details(value) {
   if(!value || typeof value.name!=='string')throw new Error('Invalid profile details.');
   const text=key=>typeof value[key]==='string'?value[key]:'';
   const photo=text('photo');if(photo && (!/^data:image\/(png|jpeg|webp);base64,/.test(photo)||photo.length>1500000))throw new Error('Invalid profile picture.');
-  return {...defaults,name:text('name'),email:text('email'),designation:text('designation'),organization:text('organization'),photo,paused:!!value.paused,workspaceAnimations:value.workspaceAnimations===true,identityUpdatedAt:Number(value.identityUpdatedAt)||0};
+  const crop=value.photoCrop;if(crop&&(![crop.zoom,crop.x,crop.y,crop.aspect].every(Number.isFinite)||crop.zoom<1||crop.zoom>4||Math.abs(crop.x)>1||Math.abs(crop.y)>1||crop.aspect<=0||crop.aspect>100))throw new Error('Invalid profile picture position.');
+  return {...defaults,name:text('name'),email:text('email'),designation:text('designation'),organization:text('organization'),photo,...(crop?{photoCrop:{zoom:crop.zoom,x:crop.x,y:crop.y,aspect:crop.aspect}}:{}),paused:!!value.paused,workspaceAnimations:value.workspaceAnimations===true,identityUpdatedAt:Number(value.identityUpdatedAt)||0};
 }
 function validateRecord(r) {
   if(!r || typeof r.id!=='string'||!r.id||typeof r.day!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(r.day)||typeof r.projectId!=='string'||typeof r.projectName!=='string'||![r.start,r.end,r.appMs,r.codingMs].every(Number.isFinite)||r.end<r.start||r.appMs<0||r.codingMs<0||r.codingMs>r.appMs||(r.firstCoding!==undefined&&!Number.isFinite(r.firstCoding))||(r.lastCoding!==undefined&&!Number.isFinite(r.lastCoding)))throw new Error('Invalid profile time session.');

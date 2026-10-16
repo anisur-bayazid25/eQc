@@ -6,6 +6,83 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## Unreleased
 
+## 1.8.2 - 2026-10-16
+
+- Made document-deletion framework cleanup explicit and verified other documents' cells survive, with Undo/Redo restoring/removing the deleted document's cells correctly.
+- Removed the duplicate blank-canvas mode from the Code map designer; use the dedicated Blank canvas visualization.
+
+- Fixed whitespace/blank coder filtering consistently across Heat map, Sankey, Histomap and Dendrogram, without rewriting original attribution.
+- Kept visible legends through graph regeneration and named-draft loading. Working-view saves now update the local edit timestamp without adding Undo entries; deleting a project removes its LAN tracking keys.
+- Completed the Muse Spark audit follow-up, removed unused artwork/type exports, and added browser regression coverage to the CI runner.
+
+- Added minimum/recommended system requirements to the README and both offline Help Overview sections, with provisional hardware estimates and clarification of OCR downloads.
+
+- Added profile-picture pan/zoom, keyboard positioning, reset/cancel and later readjustment, with matching header framing and SQL/JSON persistence.
+
+- Polished the visualization Inspector with labelled font/style/colour groups, consistent control sizes, collapsible direction/rotation and stop-list import, and formatting above word exclusions.
+- Prevented in-progress word-cloud updates from overwriting newer canvas edits. Exclusion updates retain individual word styling and remap attached links when word order changes.
+- Fixed SVG source metadata respecting document limits above 24, unclear saved-font labels, and invalid-language feedback. Updated beginner help and stale canvas-resume checks.
+
+- Fixed blue primary-action button text contrast throughout light mode, including visualization, research tools and dialogs; retained dark-mode colours.
+
+- Organized Histomap and Dendrogram settings into Prepare data, Choose display and Generate, with live readiness checks for missing periods, conflicting assignments, coding coverage and clustering limits. Heavy graph generation remains explicit.
+
+- Balanced the visualization library into a centered four-by-four desktop grid, with Word Cloud/Sankey in the first row and Histomap/Dendrogram in the last. Smaller screens use two columns.
+
+- Fixed Word Cloud Apply Changes and font-size refitting restoring deleted headings or overwriting edited captions. Existing heading styles and added objects are retained.
+
+- Added uniform-size word clouds alongside frequency scaling, plus automatic local repacking after individual font-size edits with retained size overrides.
+
+- Replaced unreliable native number-suggestion dropdowns with visible, keyboard-accessible preset buttons across visualization limits, retaining custom numeric entry.
+
+- Added Sankey with five weighted-flow/path presets, editable bar-relative labels, boundary spacing, gradients and explicit input requirements.
+- Added Word Cloud with shape/PNG/SVG masks, seeded random organic shapes, overlays, glyph-based spacing/density and language-aware filtering shared with word frequencies. Stop words live in the right Inspector with an explicit Apply Changes button.
+- Added lightweight imported language profiles, shared text direction/rotation and palette-order inversion. Word-cloud exclusions survive tab navigation; regeneration retains the selected palette.
+
+- Added a 21-item standard drawing gallery in Shapes, with drag previews, Shift-constrained dimensions, editable labels and existing colour/group/draft/export support.
+- Replaced reused visualization gallery icons with 14 distinct diagram-specific SVG icons.
+
+- Added named project palettes based on existing presets, including scientific Viridis/Magma/Plasma/Inferno/Cividis ramps and additional categorical schemes.
+- Added multi-selection, marquee selection, grouping/ungrouping, shared moving/resizing, centering/alignment and front/back ordering for shapes, text and code nodes. Groups/layers are retained in drafts.
+- Added custom numeric code/theme/subcode/document/context/label limits alongside suggested values, with larger graph sizes and explicit matrix/clustering bounds.
+
+- Added 17 coordinated visualization palettes, including colour-blind-friendly, grayscale, monochrome and muted multicolour choices; expanded colour pickers with 60 theme shades, 12 standard colours and recent colours. Heat-map scales remain sequential; all shapes and arrows retain individual colour controls.
+- Leaving Visualization or opening a source now retains the working canvas and its view/legend settings while unloading the renderer. Returning resumes editing without requiring a named draft.
+
+- Added guided histomaps (ordered passage/document period tags, unique counts/shares, explicit gaps) and average-linkage Jaccard dendrograms for documents/codes. Both retain source links, editable drafts and vector/image export.
+- Centered the canvas and moved tools to a left rail and formatting/sources to a collapsible right Inspector. Fixed the pyramid to use one continuous triangle with a three-vertex apex.
+- Revised the fictional climate dataset to 239 uneven sentence-level coding entries across three coders, four event phases, ready-made statistical drafts and an auditable period CSV. Refreshed derived analysis, coder projects and the demo ZIP.
+
+- Replaced the shared sparkle/designer action with type-specific ⚙ settings; removed the duplicate Pause button. Library/tab navigation unloads visualization automatically, and cancelling settings preserves the canvas.
+- Reviewed all visualization types against the four-transcript, three-coder climate demo. Improved theme coverage, compact hierarchy panels, wrapped process flows, branch routing, heat-map labels/scales, journey guides, Venn overlap labels, honeycomb tiling, ecology keys and typography. Heat maps default to deduplicated passage counts with explicit coder/count-unit choices; word trees can use full documents or merged coded passages.
+- Added physical SVG print width, print text/DPI checks, descriptive export filenames and accessible method/source metadata. Added Help explaining histomap time data and dendrogram similarity/clustering requirements.
+
+- Renamed Code Map to Visualization and added a responsive square-card library. Added dynamic mind maps, hierarchy layouts, selected-source heat maps and phrase word trees; editable sequence/cycle/branching process, rated journey, pyramid, Venn, honeycomb and ecology presets. Generation is explicit; drafts retain type/settings and exports share the canvas editor. Data cells/contexts link to sources, and connected diagram arrows follow moved blocks.
+
+- Added editable legends: full wrapped labels, in-place title/entry editing, fonts/colour/emphasis, movement, resizing, entry ordering/hiding, removal, columns and reset. Drafts and exports retain legend edits and layout.
+
+- Map text now edits in place by double-click and saves on click-away. New text starts with a drawn text box. Added resize handles and automatic wrap/shrink-to-fit for node, annotation and link-label containers. Unified formatting into a compact icon toolbar and removed duplicate controls; Delete removes selected map annotations outside typing fields.
+- Legends now follow visible node shapes/colours and rendered relationships. Added image-resolution choices with proportional text/legend scaling and output-size limits.
+
+- Added discoverable text/font editing for code labels, relationship labels and all map annotations/topics, with reader fonts, size, colour, bold, italic and underline. Map-only labels and explicit code renaming are separate. Added colour pickers, hex entry and generated palettes for text, node fills/borders, links and annotations.
+
+- Active maps now support mouse-wheel zoom anchored at the pointer, Ctrl/Cmd plus/minus and Ctrl/Cmd+0 to fit. Zoom shortcuts stop when the map is paused or the tab is left.
+
+- Code Map now requires explicit activation on each tab visit/project switch. Pause or leaving the tab unloads the map engine. Added named map drafts retaining geometry, styles, annotations, code references and view/legend settings; drafts travel with project JSON backups.
+
+- Added editable Simple and Detailed code-map suggestions with previews, theme/subcode limits, topic labels, pastel branch colours, wrapped oval nodes and limited shared-document links. Added a blank manual canvas, code search and node styling/details/memo tools. Designs save as one undoable change without changing codebook colours or coding.
+
+- Fixed annotation deletion: empty saves remove the annotation and underline, and existing empty annotations can be found and deleted in Memo-Book. Memo editing now opens inside its entry. Clicking a source annotation focuses its exact Memo-Book entry, including later pages and formatted readers.
+
+- Added Word-style keyboard selection in plain and formatted text readers.
+- Made coding faster in large codebooks by deferring hidden Code Map graph refreshes, reusing the code tree, and avoiding redundant annotation filtering. Saves return a small acknowledgement and compare history records without repeated JSON serialization.
+
+- Reordered both Help books to follow Workspace, Codebook, Auto-Code, Analysis, Memo-Book, Code Map and About, then LAN, Profile/time, file support and keyboard shortcuts. Updated contents and section links.
+- Added selectable, descriptively named shortcut profiles: Standard, Coding bar, Quick coding, Numbered codes and Selection-first. Supported actions include quick/last-code coding, in-vivo coding, annotations, linked memos, imports, saving, search and navigation. Standard/Numbered codes support project-specific Ctrl+1–9 code assignments.
+- Shortcut handling preserves native text editing/clipboard behavior, protects dialogs and ignores composition, AltGr and repeated key events. Help shows the active keys and remembered profile settings without commercial product names.
+
+- Document Notes opens a full-width memo editor directly below its Workspace button and focuses it automatically, keeping it visible without scrolling back to the document header.
+
 ## 1.8.1 - 2026-10-14
 
 - Added **Memo-Book**, a top tab after Analysis, replacing Memos/Notes in Research tools. It gathers project, document/image, code, quote/region, annotation, case, framework, co-occurrence and Code Map notes with source navigation and editing.

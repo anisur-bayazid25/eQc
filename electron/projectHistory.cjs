@@ -1,4 +1,11 @@
 const crypto = require('node:crypto');
+const { isDeepStrictEqual } = require('node:util');
+
+// Most records are unchanged. Compare those directly without allocating JSON
+// strings; retain persisted JSON semantics for optional undefined fields.
+function sameRecord(before, after) {
+  return isDeepStrictEqual(before, after) || JSON.stringify(before) === JSON.stringify(after);
+}
 
 const collections = { docs: 'source', images: 'image', codes: 'code', codedSegments: 'text coding', codedRegions: 'region coding', cases: 'case', groups: 'group', annotations: 'annotation', memos: 'memo', queries: 'saved query', frameworkCells: 'framework summary', relationNotes: 'relationship memo' };
 function summarizeChanges(before, after) {
@@ -11,14 +18,14 @@ function summarizeChanges(before, after) {
     let added = 0, removed = 0, edited = 0;
     for (const [id, value] of next) {
       if (!old.has(id)) added++;
-      else if (JSON.stringify(old.get(id)) !== JSON.stringify(value)) edited++;
+      else if (!sameRecord(old.get(id), value)) edited++;
     }
     for (const id of old.keys()) if (!next.has(id)) removed++;
     for (const [count, action] of [[added, 'added'], [removed, 'removed'], [edited, 'updated']]) if (count) changes.push(`${count} ${label}${count > 1 && !label.endsWith('s') ? 's' : ''} ${action}`);
   }
   if (!changes.length) {
     const omit = p => Object.fromEntries(Object.entries(p).filter(([k]) => !['updatedAt', ...Object.keys(collections)].includes(k)));
-    if (JSON.stringify(omit(before)) !== JSON.stringify(omit(after))) changes.push('Project settings or map updated');
+    if (!sameRecord(omit(before), omit(after))) changes.push('Project settings or map updated');
   }
   return changes;
 }

@@ -1,77 +1,119 @@
 ## Table of Contents
 
-- [Projects and sources](#projects-and-sources)
-- [Codes and research tools](#codes-and-research-tools)
+- [Overview](#overview)
+- [Quick start](#quick-start)
+- [Projects and backups](#projects-and-backups)
+- [Workspace](#workspace)
+- [Codebook](#codebook)
+- [Auto-Code](#auto-code)
+- [Analysis](#analysis)
 - [Memo-Book](#memo-book)
-- [Analysis and team coding](#analysis-and-team-coding)
-- [Reports and backups](#reports-and-backups)
-- [Profile, Help and contact](#profile-help-and-contact)
+- [Visualization](#visualization)
+- [About](#about)
+- [LAN collaboration](#lan-collaboration)
+- [Profile and time](#profile-and-time)
+- [Supported files](#supported-files)
+- [Keyboard shortcuts](#keyboard-shortcuts)
 
-## Projects and sources
+## Overview
 
-Create or switch projects in the header. Import material from **Workspace → Add source**. Organise sources in folders and select one to read or code.
+eQc keeps qualitative research projects locally. Read and code sources, compare themes and cases, develop memos, and export material for writing. Help is available offline.
 
-Text sources support TXT, Markdown, Word and PDF. Images support common formats and HEIC/HEIF still photos. Retained Word/PDF originals can be viewed alongside plain coding text. Use OCR for scanned PDFs, then check the extracted text. Markdown imports with its markup as coding text.
+### System requirements
 
-Reading controls change font, size and colour theme. **Codes & Strips** shows coding beside passages. Source line numbers make text references easier to identify. Editing source text can affect coding locations; keep a backup before extensive editing.
+| Component | Minimum | Recommended |
+| --- | --- | --- |
+| Windows | Windows 10, 64-bit (x64) | Windows 11, 64-bit (x64) |
+| macOS | macOS 10.15 on Intel; macOS 11 on Apple Silicon | A currently supported macOS release; matching Intel or Apple Silicon installer |
+| Processor | 64-bit, 2 cores | 4 cores or more |
+| Memory | 4 GB RAM | 8 GB RAM; 16 GB for large PDFs, frequent OCR or heavy multitasking |
+| Free storage | 1 GB for installation, plus space for projects and backups | SSD with 5 GB free, plus project and backup storage |
+| Display | 1366 × 768 | 1920 × 1080 or higher |
+| Graphics | Integrated graphics | Integrated graphics; no dedicated GPU required |
 
-## Codes and research tools
+**The hardware minimum is a provisional baseline for routine text coding, not a verified low-spec performance guarantee.** Large source collections, scanned PDFs and dense visualizations need more resources. The operating-system floor follows the current [Electron 31 runtime](https://github.com/electron/electron/blob/v31.7.7/README.md#platform-support). Choose the matching Intel or Apple Silicon Mac installer. There is currently no configured Linux release installer.
 
-Create a code, select text or draw an image region, and apply it. Overlapping coding is supported. Click existing coding to add a note, star evidence or remove an entry.
+Normal coding, analysis and Help work offline. Downloads and updates need internet. OCR runs locally, but its current setup downloads engine and Bengali/English language assets; allow internet when using OCR. Offline OCR is not guaranteed because it depends on cached assets.
 
-Codebook separates **definitions** (coding rules) from **summaries** (interpretation). Its Details, Merge, Export and Import tasks manage the hierarchy and gathered excerpts. Filters help review one source or coder. Code Map displays hierarchy, co-occurrence, custom relationships and annotations. Auto-Code previews word/phrase matches before applying coding.
+## Quick start
 
-**Workspace → Research tools** has four sections:
+Create a project, add an interview, create a code, select text and apply it. Review excerpts in Codebook, compare them in Analysis, and write interpretations in Memo-Book. Export a JSON backup.
 
-- **Cases:** participants or other units with attributes and whole-source or passage links.
-- **Groups:** reusable sets of sources or codes.
-- **Review:** contextual excerpts, saved queries and coding refinement.
-- **History:** activity and local recovery checkpoints.
+## Projects and backups
 
-Review queries can combine codes with OR, source-level AND or exclusion, overlapping coding, or nearby text ranges. Source, case, attribute and coder filters apply first. Empty source/code selections mean all; selected empty groups return no results. Changing filters requires running the query again. Queries with missing imported filters need review.
+Project tools handles creation, import and export. JSON is the full backup; QDPX is for compatible exchange. Choose retained Word/PDF originals or smaller plain-text document data. Check import reports for missing material. Merge separately coded projects with identical source text and matching code hierarchies. Undo/Redo covers project edits and document deletion; deleting a document removes its coding, framework cells and linked PDF page images/regions. Project deletion cannot be undone. Local History does not travel in backups.
 
-For refinement, check excerpts to reassign coding or split a code. **Adjust passage** opens plain text so you can select replacement boundaries and choose **Update passage**. Notes and authors remain attached to the coding entry. Image regions use their image controls.
+## Workspace
+
+Import/read documents and images; select a passage or draw a region to apply codes. Overlap is supported. Click coding to add notes, star evidence or remove it. Selection actions creates annotations, in-vivo codes, multiple coding or case links.
+
+Document Notes opens below its bottom control and saves on leaving the field. Reading controls adjust theme/font/size, source lines and coding stripes. Retained Word/PDF originals have their own view; review OCR text before coding.
+
+Research tools has Cases/attributes, source/code Groups, contextual Review/saved queries and local History. Review supports scope filters and OR/AND/exclusion/overlap/proximity combinations. For refinement, select excerpts to reassign/split or Adjust passage to replace text boundaries. Cases can link whole sources or focus-group speaker passages.
+
+## Codebook
+
+Definitions are coding rules; summaries are interpretations. Manage the hierarchy, inspect collated excerpts and filter by source or coder. Merge selected codes after reviewing the destination. Import codebooks/coding CSV with a column preview. Export all/selected codes, optional children and starred evidence. Project exports include all notes, REFI-QDA and the manuscript skeleton.
+
+## Auto-Code
+
+Preview word/phrase matches and target codes before applying coding. Review results in context; a matching word need not have the intended meaning.
+
+## Analysis
+
+Frequency/Documents count coding entries, not participants. Co-occurrence counts different codes on overlapping passages/regions; click a pair for evidence and a relationship memo. Framework stores editable source × theme summaries. Word frequencies needs Generate List; KWIC needs Search. Interview prompts and headers can contribute words. Export tables or a combined HTML Report.
+
+ICR uses selected sources/coders and includes source × code presence measures. Repeated coding to one code/source counts once for presence; joint absences can raise agreement. Consensus groups overlapping text, with at least two participating coders. Agreement requires the same single code; multi-code groups appear as Disagreements even when sets match. Cu-alpha includes uncoded ratings. Regions are not passage-consensus items. Export ICR and save a checkpoint before adjudication removes other coders' entries.
 
 ## Memo-Book
 
-Open the top tab immediately after Analysis to gather notes from the project, sources, codes, excerpts, images, cases, annotations, framework, co-occurrence and code map.
+Gather notes from projects, documents/images, codes, quotes/regions, annotations, cases, framework/co-occurrence and map annotations. Filter/search, select cards or all matches, and read selected notes together. Lists use 50-card pages; selection/export covers all pages.
 
-Search or filter with **Memo source**. Select individual cards or **Select matching memos**. Use **Show selected memos only** to read a subset. Lists display 50 cards per page; selection and filters apply across pages.
+Create analytic/methodological/journal memos with source/code/case/excerpt links. Attached edits update original fields. Go to source returns to the original item or matrix; project memos provide individual evidence links.
 
-**New memo** supports analytic, methodological and journal purposes, with links to documents, codes, cases and excerpts. **Edit memo** saves attached notes back to their original fields. **Go to source** returns to the original item or matrix. Project memos offer their individual evidence links.
+Word/Excel exports include readable memo sources, document names, code names, quotes/annotations, authors, locations and available dates. Missing links retain IDs. Code/pair memos include related documents. Excel uses category worksheets; long text continues with source fields repeated. Manuscript skeleton Word uses the whole project, including analysis notes and starred evidence. Merging memos combines text/links and clears original attached note fields after confirmation; Undo restores them.
 
-Export individual, selected or all notes to Word/Excel. Word has category headings; Excel has category worksheets, including document, code, framework and co-occurrence memos. Every memo has a readable source label. Source names/IDs, linked document and code names, quotation or annotated text, author, location and available dates are included. Code and relationship memos also identify related documents from their coding. Missing links retain their IDs. Longer-than-cell-limit Excel text continues on subsequent rows.
+## Visualization
 
-**Manuscript skeleton Word** combines the whole project's code summaries, linked memos, analysis notes and starred evidence. It is available here and under **Codebook → Export → Project exports**. It works with analysis notes even when no code summary has been written.
+The square-card library offers Code map, Mind map, Hierarchy, Heat map, Word tree, Process, Journey, Pyramid, Venn, Honeycomb, Ecology, Histomap, Dendrogram, Sankey, Word cloud and Blank canvas. Code map has Simple and Detailed designs; starting from scratch is available only through the separate Blank canvas card. Select a type/preset, adjust sources or labels, then Generate. No project aggregation runs on a tab visit; leaving the tab or returning through All visualization types unloads the renderer. ⚙ opens settings for the current type, without replacing the canvas until Generate.
 
-To merge notes, select at least two, choose the destination and read the confirmation. Text and links are retained together; selected original note fields are cleared and project memos consolidated. Undo restores the original notes.
+Heat maps compare unique passage counts across documents (with coding-decision/presence and coder filters) or shared-document counts between codes. Word trees group up to four source words before/after a literal case-insensitive phrase within sentences, using full documents or merged coded ranges. Select results for document/code source links. Hierarchy/mind maps use the codebook. Interpretive diagrams use researcher-supplied groups, stages and ratings; Venn areas and journey spacing do not encode calculated magnitudes or time.
 
-## Analysis and team coding
+Histomap and Dendrogram settings use **Prepare data → Choose display → Generate**, with a readiness message for missing inputs and exclusions. Generate stays disabled until the required inputs are valid; readiness checks do not run clustering or graph layout. Histomaps require ordered periods and explicit passage/document period tags; settings provide assignment controls and explain counts, shares, exclusions and gaps. Dendrograms use direct-code presence, Jaccard distance and average linkage, with empty-item exclusions and deterministic ties.
 
-Frequency and Documents show coding-entry counts. Co-occurrence counts different codes on overlapping coding; click a pair for excerpts and a relationship memo. Framework cells store editable source × theme summaries. Matrix memos appear in Memo-Book.
+Sankey offers two-stage, multi-stage, alluvial/parallel sets, hierarchical and circular presets. Supply positive weighted links or complete categorical paths; alluvial requires complete paths. Project coding supplies classification summaries, not observed movement. Settings explain each input and provide labelled fictional examples. Select a node label for inside/outside positioning and boundary distance in the Inspector.
 
-Word frequencies uses the stop-word list after **Generate List**. KWIC uses a keyword and context size after **Search**. These live results are regenerated after changing settings or sources; document headers and interview questions can contribute words.
+Word clouds support standard/random shapes and PNG/SVG masks, overlays, spacing/density, fonts, rotations and up to 300 words. Word exclusions are below selected-item formatting in the right Inspector (open Import a stop-word list for file import): edit, then **Apply Changes** to rebuild positions while keeping settings/palette. A random shape repeats with its layout seed. Analysis word frequencies and clouds share language, stop-list and minimum-base-letter filtering (English >3, Bengali >2 by default; dependent signs do not count). Optional local JSON language profiles avoid bundled models. Shared text controls support rotation, vertical writing and reading direction; **Invert palette** reverses colour order.
 
-ICR compares selected coders and sources. Pairwise source × code measures include percent agreement, Holsti and Cohen's kappa; multi-coder measures include Fleiss and Krippendorff measures. Repeat coding to one code in one source counts once for presence agreement. Jointly absent items can raise percent agreement.
+The centered canvas uses left-side tools and a right-side Inspector. Toggle the Inspector for more space; zoom controls remain at the top.
 
-Consensus groups overlapping text passages with at least two coders. Its Agreements list requires the same single code from participating coders; multi-code groups appear as Disagreements even if the sets match. An uncoded rater is included in Cu-alpha but does not vote in consensus. Image regions are included in eligible ICR scopes, not passage consensus.
+Results are editable snapshots: regenerate explicitly after data changes. Draw or double-click text, format in the grouped right Inspector (Font, Size & style, Text colour; Direction & rotation opens advanced controls), resize with automatic fitting, and customise shapes/legends. Connections follow process/journey blocks when moved. Save a named draft before changing designs; drafts retain family/settings and map geometry without copying transcript contents. Export the same canvas as SVG/PNG/JPEG. Set a physical print width and check text size/DPI before export. SVG retains vector text/shapes plus accessible figure/source descriptions. See the [User Guide](USER_GUIDE.md) for controls, limits and the guided period-assignment/clustering settings for histomaps and dendrograms.
 
-Keeping one coder's decision removes other entries in that group. Export ICR and save a checkpoint before adjudication. Separate authors and repeated coding entries do not represent additional participants.
+## About
 
-LAN Host/Join shares project work on a trusted local network. Personal profile and time records remain separate. For offline teamwork, merge project files with matching source text and code hierarchies. Confirm coder identities before combining work.
+Check the installed version and updates. Click the email to open your email app, or right-click to copy the address/link. Right-click Source & releases to copy GitHub's address.
 
-## Reports and backups
+## LAN collaboration
 
-**Project tools → Export** offers JSON backups or QDPX exchange, with retained originals or smaller plain-text document data. Both preserve coding and research records; JSON is the complete eQc backup. JSON can include the selected profile and recorded time. QDPX/QDC/QDE import requires compatible structures and available sources; check the import report.
+Host/Join shares project work on a trusted local network. Confirm coder identities before teamwork. Personal profiles/time stay separate. Back up before a session; offline colleagues can exchange and merge project files.
 
-Codebook exports all or selected codes to CSV/Word with the selected scope; starred excerpts/images have dedicated exports. Analysis tables export from their own views. **HTML Report** collects project analysis and available live text-search results. Memo-Book exports Word/Excel.
+## Profile and time
 
-Local History offers named checkpoints and rotating automatic recovery points. Restoring first saves a recovery point of current work. History remains on this computer and is not included in project backups. Export regular JSON copies to another location.
+The round avatar opens profiles and active app/coding time. Upload or Adjust photo opens a circular preview: drag, zoom, then Save picture. Reset and Cancel are available, and saved framing is retained in profile backups. New coding uses the current name; previous entries keep their authors. Time pauses outside active use, after five idle minutes or manually. Weeks run Sunday–Saturday. Export time to CSV or include profile history in JSON; repeated import avoids duplicate recorded sessions. Profile deletion removes its local details/time, not projects.
 
-## Profile, Help and contact
+## Supported files
 
-The round avatar opens local profiles and app/coding time. Optional profile details are separate from projects. New coding uses the current name; existing entries retain their authors. Time pauses outside active use, after five idle minutes or by manual pause. Weekly summaries use Sunday–Saturday weeks. Export time to CSV, or include profile history in a JSON backup.
+TXT, Markdown, Word and PDF; common images plus HEIC/HEIF still photos; structured coding CSV; JSON/QDPX/QDC/QDE projects/codebooks. QDE needs adjacent sources. Exports include JSON, QDPX, CSV, Word, Memo-Book Excel and HTML.
 
-Help is available offline. Search a feature, use contents links or open a section. The User guide explains the steps; Application reference is a shorter overview.
+## Keyboard shortcuts
 
-About shows the version and update check. Click the email to open your email app. Right-click it to copy the email address or link. Right-click **Source & releases** to copy the GitHub link. No separate copy buttons are needed.
+Choose a profile below and expand Active shortcut keys. Coding actions need a selected source passage/region. Standard/Numbered codes profiles support project-specific Ctrl+1–9 code assignments. Ctrl+S saves current work; Ctrl+Z and Ctrl+Y/Ctrl+Shift+Z undo/redo. F1 opens Help; Esc/Tab support normal dialog/navigation behavior. On macOS, the active table uses Cmd/Option labels. Typing fields keep native clipboard and editing keys. The profiles cover supported eQc actions; multimedia/rich-text/internal-link commands are not assigned.
+
+
+### Visualization editing and colour palettes
+
+The Colours tool offers 17 built-in palettes, including Viridis, Magma, Plasma, Inferno, Cividis, ColorBrewer Set2, Tableau 10, muted palettes, grayscale and monochrome. Create/edit a custom palette from any preset, change or add swatches, and save a project palette by name. Scientific bases retain a sequential heat-map ramp. Individual text, fill, border and line colours remain editable through the expanded shared picker.
+
+Arrange supports Shift/Ctrl multi-selection, marquee selection, group/ungroup, shared move/resize, proportion locking, center/align and front/back order. Groups and layers are retained in canvas records and named drafts. Returning from a source or another tab resumes the working canvas; inactive visualization does not render or aggregate data.
+
+Settings use editable numeric limits with suggestions. Code/context and document limits support up to 200 separately; generated mind/code maps have a total of 200 nodes. Themes (up to 100) and subcodes per theme (up to 200) are editable. Diagrams support a label/stage limit up to 48, except Venn diagrams (2–3 sets). Matrix generation allows 2,500 cells; dendrograms cluster up to 100 non-empty items. These bounds are shown in settings. Large figures need a larger export or narrower selection for readable labels.

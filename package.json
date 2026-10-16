@@ -1,6 +1,6 @@
 {
   "name": "eqc-desktop",
-  "version": "1.8.1",
+  "version": "1.8.2",
   "description": "eQc - Easy Qual Coding - local-first qualitative data coding and analysis app (Electron + React + SQLite)",
   "author": "Anisur Rahman Bayazid",
   "license": "MIT",
@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "pack": "electron-builder --win",
     "check": "tsc -p tsconfig.json --noEmit",
+    "test:visualization-publication": "node tests/visualization-publication-browser.cjs",
     "start": "cross-env NODE_ENV=production electron .",
     "dist": "npm run build && electron-builder",
     "postinstall": "electron-builder install-app-deps"

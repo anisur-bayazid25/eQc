@@ -16,7 +16,7 @@ Optional probes: Who depends on your work? What makes this place important to yo
 
 Describe a recent weather or environmental event that disrupted your life.
 
-Optional probes: What happened first? What did you notice, and what happened afterwards?
+Optional probes: What happened first? What did you notice, and what happened afterwards? Distinguish before disruption, the event/evacuation, early recovery and later adaptation; record unclear timing rather than infer it.
 
 ## Q3. Water and essential services
 

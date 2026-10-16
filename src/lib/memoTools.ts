@@ -10,8 +10,8 @@ export function listMemoRecords(project: Project): MemoRecord[] {
   const source = (id: string) => sources.get(id) || 'Unavailable source';
   const code = (id: string) => codes.get(id) || 'Unavailable code';
   function add(kind: string, id: string, title: string, text: string | undefined, docIds: string[] = [], codeIds: string[] = [], caseIds: string[] = [], segmentIds: string[] = [], createdAt = 0, updatedAt = 0) {
-    if (!text?.trim()) return;
-    records.push({ id:`note:${kind}:${id}`, title, text, kind:'analytic', docIds, codeIds, caseIds, segmentIds, createdAt, updatedAt, origin:{kind,id} });
+    if (!text?.trim() && kind !== 'annotation') return;
+    records.push({ id:`note:${kind}:${id}`, title, text: text || '', kind:'analytic', docIds, codeIds, caseIds, segmentIds, createdAt, updatedAt, origin:{kind,id} });
   }
   project.docs.forEach(d => add('document',d.id,'Source memo — '+d.name,d.notes,[d.id]));
   project.codes.forEach(c => add('code',c.id,'Code memo — '+c.name,c.summary,[],[c.id]));
@@ -39,7 +39,7 @@ export function updateMemoText(project: Project, record: MemoRecord, text: strin
   if (kind === 'framework') return {...project,frameworkCells:project.frameworkCells?.map(f => f.id === id ? {...f,text,updatedAt:now} : f)};
   if (kind === 'relationship') return {...project,relationNotes:project.relationNotes?.map(r => r.id === id ? {...r,note:text,updatedAt:now} : r)};
   if (kind === 'case') return {...project,cases:project.cases?.map(c => c.id === id ? {...c,notes:text} : c)};
-  if (kind === 'annotation') return {...project,annotations:project.annotations?.map(a => a.id === id ? {...a,note:text} : a)};
+  if (kind === 'annotation') return {...project,annotations:text.trim() ? project.annotations?.map(a => a.id === id ? {...a,note:text} : a) : project.annotations?.filter(a => a.id !== id)};
   if (kind === 'map') return {...project,mapAnnotations:project.mapAnnotations?.map(a => a.id === id ? {...a,text} : a)};
   if (kind === 'edge') return {...project,mapEdgeStyles:project.mapEdgeStyles?.map(e => e.id === id ? {...e,label:text} : e)};
   throw new Error('This memo is no longer available.');

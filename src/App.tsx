@@ -1,5 +1,10 @@
+import ProfilePhoto from './components/ProfilePhoto';
+import {wordFrequencies,languageDefaults} from './lib/wordAnalysis';
+import { saveMapDraft, restoreMapDraft } from './lib/mapDrafts';
+import { applyCodeMapSuggestion } from './lib/mapSuggestions';
 import ReaderFontSize from './components/ReaderFontSize';
 import { deferPanel } from './components/DeferredPanel';
+const WordLanguageControls=deferPanel(()=>import('./components/WordLanguageControls'),'word language controls');
 import ReaderFontPicker from './components/ReaderFontPicker';
 const ProfilePanel=deferPanel(()=>import('./components/ProfilePanel'),'profile');
 import { useTimeTracking } from './lib/useTimeTracking';
@@ -15,6 +20,7 @@ import CodeTree from './components/CodeTree';
 import TaskTabs from './components/TaskTabs';
 import ToolMenu from './components/ToolMenu';
 import CodeSearch from './components/CodeSearch';
+import { readShortcutProfile, resolveShortcut, ShortcutProfile } from './lib/shortcuts';
 import DocTree, { SortKey } from './components/DocTree';
 import DocEditor from './components/DocEditor';
 const ResearchWorkspace=deferPanel(()=>import('./components/ResearchWorkspace'),'research tools');
@@ -439,6 +445,13 @@ useEffect(() => {
   const [pendingPdfRegion, setPendingPdfRegion] = useState<PdfRegionSelection | null>(null);
   const [sortBy, setSortBy] = useState<SortKey>('name');
   const [memoSourceTarget, setMemoSourceTarget] = useState<{kind:string;id:string;nonce:number} | null>(null);
+  const [shortcutProfile,setShortcutProfile] = useState<ShortcutProfile>(()=>readShortcutProfile(localStorage.getItem('eqc-shortcut-profile')));
+  const [favoriteCodes,setFavoriteCodes] = useState<string[]>([]);
+  const lastCodeRef=useRef<{projectId:string;codeId:string}|null>(null);
+  const [memoTarget,setMemoTarget] = useState<{id:string;nonce:number}|null>(null);
+  const openAnnotationMemo = (ids: string[]) => { if (!ids.length) return; setMemoTarget({id:'note:annotation:'+ids[0],nonce:Date.now()}); setSegmentPopup(null); setTab('memos'); };
+  const [memoRequest,setMemoRequest]=useState<import('./domain').ResearchMemo|null>(null);
+  useEffect(()=>{lastCodeRef.current=null;setMemoRequest(null);try{const value=JSON.parse(localStorage.getItem('eqc-code-shortcuts-'+project?.id)||'[]');setFavoriteCodes(Array.isArray(value)?value.slice(0,9).map(v=>typeof v==='string'?v:''):[]);}catch{setFavoriteCodes([]);}},[project?.id]);
   const [researchOpen, setResearchOpen] = useState(false);
   const [researchSection, setResearchSection] = useState('cases');
   const [refiningSegmentId, setRefiningSegmentId] = useState<string | null>(null);
@@ -1034,7 +1047,7 @@ useEffect(() => {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const mod = e.ctrlKey || e.metaKey;
-      if (!mod) return;
+      if (!mod || document.querySelector('.modal-overlay,.research-overlay,[role="dialog"]')) return;
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
       const isTextField = tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable;
@@ -1129,6 +1142,7 @@ async function handleExportCodedImage() {
 
   function applyCodeToRegion(code: Code) {
     if (!project || !selectedImage || !pendingRegion) return;
+    lastCodeRef.current={projectId:project.id,codeId:code.id};
     const region: CodedRegion = {
       id: uid('region'),
       imageId: selectedImage.id,
@@ -1413,6 +1427,8 @@ function openProjectSettings() {
     if (!project) return;
     if (isLanSharedProjectLocked) { showToast('The session-shared project can’t be deleted — switch to a different project to manage it'); setDeleteStep(0); setProjectModalOpen(false); return; }
     await window.qv.deleteProject(project.id);
+    localStorage.removeItem(`qda-lan-seq-${project.id}`);
+    localStorage.removeItem(`qda-lan-synced-at-${project.id}`);
     sliceDeleted(project.name,'project');
     setProjectModalOpen(false);
     setDeleteStep(0);
@@ -1690,13 +1706,14 @@ async function addScannedPdf(folderId: ID | null) {
   function deleteDoc(doc: SourceDoc) {
     if (!project) return;
     setConfirmDialog({
-      message: `Delete document "${doc.name}"? Its coded passages and linked PDF page images/regions will also be removed.`,
+      message: `Delete document "${doc.name}"? Its coded passages, framework cells and linked PDF page images/regions will also be removed.`,
       confirmText: 'Delete',
       onConfirm: () => {
         const docs = project.docs.filter(d => d.id !== doc.id);
         const codedSegments = project.codedSegments.filter(s => s.docId !== doc.id);
+        const frameworkCells = project.frameworkCells?.filter(cell => cell.docId !== doc.id);
         const pageIds = new Set(project.images?.filter(i => i.pdfPage?.docId === doc.id).map(i => i.id));
-        persist({ ...project, docs, codedSegments, images: project.images?.filter(i => !pageIds.has(i.id)), codedRegions: project.codedRegions?.filter(r => !pageIds.has(r.imageId)) });
+        persist({ ...project, docs, codedSegments, frameworkCells, images: project.images?.filter(i => !pageIds.has(i.id)), codedRegions: project.codedRegions?.filter(r => !pageIds.has(r.imageId)) });
         if (selectedDocId === doc.id) setSelectedDocId(null);
         sliceDeleted(doc.name,'file');
       },
@@ -2049,7 +2066,7 @@ function moveDoc(docId: ID, targetFolderId: ID | null) {
   }
 
   // COPY (never move) coded segments and regions from every descendant code
-  // into this code (NVivo-style aggregation, non-destructive): the originals
+  // into this code by retaining the original child coding: the originals
   // stay put under their own codes, duplicates are created stamped with this
   // code's id. The lightning icon in the tree. One persist() per action.
   function copyChildCodings(codeId: ID) {
@@ -2085,6 +2102,7 @@ function moveDoc(docId: ID, targetFolderId: ID | null) {
   // =================================================================
   function applyCodeToSelection(code: Code) {
     if (!project || !selectedDoc || !pendingSelection) return;
+    lastCodeRef.current={projectId:project.id,codeId:code.id};
     const segment: CodedSegment = {
       id: uid('seg'),
       docId: selectedDoc.id,
@@ -2105,6 +2123,7 @@ function moveDoc(docId: ID, targetFolderId: ID | null) {
 
   function applyCodeToPdfRegion(code: Code) {
     if (!project || !selectedDoc || !pendingPdfRegion || pendingPdfRegion.docId !== selectedDoc.id) return;
+    lastCodeRef.current={projectId:project.id,codeId:code.id};
     const selection = pendingPdfRegion;
     let image = project.images?.find(i => i.pdfPage?.docId === selectedDoc.id && i.pdfPage.page === selection.page && i.pdfPage.originalHash === selection.originalHash);
     const images = [...(project.images || [])];
@@ -2408,6 +2427,7 @@ function handleRunAutoCode() {
       : []),
     [project?.codedSegments, selectedDoc, selectedCoderFilter]
   );
+  const docAnnotations = useMemo(() => project?.annotations?.filter(a => a.docId === selectedDoc?.id), [project?.annotations, selectedDoc?.id]);
   const formattedRegions = useMemo(() => project?.codedRegions?.filter(r => matchesCoder(r.coder, selectedCoderFilter)), [project?.codedRegions, selectedCoderFilter]);
 
   // =================================================================
@@ -2638,6 +2658,63 @@ function openDocxCommentImport() {
   // Sorted code list used by the Codebook tab (driven by its own sortOrder
   // dropdown, independent of the workspace doc-tree sort). Memoized at
   // component scope so it isn't recomputed on every render of the tab.
+  async function createSelectionCode(inVivo:boolean) {
+    if(!project || tab!=='workspace' || !selectedDoc || !pendingSelection) {showToast('Select document text first.');return;}
+    const selection=pendingSelection,doc=selectedDoc;
+    const name=await customPrompt(inVivo?'In-vivo code':'New code for selected text',inVivo?selection.text.slice(0,63):'','Create and apply');
+    if(!name)return;
+    const code:Code={id:uid('code'),name,parentId:null,color:colorForNewCode(project.codes,null,project.codes.length),summary:'',createdAt:Date.now()};
+    persist({...project,codes:[...project.codes,code],codedSegments:[...project.codedSegments,{id:uid('seg'),docId:doc.id,codeId:code.id,start:selection.start,end:selection.end,text:doc.content.slice(selection.start,selection.end),createdAt:Date.now(),source:'manual',coder:activeCoderName}]});
+    lastCodeRef.current={projectId:project.id,codeId:code.id};timeTracking.markCoding();setPendingSelection(null);window.getSelection()?.removeAllRanges();
+  }
+  async function annotateSelection() {
+    if(!project || tab!=='workspace' || !selectedDoc || !pendingSelection){showToast('Select document text first.');return;}
+    const selection=pendingSelection,doc=selectedDoc;
+    const note=await customPrompt('Annotate selected passage','','Save annotation');if(!note)return;
+    persist({...project,annotations:[...(project.annotations||[]),{id:uid('annotation'),docId:doc.id,start:selection.start,end:selection.end,text:doc.content.slice(selection.start,selection.end),note,createdAt:Date.now(),author:activeCoderName}]});setPendingSelection(null);
+  }
+  function requestMemo(journal=false) {
+    const now=Date.now();setMemoRequest({id:uid('memo'),title:journal?'Research journal — '+new Date().toLocaleDateString():'',text:'',kind:journal?'journal':'analytic',docIds:tab==='workspace'?(selectedDoc?[selectedDoc.id]:selectedImage?[selectedImage.id]:[]):[],codeIds:tab==='codebook'&&codebookCode?[codebookCode.id]:[],caseIds:[],segmentIds:[],createdAt:now,updatedAt:now});setTab('memos');
+  }
+  useEffect(()=>{
+    const onKey=(event:KeyboardEvent)=>{
+      if(event.defaultPrevented || document.querySelector('.modal-overlay,.research-overlay,[role="dialog"]'))return;
+      const target=event.target as HTMLElement|null;
+      const editable=!!target?.closest('input,textarea,select,[contenteditable="true"],[role="textbox"]');
+      const action=resolveShortcut(event,shortcutProfile);if(!action)return;
+      if(editable && action!=='save' && action!=='help')return;
+      if(action==='codePicker' && event.key===' ' && target?.closest('button,a,summary,[role="button"]'))return;
+      event.preventDefault();
+      const hasSelection=tab==='workspace'&&!!(pendingSelection||pendingPdfRegion||pendingRegion);
+      const apply=(codeId:string|undefined)=>{if(!hasSelection){showToast('Select text or an image region first.');return;}const code=project?.codes.find(c=>c.id===codeId);if(code)handleWorkspaceCodeClick(code);else showToast('Choose and apply a code first, or assign a numbered code in Help.');};
+      if(action==='help'){setTab('help');return;}
+      if(action==='save'){
+        if(editingDocId){void saveEditDoc();return;}
+        if(target?.id==='document-memo-text'&&selectedDoc){updateDocNotes(selectedDoc.id,docNotesDraft);return;}
+        const form=target?.closest('form');if(form){form.requestSubmit();return;}
+        if(editable){target?.blur();requestAnimationFrame(()=>document.querySelector<HTMLButtonElement>('.app-header [title="Save now"]')?.click());}else manualSave();return;
+      }
+      if(action==='newProject'){void handleNewProject();return;}
+      if(action==='importProject'){void handleImportBackup();return;}
+      if(action==='importSources'){void addDocs(null);return;}
+      if(action==='newCode'){void addRootCode();return;}
+      if(action==='newCodeAndApply'){void createSelectionCode(false);return;}
+      if(action==='inVivo'){void createSelectionCode(true);return;}
+      if(action==='annotation'){void annotateSelection();return;}
+      if(action==='newMemo'||action==='journal'){requestMemo(action==='journal');return;}
+      if(action==='memoBook'){setTab('memos');return;}
+      if(action==='lastCode'){apply(lastCodeRef.current?.projectId===project?.id?lastCodeRef.current?.codeId:undefined);return;}
+      if(action.startsWith('favorite')){apply(favoriteCodes[Number(action.replace('favorite',''))-1]);return;}
+      if(action==='codePicker'){if(!hasSelection){showToast('Select text or an image region first.');return;}document.querySelector<HTMLInputElement>('.workspace-grid .right-panel .code-search-input')?.focus();return;}
+      if(action==='find'){setTab('workspace');setContentSearchOpen(true);requestAnimationFrame(()=>document.querySelector<HTMLInputElement>('input[placeholder="Search inside all documents…"]')?.focus());return;}
+      if(action==='editDocument'){if(tab==='workspace'&&selectedDoc)startEditDoc(selectedDoc);else showToast('Open a document in Workspace first.');return;}
+      if(action==='cases'||action==='groups'){setResearchSection(action);setResearchOpen(true);return;}
+      if(action==='documentMatrix'||action==='cooccurrence'){setMemoSourceTarget({kind:action,id:'',nonce:Date.now()});setTab('analysis');return;}
+      setTab(({documents:'workspace',codes:'codebook',codeMap:'codemap',analysis:'analysis'} as Record<string,Tab>)[action]||'workspace');
+    };
+    window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey);
+  });
+
   const sortedCodes = useMemo(() => {
     const copy = [...(project?.codes ?? [])];
     switch (sortOrder) {
@@ -2934,7 +3011,7 @@ function openDocxCommentImport() {
               <button key={t} className={`tab-btn ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
                 {t === 'workspace' && 'Workspace'}
                 {t === 'codebook' && 'Codebook'}
-                {t === 'codemap' && 'Code Map'}
+                {t === 'codemap' && 'Visualization'}
                 {t === 'autocode' && 'Auto-Code'}
                 {t === 'analysis' && 'Analysis'}
                 {t === 'memos' && 'Memo-Book'}
@@ -2943,7 +3020,7 @@ function openDocxCommentImport() {
               </button>
             ))}
           </nav>
-          <button className="profile-avatar-button" title="Profile & time" aria-label="Profile & time" onClick={()=>{timeTracking.refresh();setTab('profile');}}>{timeTracking.profile.photo?<img src={timeTracking.profile.photo} alt=""/>:<span>{timeTracking.profile.name.trim().split(/\s+/).filter(Boolean).slice(0,2).map(n=>n[0]).join('').toUpperCase()||'👤'}</span>}</button>
+          <button className="profile-avatar-button" title="Profile & time" aria-label="Profile & time" onClick={()=>{timeTracking.refresh();setTab('profile');}}>{timeTracking.profile.photo?<ProfilePhoto src={timeTracking.profile.photo} crop={timeTracking.profile.photoCrop}/>:<span>{timeTracking.profile.name.trim().split(/\s+/).filter(Boolean).slice(0,2).map(n=>n[0]).join('').toUpperCase()||'👤'}</span>}</button>
 
         </div>
 
@@ -3235,17 +3312,6 @@ function openDocxCommentImport() {
                     </> : <p>Attach the Word or PDF original to preserve its formatting. Existing text and coding are retained.</p>}
                     <button className="mini-btn" onClick={() => handleOriginal(selectedDoc, 'attach')}>{selectedDoc.original ? 'Replace original attachment' : 'Attach original'}</button>
                   </ToolMenu>
-                  {showDocNotes && (
-                    <div className="doc-notes-panel">
-                      <label>Document memo — whole-case notes, interpretation, context</label>
-                      <textarea
-                        value={docNotesDraft}
-                        onChange={e => setDocNotesDraft(e.target.value)}
-                        onBlur={() => updateDocNotes(selectedDoc.id, docNotesDraft)}
-                        placeholder="e.g. this interview took place after the flood; participant was guarded until minute 20…"
-                      />
-                    </div>
-                  )}
                 </div>
                 {!editingDocId && (
                   <div style={{ display: 'flex', flexDirection: 'row', height: '100%', minHeight: 0, alignItems: 'stretch' }}>
@@ -3261,9 +3327,9 @@ function openDocxCommentImport() {
                       <CodingMargin readerStyle={THEME_STYLES[readerTheme]} enabled={codingStripes} segments={docSegments} codesById={codesById} onJump={goToExcerpt}>
                       {selectedDoc.original && documentView === 'formatted' ? <FormattedDocView
                         doc={selectedDoc} segments={docSegments} codesById={codesById}
-                        annotations={project.annotations?.filter(a => a.docId === selectedDoc.id)} onClickAnnotation={() => { setTab('memos'); }}
+                        annotations={docAnnotations} onClickAnnotation={openAnnotationMemo}
                         images={project.images} regions={formattedRegions}
-                        onSelectionChange={sel => { setPendingSelection(sel); if (sel) setPendingPdfRegion(null); }}
+                        onSelectionChange={sel => { setPendingSelection(sel); if (sel) { setPendingPdfRegion(null); setSegmentPopup(null); } }}
                         onPdfRegion={region => { setPendingPdfRegion(region); if (region) setPendingSelection(null); }}
                         onClickRegions={(regions, x, y) => setRegionPopup({ regions, x, y })}
                         onClickSegment={(segments, x, y) => setSegmentPopup({ segments, x, y })}
@@ -3278,11 +3344,12 @@ function openDocxCommentImport() {
                         fontSize={readerFontSize}
                         fontFamily={readerFontFamily}
                         showLineNumbers={showLineNumbers}
-                        annotations={project.annotations?.filter(a => a.docId === selectedDoc.id)} onClickAnnotation={() => { setTab('memos'); }}
+                        annotations={docAnnotations} onClickAnnotation={openAnnotationMemo}
                         onSelectionChange={sel => {
                           setPendingSelection(sel);
                           // Clear navigation targets when user makes a new selection
                           if (sel) {
+                            setSegmentPopup(null);
                             setHighlightTarget(null);
                             setGotoTarget(null);
                           }
@@ -3357,16 +3424,9 @@ function openDocxCommentImport() {
                   )}
                   {refiningSegmentId && project.codedSegments.find(s => s.id === refiningSegmentId)?.docId === selectedDoc.id && <span className="selection-hint">Select a replacement passage, then choose Update passage. <button onClick={() => setRefiningSegmentId(null)}>Cancel adjustment</button></span>}
                   {pendingSelection && <ToolMenu label="Selection actions">
-                    <button onClick={async () => {
-                      const note = await customPrompt('Annotate selected passage', '', 'Save annotation'); if (!note) return;
-                      persist({ ...project, annotations: [...(project.annotations || []), { id: uid('annotation'), docId: selectedDoc.id, start: pendingSelection.start, end: pendingSelection.end, text: selectedDoc.content.slice(pendingSelection.start,pendingSelection.end), note, createdAt: Date.now(), author: activeCoderName }] }); setPendingSelection(null);
-                    }}>Add annotation</button>
+                    <button onClick={annotateSelection}>Add annotation</button>
                     <button onClick={() => { setResearchSection('cases'); setResearchOpen(true); }}>Link to case</button>
-                    <button onClick={async () => {
-                      const name = await customPrompt('Create a code from the selected words', pendingSelection.text.trim().slice(0,100), 'Create and apply'); if (!name?.trim()) return;
-                      const code: Code = { id: uid('code'), name: name.trim(), parentId: null, color: colorForNewCode(project.codes,null,project.codes.length), summary: '', createdAt: Date.now() };
-                      persist({ ...project, codes: [...project.codes,code], codedSegments: [...project.codedSegments,{ id:uid('seg'),docId:selectedDoc.id,codeId:code.id,start:pendingSelection.start,end:pendingSelection.end,text:selectedDoc.content.slice(pendingSelection.start,pendingSelection.end),createdAt:Date.now(),source:'manual',coder:activeCoderName }] }); timeTracking.markCoding(); setPendingSelection(null);
-                    }}>Create in-vivo code</button>
+                    <button onClick={()=>createSelectionCode(true)}>Create in-vivo code</button>
                     <details><summary>Apply multiple codes</summary><div className="selection-code-list">{project.codes.map(c => <label key={c.id}><input type="checkbox" checked={multiCodes.includes(c.id)} onChange={e => setMultiCodes(e.target.checked ? [...multiCodes,c.id] : multiCodes.filter(id => id !== c.id))}/>{c.name}</label>)}</div><button disabled={!multiCodes.length} onClick={() => {
                       persist({ ...project,codedSegments:[...project.codedSegments,...multiCodes.filter(id => codesById.has(id)).map(codeId => ({ id:uid('seg'),docId:selectedDoc.id,codeId,start:pendingSelection.start,end:pendingSelection.end,text:selectedDoc.content.slice(pendingSelection.start,pendingSelection.end),createdAt:Date.now(),source:'manual' as const,coder:activeCoderName }))] });if (multiCodes.some(id => codesById.has(id))) timeTracking.markCoding();setMultiCodes([]);setPendingSelection(null);
                     }}>Apply selected codes</button></details>
@@ -3374,11 +3434,25 @@ function openDocxCommentImport() {
                   </ToolMenu>}
                   {pendingPdfRegion && <span className="selection-hint">PDF page {pendingPdfRegion.page} region selected — click a code to apply it</span>}
                   <button onClick={() => startEditDoc(selectedDoc)}>✏️ Edit text</button>
-                  <button onClick={() => setShowDocNotes(v => !v)}>
+                  <button aria-expanded={showDocNotes} aria-controls="document-memo-editor" onClick={() => setShowDocNotes(v => !v)}>
                     📝 Notes{selectedDoc.notes ? ' ●' : ''}
                   </button>
                   <button onClick={() => handleExportDocDocx(selectedDoc)}>📤 Export as Word (.docx)</button>
                 </div>
+                {showDocNotes && (
+                  <div className="doc-notes-panel" id="document-memo-editor">
+                    <label htmlFor="document-memo-text">Document memo — whole-case notes, interpretation, context</label>
+                    <textarea
+                      id="document-memo-text"
+                      autoFocus
+                      value={docNotesDraft}
+                      onChange={e => setDocNotesDraft(e.target.value)}
+                      onBlur={() => updateDocNotes(selectedDoc.id, docNotesDraft)}
+                      placeholder="e.g. this interview took place after the flood; participant was guarded until minute 20…"
+                    />
+                    <small>Notes save when you leave this field. They also appear in Memo-Book.</small>
+                  </div>
+                )}
               </>
             ) : selectedImage ? (
               <>
@@ -4143,7 +4217,7 @@ function openDocxCommentImport() {
   </div>
 )}
 
-{tab === 'memos' && <ResearchWorkspace embedded project={project} section="notes" onSection={()=>{}} onClose={()=>setTab('workspace')} onChange={persist} onNavigate={()=>{}} onAdjust={()=>{}} onMemoSource={openMemoSource} onManuscript={handleExportManuscriptSkeleton} actor={activeCoderName}/>}
+{tab === 'memos' && <ResearchWorkspace memoTarget={memoTarget} onMemoTargetHandled={()=>setMemoTarget(null)} memoRequest={memoRequest} onMemoRequestHandled={()=>setMemoRequest(null)} embedded project={project} section="notes" onSection={()=>{}} onClose={()=>setTab('workspace')} onChange={persist} onNavigate={()=>{}} onAdjust={()=>{}} onMemoSource={openMemoSource} onManuscript={handleExportManuscriptSkeleton} actor={activeCoderName}/>}
 
 {tab === 'analysis' && (
   <AnalysisTab sourceTarget={memoSourceTarget} project={project} onExportReport={handleExportReport} onSaveCell={updateFrameworkCell} onSaveRelationNote={updateRelationNote} onDeleteSegments={deleteSegmentsByIds} showToast={showToast} />
@@ -4161,6 +4235,25 @@ function openDocxCommentImport() {
     <CodeMap
       active={tab === 'codemap'}
       projectId={project.id}
+      projectName={project.name}
+      docs={project.docs}
+      analysisPeriods={project.analysisPeriods}
+      onOpenDocument={id=>{setTab('workspace');setSelectedDocId(id);setSelectedImageId(null);}}
+      mapDesign={project.mapDesign}
+      mapView={project.mapView}
+      drafts={project.mapDrafts||[]}
+      customMapPalettes={project.customMapPalettes}
+      onSavePalette={palette=>{const current=projectRef.current;if(current)persist({...current,customMapPalettes:[...(current.customMapPalettes||[]).filter(p=>p.id!==palette.id),palette]});}}
+      onObjectCommand={async(keys,command)=>{const {applyObjectCommand}=await import('./lib/mapObjects');const current=projectRef.current;if(current?.id===project.id)persist(applyObjectCommand(current,keys,command));}}
+      onApplyPalette={async(palette,invert)=>{const {recolorMap}=await import('./lib/mapPalettes');const current=projectRef.current;if(current?.id===project.id)persist(recolorMap(current,palette,invert));}}
+      onRememberView={view=>{const current=projectRef.current;if(current?.id===project.id&&JSON.stringify(current.mapView)!==JSON.stringify(view)) {const next={...current,mapView:view,updatedAt:Date.now()};projectRef.current=next;setProject(next);saveToDisk(next).catch(()=>{});}}}
+      onSaveDraft={(name,view)=>{persist(saveMapDraft(project,name,view));}}
+      onRestoreDraft={id=>persist(restoreMapDraft(project,id))}
+      onDeleteDraft={id=>persist({...project,mapDrafts:project.mapDrafts?.filter(d=>d.id!==id)})}
+      onApplySuggestion={suggestion=>persist(applyCodeMapSuggestion(project,suggestion))}
+      onResizeCanvas={(width,height,updates)=>{const patches=new Map(updates.map(u=>[u.id,u.patch]));const old=project.mapDesign;const sx=width/(old?.width||1600),sy=height/(old?.height||1000);persist({...project,codes:project.codes.map(c=>patches.has(c.id)?{...c,...patches.get(c.id)}:c),mapDesign:{...(old||{mode:'manual' as const,maxLinks:0,rootIds:[]}),width,height},mapAnnotations:project.mapAnnotations?.map(a=>({...a,x:a.x*sx,y:a.y*sy,...(a.width!==undefined?{width:a.width*sx}:{}),...(a.height!==undefined?{height:a.height*sy}:{}),...(a.x2!==undefined?{x2:a.x2*sx}:{}),...(a.y2!==undefined?{y2:a.y2*sy}:{})}))});}}
+      onOpenCode={id=>{setCodebookSelectedCodeId(id);setCodebookTask('details');setTab('codebook');}}
+      onOpenCodeMemo={id=>{setMemoTarget({id:'note:code:'+id,nonce:Date.now()});setTab('memos');}}
       codes={project.codes}
       codedSegments={project.codedSegments}
       mapEdgeStyles={project.mapEdgeStyles || []}
@@ -4179,7 +4272,7 @@ function openDocxCommentImport() {
 
 {importReport && <div className="research-overlay" onKeyDown={e => { if(e.key === 'Escape') setImportReport(null); if(e.key === 'Tab') e.preventDefault(); }}><section className="project-export-dialog" role="dialog" aria-modal="true" aria-labelledby="import-report-title"><h2 id="import-report-title">{importReport.title}</h2><p style={{whiteSpace:'pre-wrap'}}>{importReport.message}</p><button autoFocus onClick={() => setImportReport(null)}>Close import report</button></section></div>}
 {projectExportOpen && <ProjectExportDialog getProfileBackup={timeTracking.exportProfile} project={project} onClose={() => setProjectExportOpen(false)} onMessage={showToast} />}
-{tab === 'help' && <HelpPanel />}
+{tab === 'help' && <HelpPanel shortcutProfile={shortcutProfile} onShortcutProfile={value=>{setShortcutProfile(value);localStorage.setItem('eqc-shortcut-profile',value);}} codes={project.codes} favorites={favoriteCodes} onFavorite={(slot,id)=>{const next=Array.from({length:9},(_,i)=>i===slot?id:favoriteCodes[i]||'');setFavoriteCodes(next);localStorage.setItem('eqc-code-shortcuts-'+project.id,JSON.stringify(next));}}/>}
 {tab === 'profile' && <ProfilePanel {...timeTracking} setProfile={saveUnifiedProfile} onClose={() => setTab('workspace')}/>}
 {timeTracking.profile.workspaceAnimations && tab === 'workspace' && (['sources','codes'] as const).map(side => <div key={side} className={`workspace-surprises workspace-surprises-${side}`}>{workspaceEggs.filter(egg => (egg.kind === 'jiji') === (side === 'codes')).map(egg => <WorkspaceCritter key={egg.id} kind={egg.kind} onDone={() => setWorkspaceEggs(current => current.filter(item => item.id !== egg.id))}/>)}</div>)}
 {treeOpen && <GrowingCodeTree project={project} onClose={() => setTreeOpen(false)}/>}
@@ -4336,7 +4429,7 @@ function AnalysisTab({ sourceTarget, project, onExportReport, onSaveCell, onSave
   const [subTab, setSubTab] = useState<'frequency' | 'docMatrix' | 'coMatrix' | 'framework' | 'words' | 'kwic' | 'icr' | 'consensus'>('frequency');
   const codesByIdLocal = useMemo(() => new Map(project.codes.map(c => [c.id, c])), [project.codes]);
 
-  useEffect(()=>{if(sourceTarget?.kind==='framework')setSubTab('framework');if(sourceTarget?.kind==='relationship')setSubTab('coMatrix');},[sourceTarget]);
+  useEffect(()=>{if(sourceTarget?.kind==='documentMatrix')setSubTab('docMatrix');if(sourceTarget?.kind==='cooccurrence')setSubTab('coMatrix');if(sourceTarget?.kind==='framework')setSubTab('framework');if(sourceTarget?.kind==='relationship')setSubTab('coMatrix');},[sourceTarget]);
   useEffect(()=>{if(!sourceTarget)return;const element=document.getElementById('analysis-memo-'+sourceTarget.id);element?.scrollIntoView({block:'center'});element?.querySelector('textarea')?.focus();},[sourceTarget,subTab]);
 
   // The text the user is typing (`inputValue`, drives only the input field)
@@ -4523,25 +4616,13 @@ function AnalysisTab({ sourceTarget, project, onExportReport, onSaveCell, onSave
   }
 
   const STOP_WORDS_DEFAULT = 'the, is, at, which, and, a, an, in, on, of, to, for, with, it, this, that, এবং, ও, আর, কি, যে, এই, সেই, হয়, না, থেকে, কে, করে, এর, তে';
-  const [stopWordsText, setStopWordsText] = useState(STOP_WORDS_DEFAULT);
+  const [stopWordsText, setStopWordsText] = useState(languageDefaults.en.stops);
+  const [wordFreqSettings,setWordFreqSettings]=useState<{language:string;minLetters:number;stopWords:string}|null>(null);
+  const [wordLanguage,setWordLanguage]=useState('en'),[wordMinLetters,setWordMinLetters]=useState(3);
   const [wordFreqs, setWordFreqs] = useState<Array<{ word: string; count: number }> | null>(null);
 
   function generateWordFrequencies() {
-    const stopSet = new Set(
-      stopWordsText.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
-    );
-    const allText = project.docs.map(d => d.content || '').join('\n');
-    const rawWords = allText.toLowerCase().split(/[\s\.,!\?:"';\(\)\[\]\{\}\-\–\—\‘\’\“\”\n\r\t]+/);
-    const tally = new Map<string, number>();
-    for (const word of rawWords) {
-      if (/\d/.test(word)) continue;
-      if (word.length <= 1) continue;
-      if (!word || stopSet.has(word)) continue;
-      tally.set(word, (tally.get(word) || 0) + 1);
-    }
-    const rows = Array.from(tally.entries()).map(([word, count]) => ({ word, count }));
-    rows.sort((a, b) => b.count - a.count);
-    setWordFreqs(rows.slice(0, 100));
+    try{setWordFreqs(wordFrequencies(project.docs.map(d=>d.content||'').join('\n'),{language:wordLanguage,minLetters:wordMinLetters,stopWords:stopWordsText,limit:100}));setWordFreqSettings({language:wordLanguage,minLetters:wordMinLetters,stopWords:stopWordsText});}catch(error){showToast(String(error));}
   }
 
   const [freqSort, setFreqSort] = useState<FreqSortKey>('groupedNameAsc');
@@ -4618,7 +4699,8 @@ function AnalysisTab({ sourceTarget, project, onExportReport, onSaveCell, onSave
         <button onClick={() => onExportReport({
           icr: { coders: icrSelCoders, scope: icrScope, coderA: icrEffA, coderB: icrEffB },
           wordFrequencies: wordFreqs,
-          stopWordsText,
+          stopWordsText:wordFreqSettings?.stopWords||stopWordsText,
+          wordLanguage:wordFreqSettings?.language,wordMinLetters:wordFreqSettings?.minLetters,
           kwicKeyword: activeSearch,
           kwicWindow,
           kwicResults
@@ -4904,7 +4986,7 @@ function AnalysisTab({ sourceTarget, project, onExportReport, onSaveCell, onSave
       {subTab === 'words' && (
         <section>
           <div className="sort-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '8px' }}>
-            <label style={{ marginBottom: 0 }}>Stop words (comma-separated) — edit freely, then click Generate List:</label>
+            <WordLanguageControls language={wordLanguage} minLetters={wordMinLetters} stopWords={stopWordsText} onChange={p=>{if(p.language!==undefined)setWordLanguage(p.language);if(p.minLetters!==undefined)setWordMinLetters(p.minLetters);if(p.stopWords!==undefined)setStopWordsText(p.stopWords);}}/><label style={{ marginBottom: 0 }}>Stop words (comma-separated) — edit freely, then click Generate List:</label>
             <textarea
               value={stopWordsText}
               onChange={e => setStopWordsText(e.target.value)}

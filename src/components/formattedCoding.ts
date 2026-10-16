@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Code, CodedRegion, CodedSegment, ImageSource, SourceDoc, PassageAnnotation } from '../domain';
+import { useReaderKeyboardSelection } from '../lib/readerKeyboardSelection';
 import { SelectionOffsets } from '../lib/textOffsets';
 import { MappedNode, readMappedSelection, TextMapping } from '../lib/formattedMapping';
 
@@ -10,7 +11,7 @@ export interface PdfRegionSelection {
 
 export interface FormattedProps {
   doc: SourceDoc; segments: CodedSegment[]; codesById: Map<string, Code>;
-  annotations?: PassageAnnotation[]; onClickAnnotation?: () => void;
+  annotations?: PassageAnnotation[]; onClickAnnotation?: (ids: string[]) => void;
   onSelectionChange: (selection: SelectionOffsets | null) => void;
   onClickSegment: (segments: CodedSegment[], x: number, y: number) => void;
   onDropCode?: (id: string) => void;
@@ -67,6 +68,7 @@ export function decorateMappedText(root: HTMLElement, nodes: MappedNode[], mappi
 }
 
 export function useMappedInteractions(rootRef: React.RefObject<HTMLDivElement>, mappingRef: React.MutableRefObject<{ nodes: MappedNode[]; mapping: TextMapping } | null>, props: FormattedProps, ready: number, setWarning: (text: string) => void) {
+  useReaderKeyboardSelection(rootRef, ready);
   const latest = useRef(props); latest.current = props;
   useEffect(() => {
     const root = rootRef.current;
@@ -89,8 +91,10 @@ export function useMappedInteractions(rootRef: React.RefObject<HTMLDivElement>, 
     };
     const clicked = (event: MouseEvent) => {
       if (window.getSelection()?.toString().trim()) return;
+      const annotation = (event.target as Element).closest<HTMLElement>('[data-annotation-ids]');
+      if (annotation) { latest.current.onClickAnnotation?.(annotation.dataset.annotationIds!.split(' ')); return; }
       const target = (event.target as Element).closest<HTMLElement>('[data-seg-ids]');
-      if (!target) { if((event.target as Element).closest('[data-annotation-ids]'))latest.current.onClickAnnotation?.(); return; }
+      if (!target) return;
       const ids = new Set(target.dataset.segIds?.split(' '));
       latest.current.onClickSegment(latest.current.segments.filter(s => ids.has(s.id)), event.clientX, event.clientY);
     };

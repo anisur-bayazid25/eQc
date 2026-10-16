@@ -13,7 +13,7 @@ export interface ReportExtras {
   imageExcerpts?: Array<{ regionId: string; base64: string }>;
   icr?: { coders: string[]; scope: IcrScope; coderA: string; coderB: string };
   wordFrequencies?: Array<{ word: string; count: number }> | null;
-  stopWordsText?: string;
+  stopWordsText?: string; wordLanguage?:string;wordMinLetters?:number;
   kwicKeyword?: string;
   kwicWindow?: number;
   kwicResults?: Array<{ docName: string; before: string[]; keyword: string; after: string[] }>;
@@ -242,7 +242,7 @@ export function buildReportHtml(project: Project, extras?: ReportExtras): string
 
   <h2>Word Frequencies</h2>
   ${extras?.wordFrequencies && extras.wordFrequencies.length > 0
-    ? `<p class="note">Last generated with stop words: ${esc(extras.stopWordsText || '')}</p>
+    ? `<p class="note">${extras.wordLanguage?'Language: '+esc(extras.wordLanguage)+'; more than '+(extras.wordMinLetters??0)+' Unicode base letters. ':''}Last generated with stop words: ${esc(extras.stopWordsText || '')}</p>
     <table>
     <thead><tr><th>#</th><th>Word</th><th>Count</th></tr></thead>
     <tbody>${wordRows}</tbody>

@@ -32,6 +32,14 @@ Amina, Ravi and Lina are simulated coding identities stored on every excerpt. Th
 - **Indonesia Q6:** Ravi adds eligibility because of tenant authority.
 - **Nepal Q12:** Lina misses the passage; demonstrate why Cu-alpha and consensus answer different questions.
 
+## New temporal and clustering examples
+
+Open Visualization → Saved drafts, then open the Histomap or Dendrogram example. Histomap uses explicit passage-level Before/Event/Early/Later tags; Dendrogram uses direct code presence across the four interviews. Both drafts start with Amina only. Inspect ⚙ settings before changing the counting or source scope. 06_period_assignments.csv is the auditable tag ledger, and analysis/histomap_counts.json contains the displayed counts.
+
+For a clean coding demonstration, filter to Amina; use all three coders for ICR/consensus. Repeated coder assignments are not additional residents.
+
+Coding is now uneven and sentence-based: some sentences have one code, some overlap and many are uncoded. Boundaries vary by quote and coder. Do not reuse the earlier uniform-coding screenshots or fixed agreement percentages.
+
 ## Files
 
 Questionnaire → codebook → four transcripts → coded ledger → complete project and optional starter/coder projects → analysis previews. COMPLETE_ANALYSIS_REPORT.html is a browser-readable report produced by eQc's own report builder. The JSON analysis files provide reproducible results; live word/KWIC settings must be run in the app. The dataset contains text analysis; it does not invent documentary photographs or media evidence.

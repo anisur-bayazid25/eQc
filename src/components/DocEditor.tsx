@@ -1,13 +1,14 @@
 import React, { useMemo, useRef, useEffect } from 'react';
 import { CodedSegment, Code, ID, SourceDoc, PassageAnnotation } from '../domain';
 import { getSelectionOffsets, SelectionOffsets } from '../lib/textOffsets';
+import { useReaderKeyboardSelection } from '../lib/readerKeyboardSelection';
 import { sourceLines } from '../lib/sourceLines';
 
 interface Props {
   doc: SourceDoc;
   segments: CodedSegment[];
   annotations?: PassageAnnotation[];
-  onClickAnnotation?: () => void;
+  onClickAnnotation?: (ids: string[]) => void;
   codesById: Map<string, Code>;
   fontSize?: number;
   fontFamily?: string;
@@ -68,6 +69,7 @@ export default function DocEditor({
   scrollToSegmentId, scrollNonce, highlightRange, highlightNonce
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  useReaderKeyboardSelection(containerRef);
   const chunks = useMemo(() => buildChunks(doc.content, segments, highlightRange, annotations), [doc.content, segments, highlightRange, annotations]);
   const lines = useMemo(() => sourceLines(doc.content), [doc.content]);
   const chunksByLine = useMemo(() => {
@@ -155,7 +157,7 @@ export default function DocEditor({
               key={chunk.start}
               className={`${chunk.isSearchMatch ? 'search-match-highlight' : ''}${chunk.annotationIds.length ? ' passage-annotation' : ''}`}
               title={chunk.annotationIds.length ? annotations?.filter(a=>chunk.annotationIds.includes(a.id)).map(a=>a.note).join('\n') : undefined}
-              onClick={chunk.annotationIds.length ? () => { if(!window.getSelection()?.toString())onClickAnnotation?.(); } : undefined}
+              onClick={chunk.annotationIds.length ? () => { if(!window.getSelection()?.toString())onClickAnnotation?.(chunk.annotationIds); } : undefined}
               data-search-match={chunk.isSearchMatch ? 'true' : undefined}
             >
               {chunk.text}
@@ -177,6 +179,7 @@ export default function DocEditor({
               e.stopPropagation();
               const selectedText = window.getSelection()?.toString() || '';
               if (selectedText.length > 0) return;
+              if (chunk.annotationIds.length) { onClickAnnotation?.(chunk.annotationIds); return; }
               onClickSegment(segsHere, e.clientX, e.clientY);
             }}
           >

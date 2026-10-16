@@ -6,7 +6,7 @@ export function aggregateRecords(records: TimeRecord[]): TimeRow[] {
   for(const record of records) { const key=JSON.stringify([record.day,record.projectId]);let row=rows.get(key);if(!row){row={day:record.day,projectId:record.projectId,projectName:record.projectName,appMs:0,codingMs:0};rows.set(key,row);}row.appMs+=record.appMs;row.codingMs+=record.codingMs;row.projectName=record.projectName;if(record.firstCoding!==undefined)row.firstCoding=Math.min(row.firstCoding??Infinity,record.firstCoding);if(record.lastCoding!==undefined)row.lastCoding=Math.max(row.lastCoding??0,record.lastCoding); }
   return [...rows.values()];
 }
-export type LocalProfile = { name: string; email: string; designation: string; organization: string; photo: string; paused: boolean; workspaceAnimations?: boolean; identityUpdatedAt?: number };
+export type LocalProfile = { name: string; email: string; designation: string; organization: string; photo: string; photoCrop?:{zoom:number;x:number;y:number;aspect:number}; paused: boolean; workspaceAnimations?: boolean; identityUpdatedAt?: number };
 export const defaultProfile: LocalProfile = { name:'',email:'',designation:'',organization:'',photo:'',paused:false,workspaceAnimations:false };
 export function localDay(time: number) { const d=new Date(time); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 export function duration(ms: number) { const seconds=Math.floor(ms/1000); return `${Math.floor(seconds/3600)}:${String(Math.floor(seconds/60)%60).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`; }

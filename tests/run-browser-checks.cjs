@@ -6,8 +6,11 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 (async()=>{try{
  let ready=false;for(let attempt=0;attempt<100;attempt++){if(server.exitCode!==null)throw new Error('Preview server exited before becoming ready.');try{const response=await fetch(url);if(response.ok){ready=true;break;}}catch{}await sleep(200);}
  if(!ready)throw new Error('Preview server did not become ready.');
- for(const file of ['usability-1.7.0.cjs','data-integrity-browser.cjs','next-help-browser.cjs','memo-workspace-browser.cjs']){
+ let run=!process.env.EQC_BROWSER_FROM;
+ for(const file of ['usability-1.7.0.cjs','data-integrity-browser.cjs','audit-followup-browser.cjs','next-help-browser.cjs','memo-workspace-browser.cjs','source-notes-browser.cjs','shortcuts-browser.cjs','reader-keyboard-browser.cjs','annotation-browser.cjs','map-design-browser.cjs','map-editing-browser.cjs','visualizations-browser.cjs','statistical-visualizations-browser.cjs','map-palettes-browser.cjs','map-objects-browser.cjs','drawing-shapes-browser.cjs','sankey-cloud-browser.cjs','inspector-review-browser.cjs','profile-photo-browser.cjs']){
+  if(file===process.env.EQC_BROWSER_FROM)run=true;if(!run)continue;
   const code=await new Promise((resolve,reject)=>{const child=spawn(process.execPath,[path.join(__dirname,file)],{cwd:root,stdio:'inherit',env:{...process.env,EQC_PREVIEW_URL:url}});child.on('error',reject);child.on('exit',resolve);});
   if(code!==0)throw new Error(`${file} failed (${code}).`);
  }
+ if(!run)throw new Error('Unknown EQC_BROWSER_FROM test.');
 }finally{server.kill();}})().catch(error=>{console.error(error);process.exitCode=1;});

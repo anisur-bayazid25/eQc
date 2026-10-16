@@ -1,33 +1,40 @@
 {
   "fictional": true,
+  "sentenceCoverage": {
+    "uncoded": 157,
+    "singleCoded": 72,
+    "multipleCoded": 11
+  },
+  "analysisPeriods": 4,
+  "visualizationDrafts": 2,
   "transcripts": 4,
   "words": 4314,
   "codes": 24,
   "coders": [
     {
       "name": "Amina",
-      "codingEntries": 104,
+      "codingEntries": 82,
       "transcripts": 4
     },
     {
       "name": "Ravi",
-      "codingEntries": 101,
+      "codingEntries": 79,
       "transcripts": 4
     },
     {
       "name": "Lina",
-      "codingEntries": 102,
+      "codingEntries": 78,
       "transcripts": 4
     }
   ],
-  "codingEntries": 307,
+  "codingEntries": 239,
   "starred": 8,
-  "memosAndNotes": 124,
+  "memosAndNotes": 127,
   "frameworkCells": 24,
   "relationshipMemos": 4,
   "savedQueries": 6,
-  "agreements": 12,
-  "reviewableGroups": 48,
+  "agreements": 57,
+  "reviewableGroups": 71,
   "checks": [
     "Exact quote offsets verified",
     "Unique core IDs verified",

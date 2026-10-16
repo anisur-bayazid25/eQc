@@ -88,6 +88,9 @@ function simplePdf(scan = false) {
       await page.locator('.right-panel .code-search-row').click();
     }
     await selectText('.word-document-body article','Repeated phrase.',true);
+    await page.locator('.word-document-body').evaluate(root => { root.focus({preventScroll:true}); getSelection().collapseToStart(); });
+    for(let i=0;i<'Repeated phrase.'.length;i++)await page.keyboard.press('Shift+ArrowRight');
+    assert.equal(await page.evaluate(()=>getSelection().toString()),'Repeated phrase.');
     await page.locator('.selection-hint').filter({hasText:'Selected'}).waitFor();
     await apply();
     await page.waitForFunction(()=>window.__qaProject.codedSegments.length===1);
@@ -113,7 +116,11 @@ function simplePdf(scan = false) {
     await checkToolbarFlow('.pdf-sheet');
     await page.getByLabel('PDF page',{exact:true}).selectOption('2');
     await page.locator('.pdf-text-layer').getByText('PDF second page.',{exact:false}).waitFor();
-    await selectText('.pdf-text-layer','Repeated phrase.');await apply();
+    await selectText('.pdf-text-layer','Repeated phrase.');
+    await page.locator('.pdf-text-layer').evaluate(root => { root.focus({preventScroll:true}); getSelection().collapseToStart(); });
+    for(let i=0;i<'Repeated phrase.'.length;i++)await page.keyboard.press('Shift+ArrowRight');
+    assert.equal(await page.evaluate(()=>getSelection().toString()),'Repeated phrase.');
+    await apply();
     await page.waitForFunction(()=>window.__qaProject.codedSegments.length===4);
     saved=await page.evaluate(()=>window.__qaProject);
     assert.equal(saved.codedSegments[3].start,pdfText.lastIndexOf('Repeated phrase.'));
@@ -158,6 +165,9 @@ function simplePdf(scan = false) {
     await page.locator('.workspace-sources .doc-row').filter({hasText:'Edited.docx'}).click();
     await page.locator('.word-document-body article table').waitFor();
     await selectText('.word-document-body article','Repeated phrase.',true);
+    await page.locator('.word-document-body').evaluate(root => { root.focus({preventScroll:true}); getSelection().collapseToStart(); });
+    for(let i=0;i<'Repeated phrase.'.length;i++)await page.keyboard.press('Shift+ArrowRight');
+    assert.equal(await page.evaluate(()=>getSelection().toString()),'Repeated phrase.');
     assert.equal(await page.locator('.selection-hint').count(),0,'stale original accepted new text coding');
     await page.getByText('The coding text has changed.',{exact:false}).waitFor();
     await page.locator('.workspace-sources .doc-row').filter({hasText:'Broken.docx'}).click();

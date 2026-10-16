@@ -18,7 +18,6 @@ export const MILESTONES = [
   {id:'projects-10',title:'The delivery route',requirement:'Code in 10 different projects',character:'Dragonite',quote:'Ten projects delivered. Your themes have officially outgrown hand luggage.'},
   {id:'projects-50',title:'A universe of stories',requirement:'Code in 50 different projects',character:"Howl’s moving castle",quote:"Fifty projects. Your research has grown legs. Please check the memos before the castle wanders off."},
 ] as const;
-export type MilestoneId = typeof MILESTONES[number]['id'];
 const known = new Set<string>(MILESTONES.map(m=>m.id));
 export function mergeAwards(...groups: Array<MilestoneAward[] | undefined>): MilestoneAward[] {
   const merged=new Map<string,MilestoneAward>();

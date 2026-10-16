@@ -1,0 +1,102 @@
+{
+  "fictional": true,
+  "coder": "Amina",
+  "unit": "Unique code/document/range assignments",
+  "periods": [
+    {
+      "id": "before",
+      "label": "Before disruption",
+      "order": 0
+    },
+    {
+      "id": "event",
+      "label": "Event and evacuation",
+      "order": 1
+    },
+    {
+      "id": "early",
+      "label": "Early recovery",
+      "order": 2
+    },
+    {
+      "id": "later",
+      "label": "Later adaptation",
+      "order": 3
+    }
+  ],
+  "codes": [
+    {
+      "id": "demo_code_hazard",
+      "name": "Environmental disruption"
+    },
+    {
+      "id": "demo_code_income",
+      "name": "Income interruption"
+    },
+    {
+      "id": "demo_code_water",
+      "name": "Water access and safety"
+    },
+    {
+      "id": "demo_code_care",
+      "name": "Unpaid care and time"
+    },
+    {
+      "id": "demo_code_mutual",
+      "name": "Mutual aid and inclusion"
+    },
+    {
+      "id": "demo_code_belonging",
+      "name": "Place, mobility and future"
+    },
+    {
+      "id": "demo_code_mobility",
+      "name": "Considering mobility"
+    }
+  ],
+  "values": [
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      4,
+      0
+    ],
+    [
+      3,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      4,
+      5,
+      2,
+      5,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      4,
+      0,
+      1,
+      4
+    ]
+  ],
+  "coverage": [
+    true,
+    true,
+    true,
+    true
+  ],
+  "excluded": 0
+}

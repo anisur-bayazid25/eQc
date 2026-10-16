@@ -2,14 +2,14 @@
 
 All values were calculated by eQc's own analysis functions.
 
-- Coding entries: 307; residents: 4; simulated coders: 3.
+- Coding entries: 239; residents: 4; simulated coders: 3.
 - Framework summaries: 24; relationship memos: 4.
-- Gathered memos/notes: 124; starred coding entries: 8.
-- Passage groups: 48; single-code consensus agreements: 12.
+- Gathered memos/notes: 127; starred coding entries: 8.
+- Passage groups: 76; single-code consensus agreements: 57.
 
-- Amina / Ravi: agreement 94.8%; Cohen kappa 0.785; Holsti 0.970.
-- Amina / Lina: agreement 89.6%; Cohen kappa 0.556; Holsti 0.940.
-- Ravi / Lina: agreement 86.5%; Cohen kappa 0.472; Holsti 0.920.
+- Amina / Ravi: agreement 93.8%; Cohen kappa 0.846; Holsti 0.957.
+- Amina / Lina: agreement 91.7%; Cohen kappa 0.789; Holsti 0.943.
+- Ravi / Lina: agreement 85.4%; Cohen kappa 0.654; Holsti 0.896.
 
 Fleiss and Krippendorff results are in ICR_AND_CONSENSUS.json. ICR presence items are source × code pairs, including pairs neither coder marked; they differ from overlapping passage groups. The current Consensus view labels a group an agreement only if participating coders each applied the same single code. Multi-label groups therefore appear for review even if their label sets match. Nepal Q12 has two agreeing coders and Lina's intentional omission: consensus compares the participants, while Cu-alpha includes the uncoded rater.
 

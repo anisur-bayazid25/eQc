@@ -21,7 +21,8 @@ export function parseProfileBackup(value:unknown):ProfileBackup {
   }
   const text=(field:keyof LocalProfile)=>typeof p.details[field]==='string'?String(p.details[field]):'';
   const photo=text('photo');if(photo && (!/^data:image\/(png|jpeg|webp);base64,/.test(photo) || photo.length>1500000))throw new Error('The JSON profile picture is invalid.');
-  const details:LocalProfile={...defaultProfile,name:text('name'),email:text('email'),designation:text('designation'),organization:text('organization'),photo,paused:!!p.details.paused,workspaceAnimations:p.details.workspaceAnimations===true,identityUpdatedAt:Number(p.details.identityUpdatedAt)||p.updatedAt};
+  const crop=p.details.photoCrop;if(crop&&(![crop.zoom,crop.x,crop.y,crop.aspect].every(Number.isFinite)||crop.zoom<1||crop.zoom>4||Math.abs(crop.x)>1||Math.abs(crop.y)>1||crop.aspect<=0||crop.aspect>100))throw new Error('The JSON profile picture position is invalid.');
+  const details:LocalProfile={...defaultProfile,name:text('name'),email:text('email'),designation:text('designation'),organization:text('organization'),photo,...(crop?{photoCrop:{zoom:crop.zoom,x:crop.x,y:crop.y,aspect:crop.aspect}}:{}),paused:!!p.details.paused,workspaceAnimations:p.details.workspaceAnimations===true,identityUpdatedAt:Number(p.details.identityUpdatedAt)||p.updatedAt};
   const records=mergeRecords([],p.records);
   return {version:1,exportedAt:Number(backup.exportedAt)||0,profile:{id:p.id,details,records,milestones:mergeAwards(Array.isArray(p.milestones)?p.milestones:[]),updatedAt:p.updatedAt,lastWorkedAt:records.reduce((last,r)=>Math.max(last,r.end),Math.max(0,p.lastWorkedAt))}};
 }

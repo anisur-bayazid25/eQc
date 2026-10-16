@@ -146,7 +146,7 @@ export interface QvBridge {
   pickAndEncodeImages: any;
   listProjects(): Promise<ProjectSummary[]>;
   loadProject(id: string): Promise<Project | null>;
-  saveProject(project: Project, metadata?: { actor?: string; action?: string }): Promise<Project>;
+  saveProject(project: Project, metadata?: { actor?: string; action?: string }): Promise<{ id: string; updatedAt?: number }>;
   projectHistory(id: string): Promise<{ activity: import('./domain').ActivityEntry[]; snapshots: import('./domain').ProjectSnapshot[] }>;
   createCheckpoint(id: string, label: string): Promise<{ activity: import('./domain').ActivityEntry[]; snapshots: import('./domain').ProjectSnapshot[] }>;
   readSnapshot(projectId: string, id: number): Promise<Project>;
@@ -199,4 +199,3 @@ declare global {
     qv: QvBridge;
   }
 }
-

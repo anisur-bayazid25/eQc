@@ -1,47 +1,27 @@
 {
   "frequency": [
     {
-      "code": "Essential services and care",
-      "count": 24
-    },
-    {
-      "code": "Preparedness and mutual support",
-      "count": 24
-    },
-    {
-      "code": "Institutions and fair support",
-      "count": 24
-    },
-    {
-      "code": "Place, mobility and future",
-      "count": 24
-    },
-    {
       "code": "Unpaid care and time",
-      "count": 20
+      "count": 17
     },
     {
       "code": "Income interruption",
       "count": 16
     },
     {
-      "code": "Environmental disruption",
-      "count": 12
-    },
-    {
-      "code": "Continuing risk and worry",
-      "count": 12
-    },
-    {
-      "code": "Livelihoods and recovery costs",
-      "count": 12
-    },
-    {
       "code": "Water access and safety",
-      "count": 12
+      "count": 15
     },
     {
-      "code": "Access to health and school",
+      "code": "Mutual aid and inclusion",
+      "count": 15
+    },
+    {
+      "code": "Place, mobility and future",
+      "count": 15
+    },
+    {
+      "code": "Flooding and storm impacts",
       "count": 12
     },
     {
@@ -53,28 +33,44 @@
       "count": 12
     },
     {
-      "code": "Mutual aid and inclusion",
-      "count": 12
-    },
-    {
       "code": "Limits of household adaptation",
       "count": 12
-    },
-    {
-      "code": "Place and social ties",
-      "count": 12
-    },
-    {
-      "code": "Debt and recurring costs",
-      "count": 11
     },
     {
       "code": "Future aspirations",
       "count": 11
     },
     {
-      "code": "Flooding and storm impacts",
+      "code": "Environmental disruption",
       "count": 9
+    },
+    {
+      "code": "Restarting work",
+      "count": 9
+    },
+    {
+      "code": "Essential services and care",
+      "count": 9
+    },
+    {
+      "code": "Access to health and school",
+      "count": 9
+    },
+    {
+      "code": "Institutions and fair support",
+      "count": 9
+    },
+    {
+      "code": "Eligibility and administration",
+      "count": 9
+    },
+    {
+      "code": "Place and social ties",
+      "count": 9
+    },
+    {
+      "code": "Debt and recurring costs",
+      "count": 8
     },
     {
       "code": "Participation and voice",
@@ -85,15 +81,19 @@
       "count": 8
     },
     {
-      "code": "Eligibility and administration",
-      "count": 5
+      "code": "Continuing risk and worry",
+      "count": 6
+    },
+    {
+      "code": "Preparedness and mutual support",
+      "count": 6
     },
     {
       "code": "Slope and access disruption",
       "count": 3
     },
     {
-      "code": "Restarting work",
+      "code": "Livelihoods and recovery costs",
       "count": 0
     }
   ],
@@ -103,8 +103,7 @@
       "values": {
         "01_Fiji_Mere_FICTIONAL.txt": 3,
         "02_Bangladesh_Nasima_FICTIONAL.txt": 3,
-        "03_Nepal_Arun_FICTIONAL.txt": 3,
-        "04_Indonesia_Sari_FICTIONAL.txt": 3
+        "03_Nepal_Arun_FICTIONAL.txt": 3
       }
     },
     {
@@ -112,7 +111,7 @@
       "values": {
         "01_Fiji_Mere_FICTIONAL.txt": 3,
         "02_Bangladesh_Nasima_FICTIONAL.txt": 3,
-        "04_Indonesia_Sari_FICTIONAL.txt": 3
+        "04_Indonesia_Sari_FICTIONAL.txt": 6
       }
     },
     {
@@ -124,20 +123,13 @@
     {
       "code": "Continuing risk and worry",
       "values": {
-        "01_Fiji_Mere_FICTIONAL.txt": 3,
         "02_Bangladesh_Nasima_FICTIONAL.txt": 3,
-        "03_Nepal_Arun_FICTIONAL.txt": 3,
         "04_Indonesia_Sari_FICTIONAL.txt": 3
       }
     },
     {
       "code": "Livelihoods and recovery costs",
-      "values": {
-        "01_Fiji_Mere_FICTIONAL.txt": 3,
-        "02_Bangladesh_Nasima_FICTIONAL.txt": 3,
-        "03_Nepal_Arun_FICTIONAL.txt": 3,
-        "04_Indonesia_Sari_FICTIONAL.txt": 3
-      }
+      "values": {}
     },
     {
       "code": "Income interruption",
@@ -153,28 +145,28 @@
       "values": {
         "01_Fiji_Mere_FICTIONAL.txt": 3,
         "02_Bangladesh_Nasima_FICTIONAL.txt": 2,
-        "03_Nepal_Arun_FICTIONAL.txt": 3,
         "04_Indonesia_Sari_FICTIONAL.txt": 3
       }
     },
     {
       "code": "Restarting work",
-      "values": {}
+      "values": {
+        "01_Fiji_Mere_FICTIONAL.txt": 3,
+        "04_Indonesia_Sari_FICTIONAL.txt": 6
+      }
     },
     {
       "code": "Essential services and care",
       "values": {
-        "01_Fiji_Mere_FICTIONAL.txt": 6,
         "02_Bangladesh_Nasima_FICTIONAL.txt": 6,
-        "03_Nepal_Arun_FICTIONAL.txt": 6,
-        "04_Indonesia_Sari_FICTIONAL.txt": 6
+        "04_Indonesia_Sari_FICTIONAL.txt": 3
       }
     },
     {
       "code": "Water access and safety",
       "values": {
         "01_Fiji_Mere_FICTIONAL.txt": 3,
-        "02_Bangladesh_Nasima_FICTIONAL.txt": 3,
+        "02_Bangladesh_Nasima_FICTIONAL.txt": 6,
         "03_Nepal_Arun_FICTIONAL.txt": 3,
         "04_Indonesia_Sari_FICTIONAL.txt": 3
       }
@@ -183,27 +175,23 @@
       "code": "Unpaid care and time",
       "values": {
         "01_Fiji_Mere_FICTIONAL.txt": 5,
-        "02_Bangladesh_Nasima_FICTIONAL.txt": 5,
-        "03_Nepal_Arun_FICTIONAL.txt": 5,
-        "04_Indonesia_Sari_FICTIONAL.txt": 5
+        "02_Bangladesh_Nasima_FICTIONAL.txt": 8,
+        "03_Nepal_Arun_FICTIONAL.txt": 2,
+        "04_Indonesia_Sari_FICTIONAL.txt": 2
       }
     },
     {
       "code": "Access to health and school",
       "values": {
         "01_Fiji_Mere_FICTIONAL.txt": 3,
-        "02_Bangladesh_Nasima_FICTIONAL.txt": 3,
-        "03_Nepal_Arun_FICTIONAL.txt": 3,
-        "04_Indonesia_Sari_FICTIONAL.txt": 3
+        "03_Nepal_Arun_FICTIONAL.txt": 6
       }
     },
     {
       "code": "Preparedness and mutual support",
       "values": {
-        "01_Fiji_Mere_FICTIONAL.txt": 6,
-        "02_Bangladesh_Nasima_FICTIONAL.txt": 6,
-        "03_Nepal_Arun_FICTIONAL.txt": 6,
-        "04_Indonesia_Sari_FICTIONAL.txt": 6
+        "02_Bangladesh_Nasima_FICTIONAL.txt": 3,
+        "03_Nepal_Arun_FICTIONAL.txt": 3
       }
     },
     {
@@ -229,17 +217,16 @@
       "values": {
         "01_Fiji_Mere_FICTIONAL.txt": 3,
         "02_Bangladesh_Nasima_FICTIONAL.txt": 3,
-        "03_Nepal_Arun_FICTIONAL.txt": 3,
+        "03_Nepal_Arun_FICTIONAL.txt": 6,
         "04_Indonesia_Sari_FICTIONAL.txt": 3
       }
     },
     {
       "code": "Institutions and fair support",
       "values": {
-        "01_Fiji_Mere_FICTIONAL.txt": 6,
-        "02_Bangladesh_Nasima_FICTIONAL.txt": 6,
-        "03_Nepal_Arun_FICTIONAL.txt": 6,
-        "04_Indonesia_Sari_FICTIONAL.txt": 6
+        "01_Fiji_Mere_FICTIONAL.txt": 3,
+        "03_Nepal_Arun_FICTIONAL.txt": 3,
+        "04_Indonesia_Sari_FICTIONAL.txt": 3
       }
     },
     {
@@ -255,9 +242,9 @@
       "code": "Eligibility and administration",
       "values": {
         "01_Fiji_Mere_FICTIONAL.txt": 1,
-        "02_Bangladesh_Nasima_FICTIONAL.txt": 1,
+        "02_Bangladesh_Nasima_FICTIONAL.txt": 3,
         "03_Nepal_Arun_FICTIONAL.txt": 1,
-        "04_Indonesia_Sari_FICTIONAL.txt": 2
+        "04_Indonesia_Sari_FICTIONAL.txt": 4
       }
     },
     {
@@ -272,10 +259,10 @@
     {
       "code": "Place, mobility and future",
       "values": {
-        "01_Fiji_Mere_FICTIONAL.txt": 6,
-        "02_Bangladesh_Nasima_FICTIONAL.txt": 6,
+        "01_Fiji_Mere_FICTIONAL.txt": 3,
+        "02_Bangladesh_Nasima_FICTIONAL.txt": 3,
         "03_Nepal_Arun_FICTIONAL.txt": 6,
-        "04_Indonesia_Sari_FICTIONAL.txt": 6
+        "04_Indonesia_Sari_FICTIONAL.txt": 3
       }
     },
     {
@@ -283,7 +270,6 @@
       "values": {
         "01_Fiji_Mere_FICTIONAL.txt": 3,
         "02_Bangladesh_Nasima_FICTIONAL.txt": 3,
-        "03_Nepal_Arun_FICTIONAL.txt": 3,
         "04_Indonesia_Sari_FICTIONAL.txt": 3
       }
     },
@@ -310,98 +296,82 @@
     {
       "code": "Environmental disruption",
       "values": {
-        "Flooding and storm impacts": 27,
-        "Continuing risk and worry": 36,
+        "Continuing risk and worry": 6,
         "Slope and access disruption": 9
       }
     },
     {
       "code": "Flooding and storm impacts",
       "values": {
-        "Environmental disruption": 27,
-        "Continuing risk and worry": 27
+        "Continuing risk and worry": 9
       }
     },
     {
       "code": "Slope and access disruption",
       "values": {
-        "Environmental disruption": 9,
-        "Continuing risk and worry": 9
+        "Environmental disruption": 9
       }
     },
     {
       "code": "Continuing risk and worry",
       "values": {
-        "Environmental disruption": 36,
-        "Flooding and storm impacts": 27,
-        "Slope and access disruption": 9
+        "Environmental disruption": 6,
+        "Flooding and storm impacts": 9
       }
     },
     {
       "code": "Livelihoods and recovery costs",
-      "values": {
-        "Income interruption": 36,
-        "Debt and recurring costs": 33
-      }
+      "values": {}
     },
     {
       "code": "Income interruption",
       "values": {
-        "Livelihoods and recovery costs": 36,
-        "Debt and recurring costs": 33,
-        "Essential services and care": 12,
-        "Unpaid care and time": 8
+        "Restarting work": 18,
+        "Unpaid care and time": 2,
+        "Preparedness and mutual support": 3
       }
     },
     {
       "code": "Debt and recurring costs",
-      "values": {
-        "Livelihoods and recovery costs": 33,
-        "Income interruption": 33
-      }
+      "values": {}
     },
     {
       "code": "Restarting work",
-      "values": {}
+      "values": {
+        "Income interruption": 18
+      }
     },
     {
       "code": "Essential services and care",
       "values": {
-        "Water access and safety": 36,
-        "Unpaid care and time": 60,
-        "Income interruption": 12
+        "Water access and safety": 9
       }
     },
     {
       "code": "Water access and safety",
       "values": {
-        "Essential services and care": 36,
-        "Unpaid care and time": 36
+        "Unpaid care and time": 18,
+        "Essential services and care": 9
       }
     },
     {
       "code": "Unpaid care and time",
       "values": {
-        "Essential services and care": 60,
-        "Water access and safety": 36,
-        "Income interruption": 8
+        "Water access and safety": 18,
+        "Income interruption": 2,
+        "Evacuation constraints": 9
       }
     },
     {
       "code": "Access to health and school",
       "values": {
-        "Preparedness and mutual support": 36,
-        "Evacuation constraints": 36,
-        "Eligibility and administration": 3
+        "Evacuation constraints": 9
       }
     },
     {
       "code": "Preparedness and mutual support",
       "values": {
-        "Evacuation constraints": 36,
-        "Access to health and school": 36,
-        "Mutual aid and inclusion": 36,
-        "Eligibility and administration": 3
+        "Income interruption": 3
       }
     },
     {
@@ -411,67 +381,48 @@
     {
       "code": "Evacuation constraints",
       "values": {
-        "Preparedness and mutual support": 36,
-        "Access to health and school": 36,
-        "Eligibility and administration": 3
+        "Unpaid care and time": 9,
+        "Access to health and school": 9
       }
     },
     {
       "code": "Mutual aid and inclusion",
-      "values": {
-        "Preparedness and mutual support": 36
-      }
+      "values": {}
     },
     {
       "code": "Institutions and fair support",
-      "values": {
-        "Participation and voice": 24,
-        "Eligibility and administration": 12,
-        "Limits of household adaptation": 36
-      }
+      "values": {}
     },
     {
       "code": "Participation and voice",
       "values": {
-        "Institutions and fair support": 24,
-        "Eligibility and administration": 8
+        "Eligibility and administration": 2
       }
     },
     {
       "code": "Eligibility and administration",
       "values": {
-        "Institutions and fair support": 12,
-        "Participation and voice": 8,
-        "Preparedness and mutual support": 3,
-        "Evacuation constraints": 3,
-        "Access to health and school": 3
+        "Participation and voice": 2
       }
     },
     {
       "code": "Limits of household adaptation",
-      "values": {
-        "Institutions and fair support": 36
-      }
+      "values": {}
     },
     {
       "code": "Place, mobility and future",
-      "values": {
-        "Considering mobility": 24,
-        "Place and social ties": 36
-      }
+      "values": {}
     },
     {
       "code": "Place and social ties",
       "values": {
-        "Place, mobility and future": 36,
-        "Considering mobility": 24
+        "Considering mobility": 6
       }
     },
     {
       "code": "Considering mobility",
       "values": {
-        "Place, mobility and future": 24,
-        "Place and social ties": 24
+        "Place and social ties": 6
       }
     },
     {

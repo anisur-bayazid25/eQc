@@ -4,9 +4,11 @@
 
 # eQc — Easy Qual Coding
 
-**Version 1.8.1** · A local desktop app for qualitative research.
+**Version 1.8.2** · A local desktop app for qualitative research.
 
 Import interviews, field notes, documents and images; code passages and regions; organise your codebook; write memos; and explore your analysis. No account or cloud upload is required.
+
+Visualization includes 17 coordinated colour presets with order inversion, expanded text/shape colour pickers, and a working canvas that resumes after source navigation while the renderer unloads in other tabs.
 
 ## Downloads and Help
 
@@ -18,7 +20,31 @@ Import interviews, field notes, documents and images; code passages and regions;
 
 The **Help** tab includes the complete guide and application reference offline. Search a function or open a section to find instructions and examples.
 
-## What's new in 1.8.1
+## System requirements
+
+| Component | Minimum | Recommended |
+| --- | --- | --- |
+| Windows | Windows 10, 64-bit (x64) | Windows 11, 64-bit (x64) |
+| macOS | macOS 10.15 on Intel; macOS 11 on Apple Silicon | A currently supported macOS release; matching Intel or Apple Silicon installer |
+| Processor | 64-bit, 2 cores | 4 cores or more |
+| Memory | 4 GB RAM | 8 GB RAM; 16 GB for large PDFs, frequent OCR or heavy multitasking |
+| Free storage | 1 GB for installation, plus space for projects and backups | SSD with 5 GB free, plus project and backup storage |
+| Display | 1366 × 768 | 1920 × 1080 or higher |
+| Graphics | Integrated graphics | Integrated graphics; no dedicated GPU required |
+
+**The hardware minimum is a provisional baseline for routine text coding, not a verified low-spec performance guarantee.** Large source collections, scanned PDFs and dense visualizations need more resources. The operating-system floor follows the current [Electron 31 runtime](https://github.com/electron/electron/blob/v31.7.7/README.md#platform-support); macOS installers are configured for Intel and Apple Silicon. There is currently no configured Linux release installer.
+
+Normal coding, analysis and Help work offline. Installation downloads and updates need internet. OCR runs locally, but its current setup retrieves engine and Bengali/English language assets from online services; allow internet when using OCR. Offline OCR availability depends on those assets being available in the cache and is not guaranteed.
+
+## What's new in 1.8.2
+
+- **Visualization workspace:** sixteen diagram types, including Word Cloud, five Sankey presets, guided Histomap/Dendrogram setup and one dedicated Blank canvas. Code map offers Simple and Detailed designs.
+- **Figure editing:** edit text in place, draw standard shapes, group/align/resize objects, edit legends and apply 17 palettes or named custom palettes. The working canvas resumes after source navigation.
+- **Word Cloud:** shaped clouds and PNG/SVG masks, adjustable spacing, frequency/uniform sizing, local refitting and language-aware word filters shared with word frequencies.
+- **Comfort and reliability:** a clearer Inspector, readable light-mode buttons, profile-photo positioning/zoom, expanded keyboard selection and fixes for coder filters, legends, view saves and document cleanup.
+- **Help and demo:** system requirements, refreshed offline instructions and uneven fictional coding with period assignments for statistical diagrams.
+
+## Previous release: 1.8.1
 
 - **Memo-Book:** a top tab after Analysis that gathers notes from documents, codes, quotations, cases, annotations, matrices and Code Map, with links back to their sources.
 - **Writing and export:** search, filter and select memos; export one, several or all to Word or Excel. Excel separates memo categories into worksheets. Manuscript skeletons now include analysis memos and linked research notes.
@@ -33,7 +59,7 @@ The **Help** tab includes the complete guide and application reference offline. 
 2. Create codes, select a passage or image region, and apply a code.
 3. Use **Codebook** for definitions, summaries, merge and export.
 4. Open **Workspace → Research tools** for cases, groups, queries and recovery history.
-5. Use **Analysis** for frequencies, matrices, framework analysis, text searches, ICR and Consensus. **Code Map** diagrams the codebook.
+5. Use **Analysis** for frequencies, matrices, framework analysis, text searches, ICR and Consensus. **Visualization** offers a square-card library of editable code/mind/hierarchy maps, heat maps, word trees, word clouds (shapes and PNG/SVG masks), five Sankey presets, histomaps, dendrograms, and process/journey/pyramid/Venn/honeycomb/ecology diagrams, with presets, manual drawing, named drafts and SVG/image export. Generation runs only when requested.
 6. Use **Memo-Book** to link evidence, develop writing and export notes or a manuscript skeleton.
 7. Export selected coding, analysis reports and regular JSON project backups.
 

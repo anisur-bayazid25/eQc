@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Code, childCodes, descendantCodeIds, ID } from '../domain';
 
 interface Props {
@@ -53,7 +53,7 @@ function CodeNode({
   const [hover, setHover] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  const eligibleParents = codes.filter(c => c.id !== code.id);
+  const eligibleParents = useMemo(() => hover ? codes.filter(c => c.id !== code.id) : [], [codes, code.id, hover]);
 
   // Dragging `draggedId` onto this row: if both share the same parent,
   // reorder so the dragged code lands immediately before this row; otherwise
@@ -233,7 +233,7 @@ function CodeNode({
   );
 }
 
-export default function CodeTree({
+const CodeTreeView = React.memo(function CodeTreeView({
   codes,
   selectedCodeId,
   onSelectCode,
@@ -286,5 +286,24 @@ export default function CodeTree({
       ))}
     </div>
   );
-}
+});
 
+
+// Parent callbacks depend on the current selection/project. Stable delegates
+// preserve their freshness without rebuilding the tree on each save update.
+export default function CodeTree(props: Props) {
+  const latest = useRef(props); latest.current = props;
+  const callbacks = useMemo(() => ({
+    onSelectCode: (code: Code) => latest.current.onSelectCode(code),
+    onAddSubcode: (id: ID) => latest.current.onAddSubcode(id),
+    onDeleteCode: (code: Code) => latest.current.onDeleteCode?.(code),
+    onMoveCode: (id: ID, parent: ID | null) => latest.current.onMoveCode?.(id, parent),
+    onReorderCode: (id: ID, parent: ID | null, index: number, updates: Array<{id: ID; sortIndex: number}>) => latest.current.onReorderCode?.(id, parent, index, updates),
+    onCopyChildCodings: (id: ID) => latest.current.onCopyChildCodings?.(id)
+  }), []);
+  return <CodeTreeView {...props} {...callbacks}
+    onDeleteCode={props.onDeleteCode ? callbacks.onDeleteCode : undefined}
+    onMoveCode={props.onMoveCode ? callbacks.onMoveCode : undefined}
+    onReorderCode={props.onReorderCode ? callbacks.onReorderCode : undefined}
+    onCopyChildCodings={props.onCopyChildCodings ? callbacks.onCopyChildCodings : undefined} />;
+}

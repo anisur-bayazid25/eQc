@@ -2,9 +2,9 @@
   <img src="public/eqc-logo.png" alt="eQc logo" width="180">
 </p>
 
-# eQc â€” Easy Qual Coding
+# eQc — Easy Qual Coding
 
-**Version 1.8.3** Â· A local desktop app for qualitative research.
+**Version 1.8.3** · A local desktop app for qualitative research.
 
 Import interviews, field notes, documents and images; code passages and regions; organise your codebook; write memos; and explore your analysis. No account or cloud upload is required.
 
@@ -29,7 +29,7 @@ The **Help** tab includes the complete guide and application reference offline. 
 | Processor | 64-bit, 2 cores | 4 cores or more |
 | Memory | 4 GB RAM | 8 GB RAM; 16 GB for large PDFs, frequent OCR or heavy multitasking |
 | Free storage | 1 GB for installation, plus space for projects and backups | SSD with 5 GB free, plus project and backup storage |
-| Display | 1366 Ã— 768 | 1920 Ã— 1080 or higher |
+| Display | 1366 × 768 | 1920 × 1080 or higher |
 | Graphics | Integrated graphics | Integrated graphics; no dedicated GPU required |
 
 **The hardware minimum is a provisional baseline for routine text coding, not a verified low-spec performance guarantee.** Large source collections, scanned PDFs and dense visualizations need more resources. The operating-system floor follows the current [Electron 31 runtime](https://github.com/electron/electron/blob/v31.7.7/README.md#platform-support); macOS installers are configured for Intel and Apple Silicon. There is currently no configured Linux release installer.
@@ -44,6 +44,7 @@ Normal coding, analysis and Help work offline. Installation downloads and update
 - **Visualization workspace:** sixteen diagram types, including Word Cloud, five Sankey presets, guided Histomap/Dendrogram setup and one dedicated Blank canvas. Code map offers Simple and Detailed designs.
 - **Figure editing:** edit text in place, draw standard shapes, group/align/resize objects, edit legends and apply 17 palettes or named custom palettes. The working canvas resumes after source navigation.
 - **Word Cloud:** shaped clouds and PNG/SVG masks, adjustable spacing, frequency/uniform sizing, local refitting and language-aware word filters shared with word frequencies.
+- **Bug reports and feedback:** send a bug report, feature request or general message from inside the app (toolbar, Help, or Ctrl/Cmd+Shift+B). Describe the problem, attach a screenshot with an optional device note, and eQc emails it to the maintainer. A copy can be saved as a ZIP to send manually when you are offline.
 - **Comfort and reliability:** a clearer Inspector, readable light-mode buttons, profile-photo positioning/zoom, expanded keyboard selection and fixes for coder filters, legends, view saves and document cleanup.
 - **Help and demo:** system requirements, refreshed offline instructions and uneven fictional coding with period assignments for statistical diagrams.
 
@@ -60,7 +61,7 @@ Normal coding, analysis and Help work offline. Installation downloads and update
 1. Create a project and add sources in **Workspace**.
 2. Create codes, select a passage or image region, and apply a code.
 3. Use **Codebook** for definitions, summaries, merge and export.
-4. Open **Workspace â†’ Research tools** for cases, groups, queries and recovery history.
+4. Open **Workspace → Research tools** for cases, groups, queries and recovery history.
 5. Use **Analysis** for frequencies, matrices, framework analysis, text searches, ICR and Consensus. **Visualization** offers a square-card library of editable code/mind/hierarchy maps, heat maps, word trees, word clouds (shapes and PNG/SVG masks), five Sankey presets, histomaps, dendrograms, and process/journey/pyramid/Venn/honeycomb/ecology diagrams, with presets, manual drawing, named drafts and SVG/image export. Generation runs only when requested.
 6. Use **Memo-Book** to link evidence, develop writing and export notes or a manuscript skeleton.
 7. Export selected coding, analysis reports and regular JSON project backups.
@@ -77,7 +78,7 @@ LAN collaboration shares research projects with colleagues on a trusted local ne
 
 For instructions, use the [current user guide](USER_GUIDE.md). The [complete v1.6.4 guide](USER_GUIDE_v1.6.4.md) is retained as a historical reference.
 
-Import [the ready-to-use project](demo/climate-resilience/dataset/03_READY_TO_IMPORT_EQC.json) through **Project tools â†’ Import**. The [demo kit](demo/climate-resilience/eQc_Fictional_Climate_Demo.zip) also includes an uncoded starter and individual coder projects.
+Import [the ready-to-use project](demo/climate-resilience/dataset/03_READY_TO_IMPORT_EQC.json) through **Project tools → Import**. The [demo kit](demo/climate-resilience/eQc_Fictional_Climate_Demo.zip) also includes an uncoded starter and individual coder projects.
 
 All people, interviews, events and findings are invented for training. Three simulated coder identities support ICR and consensus demonstrations; they are not authenticated user accounts.
 
@@ -95,4 +96,4 @@ Implementation history is in [AI changelog](AI_CHANGELOG.md).
 
 Created by Anisur Rahman Bayazid. eQc gratefully acknowledges the contributions of the CARE project and BRAC James P Grant School of Public Health, BRAC University.
 
-MIT License â€” see [LICENSE](LICENSE).
+MIT License — see [LICENSE](LICENSE).

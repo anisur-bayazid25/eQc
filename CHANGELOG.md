@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 All notable changes to **eQc - Easy Qual Coding** are documented in this file.
 
@@ -91,7 +91,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Made coding faster in large codebooks by deferring hidden Code Map graph refreshes, reusing the code tree, and avoiding redundant annotation filtering. Saves return a small acknowledgement and compare history records without repeated JSON serialization.
 
 - Reordered both Help books to follow Workspace, Codebook, Auto-Code, Analysis, Memo-Book, Code Map and About, then LAN, Profile/time, file support and keyboard shortcuts. Updated contents and section links.
-- Added selectable, descriptively named shortcut profiles: Standard, Coding bar, Quick coding, Numbered codes and Selection-first. Supported actions include quick/last-code coding, in-vivo coding, annotations, linked memos, imports, saving, search and navigation. Standard/Numbered codes support project-specific Ctrl+1â€“9 code assignments.
+- Added selectable, descriptively named shortcut profiles: Standard, Coding bar, Quick coding, Numbered codes and Selection-first. Supported actions include quick/last-code coding, in-vivo coding, annotations, linked memos, imports, saving, search and navigation. Standard/Numbered codes support project-specific Ctrl+1–9 code assignments.
 - Shortcut handling preserves native text editing/clipboard behavior, protects dialogs and ignores composition, AltGr and repeated key events. Help shows the active keys and remembered profile settings without commercial product names.
 
 - Document Notes opens a full-width memo editor directly below its Workspace button and focuses it automatically, keeping it visible without scrolling back to the document header.
@@ -116,18 +116,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 - Word/PDF zoom controls scroll above the source content instead of sticking over document text.
 - Folder deletion keeps ordinary photos, PDF page snapshots and nested folders visible at the root; sources with older broken folder links remain accessible.
-- CSV round trips keep generic summaries and definitions on the rowâ€™s most specific code instead of attaching them to its parent.
+- CSV round trips keep generic summaries and definitions on the row’s most specific code instead of attaching them to its parent.
 - QDPX import restores Description-only legacy code memos while retaining separate definitions/memos in modern archives and definitions in QDC codebooks.
 - Code Map clears selected nodes and drawing state when switching projects.
 - Project merges discard invalid research links; saved queries with missing filters require review before they can run.
 - Removed framework matrix entries whose document or code was deleted. Coder filters, claiming unattributed coding, research queries and coder cleanup now handle surrounding whitespace consistently.
 - Added data-integrity regression checks and included the usability browser check in the release workflow.
 
-- Reading font-size controls now share one row with an editable, remembered 8â€“48 px size field.
+- Reading font-size controls now share one row with an editable, remembered 8–48 px size field.
 - Fixed Reading menu clipping on alternating openings; controls now use the available window height consistently.
 - Moved profile/time storage to SQLite with automatic, duplicate-safe migration, a retained recovery copy, incremental session writes, separate photo storage and a save-before-close check. JSON profile/time import and export remain compatible.
 - Reduced renderer memory and background work: selected-profile daily summaries, released acknowledged session records, no clock-driven Workspace redraws, deferred viewer/OCR/export loading, bounded PDF/OCR canvases and explicit temporary resource cleanup.
-- Weekly time summaries now use Sundayâ€“Saturday calendar weeks, matching a Sundayâ€“Thursday workweek.
+- Weekly time summaries now use Sunday–Saturday calendar weeks, matching a Sunday–Thursday workweek.
 - Kept Codes & Strips beside the Workspace viewer and removed the duplicate Reading toggle. Reading now supports preferred installed fonts with a remembered My fonts list.
 
 - Research tools Notes tab/menu renamed Memos/Notes for consistent wording.
@@ -147,15 +147,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 ## 1.7.0 - 2026-10-08
 
 ### Added
-- **Offline Help** â€” searchable complete user guide and application documentation, section dropdowns and expand-all reading. Navigation is Workspace, Codebook, Auto-Code, Analysis, Code Map, Help, About.
-- **Unified project import** â€” the existing Import dialog accepts JSON/QDPX projects, QDC codebooks and extracted QDE XML with adjacent sources; missing sources are reported before creating an unusable project.
-- **Workspace project export choices** â€” JSON/QDPX with originals or smaller text-only document data; coding, memos and image regions remain in both choices without changing local originals.
-- **Memo tools** â€” select, edit, copy and export both standalone and attached memos; individual/selected Word or CSV exports and confirmed consolidation into a new or selected standalone memo, preserving all text and links while keeping sources/codes/coding intact.
-- **Research tools** â€” one workspace under Project tools with Cases, Groups, Review, Notes and History: cases/attributes, FGD passage links/CSV import, overlapping groups, saved scoped Boolean/overlap/proximity queries, contextual text/image review and case counts, linked memos/annotations, bulk reassignment/splitting, boundary adjustment and in-vivo/multiple-code selection actions.
-- **Codes & Strips** â€” discoverable reader-toolbar button beside Portrait/Lines, remembered visibility, narrow vertical code labels and separate overlapping passage lanes. Hover/focus widens the coloured stripe by 3 pixels.
-- **Persistent recovery** â€” local SQLite activity plus named/rotating automatic checkpoints, restore confirmation, pre-recovery checkpoint and integrity checks; activity CSV export.
-- **Research-record exports** â€” CSV/narrative Word/HTML, full analysis HTML inclusion, JSON/LAN/merge preservation and reference remapping. Source edits relocate references or preserve unlinked notes. QDPX includes readable Notes and an eQc research appendix; foreign native case/group/query conversion is not claimed.
-- **Formatted Word/PDF coding** â€” Workspace Original view preserves Word styles, tables, lists and images, and renders original PDF pages with page navigation, text selection, region coding and fit/percentage zoom. Selections map back to existing coding offsets; mismatched passages and edited originals use a safe Plain text fallback. Linked PDF page snapshots reuse image-coding analysis and exports, retain document/page names, survive backups/merges and follow document rename/move/delete actions. Existing projects and table-free narrative reports remain compatible.
+- **Offline Help** — searchable complete user guide and application documentation, section dropdowns and expand-all reading. Navigation is Workspace, Codebook, Auto-Code, Analysis, Code Map, Help, About.
+- **Unified project import** — the existing Import dialog accepts JSON/QDPX projects, QDC codebooks and extracted QDE XML with adjacent sources; missing sources are reported before creating an unusable project.
+- **Workspace project export choices** — JSON/QDPX with originals or smaller text-only document data; coding, memos and image regions remain in both choices without changing local originals.
+- **Memo tools** — select, edit, copy and export both standalone and attached memos; individual/selected Word or CSV exports and confirmed consolidation into a new or selected standalone memo, preserving all text and links while keeping sources/codes/coding intact.
+- **Research tools** — one workspace under Project tools with Cases, Groups, Review, Notes and History: cases/attributes, FGD passage links/CSV import, overlapping groups, saved scoped Boolean/overlap/proximity queries, contextual text/image review and case counts, linked memos/annotations, bulk reassignment/splitting, boundary adjustment and in-vivo/multiple-code selection actions.
+- **Codes & Strips** — discoverable reader-toolbar button beside Portrait/Lines, remembered visibility, narrow vertical code labels and separate overlapping passage lanes. Hover/focus widens the coloured stripe by 3 pixels.
+- **Persistent recovery** — local SQLite activity plus named/rotating automatic checkpoints, restore confirmation, pre-recovery checkpoint and integrity checks; activity CSV export.
+- **Research-record exports** — CSV/narrative Word/HTML, full analysis HTML inclusion, JSON/LAN/merge preservation and reference remapping. Source edits relocate references or preserve unlinked notes. QDPX includes readable Notes and an eQc research appendix; foreign native case/group/query conversion is not claimed.
+- **Formatted Word/PDF coding** — Workspace Original view preserves Word styles, tables, lists and images, and renders original PDF pages with page navigation, text selection, region coding and fit/percentage zoom. Selections map back to existing coding offsets; mismatched passages and edited originals use a safe Plain text fallback. Linked PDF page snapshots reuse image-coding analysis and exports, retain document/page names, survive backups/merges and follow document rename/move/delete actions. Existing projects and table-free narrative reports remain compatible.
 
 ### Fixed
 - ICR coder labels now distinguish scoped text assignments and image regions. Consensus shows text-entry and overlapping-passage totals, jointly coded review counts and hidden single-coder groups, with explanations of their different units.
@@ -166,10 +166,10 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Changed
 - Excerpt Review starts with code/source/text filters; advanced query criteria are grouped in a disclosure. Refinement controls and the user guide explain reassignment, splitting and boundary adjustment.
-- **REFI-QDA compatibility** â€” QDPX uses the standard Project 1.0 namespace/schema, directly nested codes, valid attributes and nonempty containers, lowercase `sources/` paths, named memo files, coder GUID references and inclusive Unicode-codepoint text positions. Non-JPEG/PNG images are converted to PNG. Invalid coding or unreadable images stop export with a specific error rather than being silently omitted. Import retains legacy eQc QDPX support and now accepts standalone QDC codebooks.
-- **Original source retention** â€” new Word/PDF imports, scanned PDFs and Word-comment imports retain the original bytes alongside coding text. QDPX import retains original Word files and PDF text representations when supplied. Workspaceâ€™s Original menu opens/saves the original or attaches one to an older document without replacing coding text. Backups and project merges carry originals. Unchanged originals export through standard DOCX `richTextPath` or PDF `Representation`; edited text exports its current plain representation to avoid pairing coding with an outdated original.
-- **Stable source lines** â€” Workspaceâ€™s Lines toggle shows one-based logical line numbers, including blank lines, independent of wrapping/font size. Codebook excerpt cards and CSV/DOCX exports include source line ranges. Native Word page-line numbering remains in the original file; formatted Word/PDF coding is available in Original view.
-- Codebook Word exports use a table-free **document/image â†’ code â†’ numbered excerpt** layout. Source names, full code paths, excerpt counts, coder identities, key-excerpt marks and excerpt memos accompany the text and cropped image regions. Summary mode also includes source memos, code definitions/summaries and documentâ€“code framework memos. Codes-only retains definitions/summaries and source attribution; uncoded codes have a separate section.
+- **REFI-QDA compatibility** — QDPX uses the standard Project 1.0 namespace/schema, directly nested codes, valid attributes and nonempty containers, lowercase `sources/` paths, named memo files, coder GUID references and inclusive Unicode-codepoint text positions. Non-JPEG/PNG images are converted to PNG. Invalid coding or unreadable images stop export with a specific error rather than being silently omitted. Import retains legacy eQc QDPX support and now accepts standalone QDC codebooks.
+- **Original source retention** — new Word/PDF imports, scanned PDFs and Word-comment imports retain the original bytes alongside coding text. QDPX import retains original Word files and PDF text representations when supplied. Workspace’s Original menu opens/saves the original or attaches one to an older document without replacing coding text. Backups and project merges carry originals. Unchanged originals export through standard DOCX `richTextPath` or PDF `Representation`; edited text exports its current plain representation to avoid pairing coding with an outdated original.
+- **Stable source lines** — Workspace’s Lines toggle shows one-based logical line numbers, including blank lines, independent of wrapping/font size. Codebook excerpt cards and CSV/DOCX exports include source line ranges. Native Word page-line numbering remains in the original file; formatted Word/PDF coding is available in Original view.
+- Codebook Word exports use a table-free **document/image → code → numbered excerpt** layout. Source names, full code paths, excerpt counts, coder identities, key-excerpt marks and excerpt memos accompany the text and cropped image regions. Summary mode also includes source memos, code definitions/summaries and document–code framework memos. Codes-only retains definitions/summaries and source attribution; uncoded codes have a separate section.
 - Starred Excerpts and Starred Images use the same Word layout. Coverage percentages are omitted; counts describe coding entries, retaining overlapping passages and separate coders.
 - Codebook CSV/DOCX filenames use `Project name_Code name`; multiple codes are joined with ` + `, and whole-codebook exports use `Project name_All codes`. Starred exports add a descriptive suffix. Unicode names are preserved, forbidden filename characters are replaced, and long names are bounded.
 - Complete v1.7.0 user guide, offline in-app Help, README, application documentation, release notes and AI change history updated for this release.
@@ -177,12 +177,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 ## 1.6.5 - 2026-10-06
 
 ### Changed
-- **Task-oriented Codebook sidebar** â€” Details, Merge, Export and Import tabs replace the long stacked panel. Selected-code export and merge use the same searchable code selection. Routine CSV/DOCX and starred exports stay prominent; whole-project exports are grouped in a disclosure. Existing options and export formats are retained.
-- **Tidier Workspace** â€” Add source groups document, image, scanned PDF and folder actions. Text search stays directly accessible; sorting and coder filters move into a collapsible section. Wider, responsive sidebars give trees and controls room to breathe.
-- **Compact project header** â€” Project tools groups backup/import/project merge actions; Reading groups fonts and text size. The Light/Dark theme toggle remains outside menus. Project selection, new/rename, LAN, undo/redo and save remain directly available.
-- **Grouped analysis navigation** â€” Coding, Text and Team groups expose all eight analysis views without a long overflowing row. ICR/consensus scope controls collapse into a summary displaying the current selection.
-- **Code Map tools and automatic Fit** â€” View, Draw, Canvas, Codes, Export and Help menus retain all map options. Fit follows the available viewport; manual zoom remains fixed until Fit is selected again. Node labels remain readable at reduced zoom, full code names are available on hover, and canvas/export dimensions stay independent of screen zoom.
-- **Wider About layout** â€” one wide panel presents the app, version/update links, creator, CARE/BRAC acknowledgments, contact and license. Information rows stack in smaller windows.
+- **Task-oriented Codebook sidebar** — Details, Merge, Export and Import tabs replace the long stacked panel. Selected-code export and merge use the same searchable code selection. Routine CSV/DOCX and starred exports stay prominent; whole-project exports are grouped in a disclosure. Existing options and export formats are retained.
+- **Tidier Workspace** — Add source groups document, image, scanned PDF and folder actions. Text search stays directly accessible; sorting and coder filters move into a collapsible section. Wider, responsive sidebars give trees and controls room to breathe.
+- **Compact project header** — Project tools groups backup/import/project merge actions; Reading groups fonts and text size. The Light/Dark theme toggle remains outside menus. Project selection, new/rename, LAN, undo/redo and save remain directly available.
+- **Grouped analysis navigation** — Coding, Text and Team groups expose all eight analysis views without a long overflowing row. ICR/consensus scope controls collapse into a summary displaying the current selection.
+- **Code Map tools and automatic Fit** — View, Draw, Canvas, Codes, Export and Help menus retain all map options. Fit follows the available viewport; manual zoom remains fixed until Fit is selected again. Node labels remain readable at reduced zoom, full code names are available on hover, and canvas/export dimensions stay independent of screen zoom.
+- **Wider About layout** — one wide panel presents the app, version/update links, creator, CARE/BRAC acknowledgments, contact and license. Information rows stack in smaller windows.
 
 ### Fixed
 - Main work surfaces use the height remaining below the header, preventing unnecessary outer scrolling and clipped controls.
@@ -192,17 +192,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 ## 1.6.4 - 2026-10-06
 
 ### Added
-- **Merge codes** â€” select two or more codes in Codebook, choose the code to keep, and merge. Text passages, image regions, child codes, definitions, memos, framework cells, relationship notes, and map references are retained or remapped. Undo with Ctrl+Z.
-- **Selected-code exports** â€” export one or multiple codes to CSV or DOCX, optionally including their descendants, using the existing export modes.
-- **Image coding in exports** â€” excerpt exports include image source names, normalized region coordinates, coder identities and region memos. DOCX includes cropped image excerpts. Starred Excerpts includes both text and image coding, with unchanged option titles.
-- **Complete analysis HTML report** â€” includes scoped pairwise agreement, Cohenâ€™s Îº, Holsti, Fleissâ€™ Îº, Krippendorffâ€™s c-Alpha-binary and Cu-Alpha, per-code results, consensus counts and coder assignments, plus cropped image coding and all existing dashboard analyses.
-- **Acknowledgments** â€” recognize the contributions of the CARE project and BRAC James P Grant School of Public Health, BRAC University, in About and documentation.
+- **Merge codes** — select two or more codes in Codebook, choose the code to keep, and merge. Text passages, image regions, child codes, definitions, memos, framework cells, relationship notes, and map references are retained or remapped. Undo with Ctrl+Z.
+- **Selected-code exports** — export one or multiple codes to CSV or DOCX, optionally including their descendants, using the existing export modes.
+- **Image coding in exports** — excerpt exports include image source names, normalized region coordinates, coder identities and region memos. DOCX includes cropped image excerpts. Starred Excerpts includes both text and image coding, with unchanged option titles.
+- **Complete analysis HTML report** — includes scoped pairwise agreement, Cohen’s Îº, Holsti, Fleiss’ Îº, Krippendorff’s c-Alpha-binary and Cu-Alpha, per-code results, consensus counts and coder assignments, plus cropped image coding and all existing dashboard analyses.
+- **Acknowledgments** — recognize the contributions of the CARE project and BRAC James P Grant School of Public Health, BRAC University, in About and documentation.
 
 ### Changed
 - All codebook CSV/DOCX modes include document or image source names. Codes-only exports list associated sources and retain uncoded codes; excerpt exports retain uncoded codes and their memos/definitions where enabled.
-- Removed the redundant â€œDocument + codes + excerpts + summariesâ€ mode; â€œCodes + excerpts + summariesâ€ now supplies source names itself.
+- Removed the redundant “Document + codes + excerpts + summaries” mode; “Codes + excerpts + summaries” now supplies source names itself.
 - Notes & Memos CSV includes a Document column and whole-image memos.
-- Updated the user guide and README with previously missing v1.6.0â€“1.6.3 reliability, consensus, definition, and data-integrity features.
+- Updated the user guide and README with previously missing v1.6.0–1.6.3 reliability, consensus, definition, and data-integrity features.
 
 ### Fixed
 - Image-only manuscript entries now embed their starred regions even when there are no starred text quotes.
@@ -211,142 +211,142 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 ## 1.6.3 - 2026-09-30
 
 ### Fixed
-- **Consensus review now shows agreements** â€” an agreement is judged by the coders who actually coded a quote, so two coders agreeing on a passage is no longer reported as a disagreement just because a third coder (in scope) never touched that passage. This left the Agreements list empty in most multi-coder projects.
-- **Consensus review no longer lists single-coder quotes** â€” a passage only one coder marked has nobody to disagree with, so it is no longer offered as an adjudication item. The number of such quotes is disclosed instead of silently hidden.
+- **Consensus review now shows agreements** — an agreement is judged by the coders who actually coded a quote, so two coders agreeing on a passage is no longer reported as a disagreement just because a third coder (in scope) never touched that passage. This left the Agreements list empty in most multi-coder projects.
+- **Consensus review no longer lists single-coder quotes** — a passage only one coder marked has nobody to disagree with, so it is no longer offered as an adjudication item. The number of such quotes is disclosed instead of silently hidden.
 
 ## 1.6.2 - 2026-09-30
 
 ### Fixed
-- **Deleting a code no longer leaves dangling data** â€” framework-matrix cells, relationship notes, and hidden-map entries are now removed along with the code and its subcodes. Previously the matrix and notes kept rendering against a deleted code, and a stale hidden entry could make the â€œâž• Add codesâ€ panel open empty.
+- **Deleting a code no longer leaves dangling data** — framework-matrix cells, relationship notes, and hidden-map entries are now removed along with the code and its subcodes. Previously the matrix and notes kept rendering against a deleted code, and a stale hidden entry could make the “âž• Add codes” panel open empty.
 - **"Unattributed" is no longer counted as a coder** in the reliability statistics. Unstamped passages have no human behind them, so scoring them against a real coder produced a figure that read like agreement but was not. They are now excluded and disclosed in a notice, with a pointer to the Project Settings action that attributes them.
-- **Code Map edge labels** â€” dragging a label now saves once when you let go, instead of writing to the project on every mouse movement; dragging an unstyled edge for the first time no longer freezes its line style, curvature, and arrowheads.
-- **Code Map annotations** â€” after dragging one annotation, the next click on any other annotation is no longer ignored.
-- **Definitions now survive REFI-QDA round-trips** â€” the coding definition is written to the code's `<Description>` and the memo to a proper `<Note>` in the `<Notes>` section, so both fields return to their own places on import. Definitions also appear in the codebook DOCX export, the Notes & Memos CSV, and the HTML report. (Manuscripts skeletons are unchanged: still memo-driven.)
+- **Code Map edge labels** — dragging a label now saves once when you let go, instead of writing to the project on every mouse movement; dragging an unstyled edge for the first time no longer freezes its line style, curvature, and arrowheads.
+- **Code Map annotations** — after dragging one annotation, the next click on any other annotation is no longer ignored.
+- **Definitions now survive REFI-QDA round-trips** — the coding definition is written to the code's `<Description>` and the memo to a proper `<Note>` in the `<Notes>` section, so both fields return to their own places on import. Definitions also appear in the codebook DOCX export, the Notes & Memos CSV, and the HTML report. (Manuscripts skeletons are unchanged: still memo-driven.)
 
 ### Changed
-- **Merging another coder's project now carries the analysis** â€” image sources, image coded regions, framework-matrix cells, relationship notes, and manual Code Map edge styles are merged with their references remapped, instead of being silently dropped. Where two coders wrote different text for the same case or code pair, both are kept. Merging the same file twice still changes nothing.
-- **CSV definition import reports skipped rows** â€” an existing coding rule is never silently overwritten; the import summary now says how many incoming definitions were skipped.
+- **Merging another coder's project now carries the analysis** — image sources, image coded regions, framework-matrix cells, relationship notes, and manual Code Map edge styles are merged with their references remapped, instead of being silently dropped. Where two coders wrote different text for the same case or code pair, both are kept. Merging the same file twice still changes nothing.
+- **CSV definition import reports skipped rows** — an existing coding rule is never silently overwritten; the import summary now says how many incoming definitions were skipped.
 - Agreement figures are labelled by what they are: chance-corrected coefficients (Îº, Î±) carry a strength band, while Holsti's index is marked as an uncorrected ratio.
 
 ## 1.6.1 - 2026-09-30
 
 ### Added
-- **ICR scope selection** â€” the Inter-Coder Reliability tab now lets you pick exactly which coders and documents count (plus an images toggle). Every metric recomputes over the scope.
-- **Holsti's index** â€” pairwise `2M/(N1+N2)` agreement over positive coding decisions, shown overall and per code.
-- **Krippendorff's c-Alpha-binary** â€” chance-corrected agreement per code over present/absent ratings, with CSV/DOCX export.
-- **Krippendorff's Cu-Alpha** â€” agreement on *which* code each jointly-considered quote received; quotes a coder left uncoded count as disagreements.
-- **Consensus sub-tab** â€” side-by-side adjudication of overlapping quotes with Agreement/Disagreement badges and filters; keep one coder's coding, delete all, or remove single passages (undo with Ctrl+Z).
-- **Coding definitions** â€” each code now has a dedicated Definition field (Code Details), importable from codebook CSVs (`Definition`, `Definition of Parent/Child 1/Child 2`, â€¦), exported back out for lossless round-trips, and preserved across project merges.
+- **ICR scope selection** — the Inter-Coder Reliability tab now lets you pick exactly which coders and documents count (plus an images toggle). Every metric recomputes over the scope.
+- **Holsti's index** — pairwise `2M/(N1+N2)` agreement over positive coding decisions, shown overall and per code.
+- **Krippendorff's c-Alpha-binary** — chance-corrected agreement per code over present/absent ratings, with CSV/DOCX export.
+- **Krippendorff's Cu-Alpha** — agreement on *which* code each jointly-considered quote received; quotes a coder left uncoded count as disagreements.
+- **Consensus sub-tab** — side-by-side adjudication of overlapping quotes with Agreement/Disagreement badges and filters; keep one coder's coding, delete all, or remove single passages (undo with Ctrl+Z).
+- **Coding definitions** — each code now has a dedicated Definition field (Code Details), importable from codebook CSVs (`Definition`, `Definition of Parent/Child 1/Child 2`, …), exported back out for lossless round-trips, and preserved across project merges.
 
 ## 1.6.0 - 2026-09-29
 
 ### Added
-- **Inter-coder reliability (ICR)** â€” new Analysis dashboard sub-tab measuring code-occurrence agreement: one item = one code applied (or not) to one document or image. Compare any two coders with **percent agreement** and **Cohen's Îº** (overall, per-code breakdown, and the 2Ã—2 table, exportable to CSV/DOCX); with 3+ coders **Fleiss' Îº** is computed over all of them automatically.
+- **Inter-coder reliability (ICR)** — new Analysis dashboard sub-tab measuring code-occurrence agreement: one item = one code applied (or not) to one document or image. Compare any two coders with **percent agreement** and **Cohen's Îº** (overall, per-code breakdown, and the 2×2 table, exportable to CSV/DOCX); with 3+ coders **Fleiss' Îº** is computed over all of them automatically.
 
 ## 1.5.8 - 2026-08-18
 
 ### Changed
-- **Cleaner document reader** â€” the left-margin coding stripe (code-name labels and vertical colour bars beside the text) is removed from the Workspace document editor. Coded passages still highlight in the text, the right-edge **Document Portrait** minimap is unchanged, and clicking a passage still opens the code menu.
+- **Cleaner document reader** — the left-margin coding stripe (code-name labels and vertical colour bars beside the text) is removed from the Workspace document editor. Coded passages still highlight in the text, the right-edge **Document Portrait** minimap is unchanged, and clicking a passage still opens the code menu.
 
 ## 1.5.7 - 2026-08-18
 
 ### Added
-- **Complete HTML report** â€” the Analysis tab's **â¬‡ï¸ HTML Report** now includes **every** analysis: the Framework Matrix, plus the **Word Frequencies** list and the **KWIC** (keyword-in-context) results you last generated/searched â€” with the searched keyword and context window noted in the report.
-- **Code Map annotations** â€” draw free-standing shapes and notes (**rectangle, circle, arrow, text**) on the map canvas, and style edge **width**.
-- **Code Map hidden codes** â€” âœ• removes a code from the canvas; **âž• Add codes** brings it back.
+- **Complete HTML report** — the Analysis tab's **â¬‡ï¸ HTML Report** now includes **every** analysis: the Framework Matrix, plus the **Word Frequencies** list and the **KWIC** (keyword-in-context) results you last generated/searched — with the searched keyword and context window noted in the report.
+- **Code Map annotations** — draw free-standing shapes and notes (**rectangle, circle, arrow, text**) on the map canvas, and style edge **width**.
+- **Code Map hidden codes** — âœ• removes a code from the canvas; **âž• Add codes** brings it back.
 
 ### Changed
-- **KWIC search** â€” the keyword input and the actively searched keyword are now distinct states: typing never triggers a search, and a summary line reports **how many matches** were found for the searched term.
+- **KWIC search** — the keyword input and the actively searched keyword are now distinct states: typing never triggers a search, and a summary line reports **how many matches** were found for the searched term.
 
 ### Fixed
-- **Move-Code dropdown mojibake** â€” the tree arrows in the move-code dropdown and a curly-quote in the empty-tree message no longer render as `Ã¢â€ Â³`/`Ã¢â‚¬Å“` garbage (escaped Unicode/ASCII used instead).
-- **â€œâž• Add codesâ€ notice** â€” when every code is already on the canvas, the hint auto-dismisses after a couple of seconds instead of staying on screen.
+- **Move-Code dropdown mojibake** — the tree arrows in the move-code dropdown and a curly-quote in the empty-tree message no longer render as `Ã¢â€ Â³`/`Ã¢â‚¬Å“` garbage (escaped Unicode/ASCII used instead).
+- **“âž• Add codes” notice** — when every code is already on the canvas, the hint auto-dismisses after a couple of seconds instead of staying on screen.
 
 ## 1.5.6 - 2026-08-16
 
 ### Added
-- **ðŸ—ºï¸ Code Map is now a real canvas** â€” pick the canvas size (Map, A5, A4, Letter, Legal, or a fully **Custom** WÃ—H) and zoom from 10â€“400% with the slider. The map renders as a paper with true pixel dimensions inside a scrollable viewport, so zooming in scrolls instead of stretching. Switching canvas size **instantly rescales every placed node** to fit the new bounds (40px padding), and auto-layout for new codes always respects the active canvas.
-- **ðŸŽ¨ Style edges and shapes on the Code Map** â€” every node can be a **circle, square, or diamond** (right-click to cycle). Click any edge to style it: **solid/dashed/dotted**, straight or **curved**, **arrowheads**, custom **colors**, and optional **labels**. Hierarchy and co-occurrence edges keep defaults until you style them; â€œ**âœï¸ Draw edge**â€ lets you connect any two nodes with a custom edge, and styled/custom edges persist with the project. Co-occurrence edges (derived from shared documents) can be toggled on/off.
-- **ðŸ“Š Document Portrait is now a vertical coding strip** â€” the minimap moved from above the document to a narrow strip on the document's right edge. Each colored band sits exactly where that passage is in the text; **click it to scroll the document to the passage** (no popup). Lines **widen on hover** so even single-line codings are easy to hit.
-- **ðŸ” Code while you search** â€” select a passage, click the code search box, and type: the selection is kept (sticky), and **clicking any search result applies that code**. You can also **drag a code** from the search results or the legend onto the document to apply it, and images can now be **dragged between folders** in the document tree.
-- **ðŸ§¹ Clean redundant codings** â€” a button merges overlapping codings of the same code on the same document into single segments (notes joined), so duplicated codings never inflate counts.
-- **ðŸŽ¨ 60 more code colors** â€” the Codebook color picker gains a â€œðŸŽ¨ More colorsâ€¦â€ palette.
-- **â¬‡ï¸ Codebook-only REFI-QDA export** â€” share just the code tree (hierarchy, colors, memos) as a valid `.qdpx` archive with no sources.
-- **â†•ï¸ Drag-reorder the code legend** â€” drag a code onto a sibling to reorder it (positions remembered), onto a parent to reparent it, or onto empty tree space to move it to root.
+- **ðŸ—ºï¸ Code Map is now a real canvas** — pick the canvas size (Map, A5, A4, Letter, Legal, or a fully **Custom** W×H) and zoom from 10–400% with the slider. The map renders as a paper with true pixel dimensions inside a scrollable viewport, so zooming in scrolls instead of stretching. Switching canvas size **instantly rescales every placed node** to fit the new bounds (40px padding), and auto-layout for new codes always respects the active canvas.
+- **ðŸŽ¨ Style edges and shapes on the Code Map** — every node can be a **circle, square, or diamond** (right-click to cycle). Click any edge to style it: **solid/dashed/dotted**, straight or **curved**, **arrowheads**, custom **colors**, and optional **labels**. Hierarchy and co-occurrence edges keep defaults until you style them; “**âœï¸ Draw edge**” lets you connect any two nodes with a custom edge, and styled/custom edges persist with the project. Co-occurrence edges (derived from shared documents) can be toggled on/off.
+- **ðŸ“Š Document Portrait is now a vertical coding strip** — the minimap moved from above the document to a narrow strip on the document's right edge. Each colored band sits exactly where that passage is in the text; **click it to scroll the document to the passage** (no popup). Lines **widen on hover** so even single-line codings are easy to hit.
+- **🔍 Code while you search** — select a passage, click the code search box, and type: the selection is kept (sticky), and **clicking any search result applies that code**. You can also **drag a code** from the search results or the legend onto the document to apply it, and images can now be **dragged between folders** in the document tree.
+- **ðŸ§¹ Clean redundant codings** — a button merges overlapping codings of the same code on the same document into single segments (notes joined), so duplicated codings never inflate counts.
+- **ðŸŽ¨ 60 more code colors** — the Codebook color picker gains a “ðŸŽ¨ More colors…” palette.
+- **â¬‡ï¸ Codebook-only REFI-QDA export** — share just the code tree (hierarchy, colors, memos) as a valid `.qdpx` archive with no sources.
+- **â†•ï¸ Drag-reorder the code legend** — drag a code onto a sibling to reorder it (positions remembered), onto a parent to reparent it, or onto empty tree space to move it to root.
 
 ### Changed
-- **Deleting a folder** no longer deletes its documents â€” they move to the root level instead.
+- **Deleting a folder** no longer deletes its documents — they move to the root level instead.
 
 ### Fixed
-- **Code Map clipping** â€” shrinking the canvas (e.g. Map â†’ A4) no longer leaves nodes cropped outside the white paper; every node now fits with padding, and dragging is rigidly clamped to the canvas bounds.
-- **Code Map zoom stretch** â€” the old percentage-width scaling stretched the map horizontally; zoom now scales the paper while scrollbars handle overflow.
+- **Code Map clipping** — shrinking the canvas (e.g. Map → A4) no longer leaves nodes cropped outside the white paper; every node now fits with padding, and dragging is rigidly clamped to the canvas bounds.
+- **Code Map zoom stretch** — the old percentage-width scaling stretched the map horizontally; zoom now scales the paper while scrollbars handle overflow.
 
 ## 1.5.5 - 2026-08-16
 
 ### Added
-- **ðŸ—‘ï¸ Bulk delete by coder (Project Settings)** â€” a new **â€œManage Coders (Cleanup)â€** section lists every coder that has coded items in the project (sorted; **Unattributed** is excluded on purpose), with their `n seg Â· n reg` counts and a small ðŸ—‘ï¸ button. Clicking it asks you to **type the exact coder name** before anything is removed, so a typo-cloned name (e.g. `bayazid-dev` vs `bayazid_dev`) can be safely wiped. The deletion filters both `codedSegments` and `codedRegions`, stamps the project's `updatedAt` (so LAN offline-edit tracking sees it), persists it, and toasts the removed count.
-- **ðŸ”˜ Compact Undo / Redo / Save buttons** â€” these header buttons now show only their icon, sized exactly to the icon (26Ã—26 px), with the label moved into the tooltip.
+- **ðŸ—‘ï¸ Bulk delete by coder (Project Settings)** — a new **“Manage Coders (Cleanup)”** section lists every coder that has coded items in the project (sorted; **Unattributed** is excluded on purpose), with their `n seg · n reg` counts and a small ðŸ—‘ï¸ button. Clicking it asks you to **type the exact coder name** before anything is removed, so a typo-cloned name (e.g. `bayazid-dev` vs `bayazid_dev`) can be safely wiped. The deletion filters both `codedSegments` and `codedRegions`, stamps the project's `updatedAt` (so LAN offline-edit tracking sees it), persists it, and toasts the removed count.
+- **ðŸ”˜ Compact Undo / Redo / Save buttons** — these header buttons now show only their icon, sized exactly to the icon (26×26 px), with the label moved into the tooltip.
 
 ### Changed
-- **ðŸŒ— Codebook sorting dropdown now theme-aware** â€” the â€œSort byâ€ select in the Codebook centre panel used an undefined CSS variable (`--bg-panel`), which made it near-invisible in dark mode. The variable is now defined for **both** light and dark themes, so sorts are readable everywhere.
-- **Project Settings modal scrolls** â€” added `max-height` + scrolling so the new Cleanup section and the Save/Delete buttons stay reachable on shorter windows.
+- **ðŸŒ— Codebook sorting dropdown now theme-aware** — the “Sort by” select in the Codebook centre panel used an undefined CSS variable (`--bg-panel`), which made it near-invisible in dark mode. The variable is now defined for **both** light and dark themes, so sorts are readable everywhere.
+- **Project Settings modal scrolls** — added `max-height` + scrolling so the new Cleanup section and the Save/Delete buttons stay reachable on shorter windows.
 
 ## 1.5.4 - 2026-08-16
 
 ### Added
-- **ðŸšª Host can remove a member** â€” while hosting, every connected coder's chip in the LAN panel now has an âœ• button to disconnect that specific person. The removed coder sees a clear **â€œYou were disconnected by the hostâ€** message and returns to local mode.
-- **ðŸŸ¢ / âšª LAN sync status chip** â€” a small, always-visible chip next to the ðŸŒ LAN button shows **â€œðŸŸ¢ Syncedâ€** when you're on the session-shared project and **â€œâšª Local only (not synced)â€** while you're viewing another project.
-- **ðŸŸ¢ Shared-project marker** â€” the project dropdown now prefixes the session-shared project with a green dot, so you always know which project is live even when a different one is open.
+- **ðŸšª Host can remove a member** — while hosting, every connected coder's chip in the LAN panel now has an âœ• button to disconnect that specific person. The removed coder sees a clear **“You were disconnected by the host”** message and returns to local mode.
+- **ðŸŸ¢ / âšª LAN sync status chip** — a small, always-visible chip next to the ðŸŒ LAN button shows **“ðŸŸ¢ Synced”** when you're on the session-shared project and **“âšª Local only (not synced)”** while you're viewing another project.
+- **ðŸŸ¢ Shared-project marker** — the project dropdown now prefixes the session-shared project with a green dot, so you always know which project is live even when a different one is open.
 
 ### Changed
-- **ðŸ§­ Free multitasking during LAN sessions** â€” you can now open, view, and edit **any** local project while a session runs in the background. The old alarm-style â€œproject mismatchâ€ banner is gone (replaced by the quiet status chip); an unlikely host rejection is now logged instead of popping up.
-- **ðŸ“¦ Background syncing for the shared project** â€” if a teammate edits the shared LAN project while you're working on a different project, the incoming changes are saved silently to the database **without switching your screen** (and won't be mistaken for â€œoffline editsâ€ later).
-- **ðŸ› ï¸ Cleaner client-side project management** â€” LAN clients can now freely rename/delete their **own other** local projects during a session; only the session-shared project stays locked (it belongs to the host's live state).
+- **ðŸ§­ Free multitasking during LAN sessions** — you can now open, view, and edit **any** local project while a session runs in the background. The old alarm-style “project mismatch” banner is gone (replaced by the quiet status chip); an unlikely host rejection is now logged instead of popping up.
+- **ðŸ“¦ Background syncing for the shared project** — if a teammate edits the shared LAN project while you're working on a different project, the incoming changes are saved silently to the database **without switching your screen** (and won't be mistaken for “offline edits” later).
+- **ðŸ› ï¸ Cleaner client-side project management** — LAN clients can now freely rename/delete their **own other** local projects during a session; only the session-shared project stays locked (it belongs to the host's live state).
 
 ### Fixed
-- **ðŸ”’ LAN session project lock** â€” sessions are now hard-locked to exactly **one** project id end-to-end (host accept, client receive/buffer/replay, and client send). Previously, opening or switching to a different local project mid-session could leak its edits into the session or apply/save the wrong project's data; those paths are now rejected at every layer.
+- **ðŸ”’ LAN session project lock** — sessions are now hard-locked to exactly **one** project id end-to-end (host accept, client receive/buffer/replay, and client send). Previously, opening or switching to a different local project mid-session could leak its edits into the session or apply/save the wrong project's data; those paths are now rejected at every layer.
 
 ## 1.5.2 - 2026-08-13
 
 ### Added
-- **Auto-Code word matching modes** â€” the Auto-Coder now has **Literal** (exact substring) and **Word roots & variants** matching: word-boundary-aware, light English inflection normalization (`green` â†’ `greens` / `greenery`, `tree` â†’ `trees`), falling back to whole-word matching for non-English (e.g. Bangla) words.
-- **Live match preview** â€” before executing, the Auto-Coder shows how many **new** segments would be applied across how many documents (debounced; excludes passages already coded with the target code).
+- **Auto-Code word matching modes** — the Auto-Coder now has **Literal** (exact substring) and **Word roots & variants** matching: word-boundary-aware, light English inflection normalization (`green` → `greens` / `greenery`, `tree` → `trees`), falling back to whole-word matching for non-English (e.g. Bangla) words.
+- **Live match preview** — before executing, the Auto-Coder shows how many **new** segments would be applied across how many documents (debounced; excludes passages already coded with the target code).
 
 ### Changed
-- **Codebook editing performance** â€” code name/summary inputs use debounced local state and commit on blur/Enter instead of persisting+re-rendering the app on every keystroke.
-- **Performance** â€” document tree badges, codebook excerpt lookups, and code-tree sorting now use precomputed maps instead of per-row scans.
+- **Codebook editing performance** — code name/summary inputs use debounced local state and commit on blur/Enter instead of persisting+re-rendering the app on every keystroke.
+- **Performance** — document tree badges, codebook excerpt lookups, and code-tree sorting now use precomputed maps instead of per-row scans.
 
 ### Fixed
-- **LAN client role** â€” connecting peers are now broadcast their own role (`client`), name, and the host name, so the client UI shows the **Disconnect** button (and the right session banner) instead of the host's "Stop Session" button.
-- **LAN session tab** â€” the collaboration panel opens on the correct tab (Join) for sessions you joined.
+- **LAN client role** — connecting peers are now broadcast their own role (`client`), name, and the host name, so the client UI shows the **Disconnect** button (and the right session banner) instead of the host's "Stop Session" button.
+- **LAN session tab** — the collaboration panel opens on the correct tab (Join) for sessions you joined.
 
 ## 1.5.0 - 2026-08-13
 
 ### Added
-- **LAN collaboration** â€” a `ðŸŒ LAN` button in the header starts a live, password-protected coding session over the local network:
-  - **Host a Session** â€” shares the currently open project. Joiners authenticate with an optional session password.
-  - **Join a Session** â€” auto-discovers hosts on the same network; pick one and the project is transferred in chunks with a progress bar.
-  - **Live sync** â€” edits, coding, and image-codings made by any connected coder appear in everyone's copy in real time; presence chips show who is connected.
-  - **Smart rejoin** â€” rejoining peers download only the newest state when their copy is stale; up-to-date peers connect instantly.
-  - **Robust discovery** â€” UDP broadcast, plus a same-machine probe (lets you test two app instances on one PC) and a manual "Find by IP" field for networks that drop broadcasts.
-- **`ws` dependency** â€” WebSocket server/client library powering the LAN layer.
+- **LAN collaboration** — a `ðŸŒ LAN` button in the header starts a live, password-protected coding session over the local network:
+  - **Host a Session** — shares the currently open project. Joiners authenticate with an optional session password.
+  - **Join a Session** — auto-discovers hosts on the same network; pick one and the project is transferred in chunks with a progress bar.
+  - **Live sync** — edits, coding, and image-codings made by any connected coder appear in everyone's copy in real time; presence chips show who is connected.
+  - **Smart rejoin** — rejoining peers download only the newest state when their copy is stale; up-to-date peers connect instantly.
+  - **Robust discovery** — UDP broadcast, plus a same-machine probe (lets you test two app instances on one PC) and a manual "Find by IP" field for networks that drop broadcasts.
+- **`ws` dependency** — WebSocket server/client library powering the LAN layer.
 
 ## 1.4.4 - 2026-08-13
 
 ### Added
-- **REFI-QDA (.qdpx) export** â€” Codebook tab â†’ Export Options â†’ `â¬‡ï¸ REFI-QDA`. Exports the full project (codebook with hierarchy/colors/memos, text documents and their coded passages, images and their coded regions) as a `.qdpx` archive (the legacy format was corrected to the standard schema in the pending update).
-- **REFI-QDA image import** â€” picture sources (`<PictureSource>`) inside `.qdpx` files are now imported as images, including their coded regions (`<PictureSelection>`) and memos. Image files from the archive are re-encoded as data URLs.
-- **Image rename** â€” each image in the document tree now has a âœï¸ button to rename it.
-- **Coded-region count badge** â€” image rows in the tree show how many coded regions they contain.
-- **Reader font controls (Word-style)** â€” in the header next to Undo/Redo: a font-family picker and `Aâˆ’` / `A+` font-size controls (8â€“48 px). Persist per-machine in `localStorage`.
-- **Per-coder colors on merge** â€” when merging projects, each coder is assigned a stable, distinct color instead of random colors.
+- **REFI-QDA (.qdpx) export** — Codebook tab → Export Options → `â¬‡ï¸ REFI-QDA`. Exports the full project (codebook with hierarchy/colors/memos, text documents and their coded passages, images and their coded regions) as a `.qdpx` archive (the legacy format was corrected to the standard schema in the pending update).
+- **REFI-QDA image import** — picture sources (`<PictureSource>`) inside `.qdpx` files are now imported as images, including their coded regions (`<PictureSelection>`) and memos. Image files from the archive are re-encoded as data URLs.
+- **Image rename** — each image in the document tree now has a âœï¸ button to rename it.
+- **Coded-region count badge** — image rows in the tree show how many coded regions they contain.
+- **Reader font controls (Word-style)** — in the header next to Undo/Redo: a font-family picker and `Aâˆ’` / `A+` font-size controls (8–48 px). Persist per-machine in `localStorage`.
+- **Per-coder colors on merge** — when merging projects, each coder is assigned a stable, distinct color instead of random colors.
 
 ### Changed
-- **Color scheme** â€” root codes get a color from the palette; subcodes automatically inherit their parent's color (overridable via the codebook swatch picker).
-- **Export Options layout** â€” removed a duplicate "Export Options" group in the Codebook tab; REFI-QDA export now sits at the top of the existing Export Options group, above Manuscript Skeleton.
-- **Image zoom steps** â€” `âˆ’` / `+` buttons and the slider now move in 10% steps (was 25%); minimum zoom is now 10%.
-- **REFI-QDA import robustness** â€” the importer now also reads subcodes nested inside a `<SubCodes>` wrapper (a legacy wrapper shape; the standard uses direct nested Code elements), so real MAXQDA/NVivo files import better and exports round-trip.
+- **Color scheme** — root codes get a color from the palette; subcodes automatically inherit their parent's color (overridable via the codebook swatch picker).
+- **Export Options layout** — removed a duplicate "Export Options" group in the Codebook tab; REFI-QDA export now sits at the top of the existing Export Options group, above Manuscript Skeleton.
+- **Image zoom steps** — `âˆ’` / `+` buttons and the slider now move in 10% steps (was 25%); minimum zoom is now 10%.
+- **REFI-QDA import robustness** — the importer now also reads subcodes nested inside a `<SubCodes>` wrapper (a legacy wrapper shape; the standard uses direct nested Code elements), so real MAXQDA/NVivo files import better and exports round-trip.
 
 ### Fixed
-- **Zoom buttons** â€” the `âˆ’` / `+` / Reset / slider buttons in the image viewer were nested inside the Notes button, so clicking them also opened the notes panel; they are now separate controls.
-- **Duplicate Images section** â€” removed a redundant flat "Images" list from the left panel; images are only shown inside the document tree, per folder.
+- **Zoom buttons** — the `âˆ’` / `+` / Reset / slider buttons in the image viewer were nested inside the Notes button, so clicking them also opened the notes panel; they are now separate controls.
+- **Duplicate Images section** — removed a redundant flat "Images" list from the left panel; images are only shown inside the document tree, per folder.

@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use this software in your work, please cite it using the metadata from this file."
+title: "eQc - Easy Qual Coding"
+abstract: >-
+  eQc is a local desktop application for qualitative research. It imports
+  interviews, field notes, documents and images; codes passages and regions;
+  organises a codebook with definitions and summaries; links memos to evidence;
+  and supports cases, groups, retrieval queries and recovery history. Analysis
+  includes frequencies, co-occurrence matrices, framework analysis, text search,
+  intercoder reliability and consensus. A visualization workspace provides
+  sixteen diagram types with editable figures. Project data stays on the local
+  computer, with no account or cloud upload required.
+type: software
+authors:
+  - given-names: Anisur Rahman
+    family-names: Bayazid
+    email: anisur.rahman.bayazid@gmail.com
+repository-code: "https://github.com/anisur-bayazid25/eQc"
+url: "https://github.com/anisur-bayazid25/eQc"
+license: MIT
+version: 1.8.3
+date-released: "2026-10-17"
+keywords:
+  - qualitative research
+  - qualitative data analysis
+  - content analysis
+  - coding
+  - thematic analysis
+  - intercoder reliability
+  - grounded theory
+  - research software

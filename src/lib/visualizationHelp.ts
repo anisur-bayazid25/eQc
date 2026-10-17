@@ -2,6 +2,12 @@ import { VisualizationKind } from '../domain';
 
 // Keep every visualization covered when new families are added.
 export const visualizationHelp: Record<VisualizationKind, readonly string[]> = {
+  'cooccurrence-network': [
+    'Choose overlapping coding-range pairs or shared text documents. Overlap counts each pair of different direct codes on intersecting ranges; touching boundaries do not overlap. Unique passages deduplicate identical code/document/ranges across coders; all coding decisions retain them. Shared documents count each code pair once per document. Image regions are not included.',
+    'Connected groups separates disconnected components; Circle spreads nodes around a ring; Projected sphere offers a spherical arrangement. Spatial network calculates force positions in three dimensions and projects them at the horizontal/vertical angles selected in settings. Projected labels are spread to avoid collisions. Shaded balls, flat circles and text-only labels are independent display choices. Node/text sizes reflect coding frequency with extra label space; depth and colours are illustrative, not measured variables or significance.',
+    'Chord diagram arranges codes around a circle and allocates ribbon widths by pair count at both endpoints. Each unordered pair appears once. Outer label totals sum all incident pair counts, so their combined total is twice the displayed pair count. These totals are not participants or coding frequencies. Codes with zero displayed links are omitted. Up to 40 connected codes are supported.',
+    'Minimum count and link limit control clutter; the caption reports omitted links and isolated codes. Click a line to inspect its count and source evidence in the Inspector. Drag nodes, edit labels, save named drafts and export SVG/PNG/JPEG. Generate again to reflect later coding changes. The co-occurrence heat map and Sankey use the same count calculation.'
+  ],
   'code-map': [
     'Code maps show code branches and shared-document links. Node size reflects coding frequency; shared-document links indicate codes used in the same documents, not necessarily the same passages.',
     'Use View to choose visible branches and Re-layout to reset positions. Drag code nodes to rearrange them. Codes adds hidden nodes back; removing a node from the map keeps it in the codebook. Link and Node control connections and appearance.'
@@ -19,11 +25,13 @@ export const visualizationHelp: Record<VisualizationKind, readonly string[]> = {
     'Use the settings button for language, minimum occurrences, word limits, shape or image mask, spacing and layout seed. In the Inspector, edit Word exclusions and click Apply Changes to rebuild word positions. Select a word for source links; changing its font size refits the cloud.'
   ],
   sankey: [
+    'The Code co-occurrence preset uses the same pair counts as the network and co-occurrence heat map. Choose overlapping coding or shared documents. Each unordered pair is shown once, in codebook order; ribbons show associations rather than direction. Counts appear on ribbons and node labels; percentages describe displayed pair weight, not participants. Click a ribbon for evidence.',
     'Sankey diagrams show weighted ribbons between stages. Ribbon widths share a linear value scale. Project coding summarizes coding assignments, not movement or causation; multi-coded passages contribute to each code.',
     'Use the settings button to choose project coding, a link table or complete paths, and adjust stages, labels, ordering, bar gaps and ribbon colours. Pairwise links alone do not establish complete paths; imbalanced nodes are reported without inventing flows.',
     'Select a node label to set Node label placement and Distance from boundary in the Inspector. Anchored labels follow their bar; Free position allows manual placement. Resize the whole figure to preserve quantitative widths.'
   ],
   'heat-map': [
+    'The Codes × codes: co-occurrence preset uses the same pair counts as the network and co-occurrence Sankey. Choose overlapping coding-range pairs or shared documents, with an explicit coder and counting unit. This symmetric matrix has a zero diagonal; the two halves repeat the same relationships, so do not sum both halves. Click a non-zero cell to inspect its evidence.',
     'Heat maps compare codes across documents or shared documents between codes. Read the caption and colour key for the selected counting unit; darker or lighter cells follow the chosen palette and its direction.',
     'Use the settings button to change codes, documents and counting options. In the Inspector, Heat map display can hide all-zero rows or columns and swap rows and columns. These display changes preserve counts and source coding. Select a cell for its source links.'
   ],

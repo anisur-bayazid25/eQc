@@ -8,7 +8,7 @@ abstract: >-
   and supports cases, groups, retrieval queries and recovery history. Analysis
   includes frequencies, co-occurrence matrices, framework analysis, text search,
   intercoder reliability and consensus. A visualization workspace provides
-  sixteen diagram types with editable figures. Project data stays on the local
+  seventeen diagram types with editable figures. Project data stays on the local
   computer, with no account or cloud upload required.
 type: software
 authors:
@@ -24,7 +24,7 @@ affiliations:
 repository-code: "https://github.com/anisur-bayazid25/eQc"
 url: "https://github.com/anisur-bayazid25/eQc"
 license: MIT
-version: 1.8.3
+version: 1.8.4
 date-released: "2026-10-17"
 keywords:
   - qualitative research

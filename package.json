@@ -1,8 +1,9 @@
 {
   "name": "eqc-desktop",
-  "version": "1.8.3",
+  "version": "1.8.4",
   "description": "eQc - Easy Qual Coding - local-first qualitative data coding and analysis app (Electron + React + SQLite)",
   "author": "Anisur Rahman Bayazid",
+  "homepage": "https://github.com/anisur-bayazid25/eQc",
   "license": "MIT",
   "main": "electron/main.cjs",
   "private": true,
@@ -89,6 +90,27 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
+    },
+    "linux": {
+      "icon": "assets/eQc-logo_square.png",
+      "artifactName": "eQc-Setup-${version}-${arch}.${ext}",
+      "executableName": "eqc",
+      "category": "Education",
+      "maintainer": "Anisur Rahman Bayazid <anisur.rahman.bayazid@gmail.com>",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
     },
     "mac": {
       "artifactName": "eQc-Setup-${version}-${arch}.${ext}",

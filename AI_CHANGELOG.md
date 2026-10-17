@@ -1,5 +1,37 @@
 # AI Changelog — eQc desktop app
 
+## 2026-10-17 — Release v1.8.4
+
+- Updated the package/lockfile versions, citation metadata, README, built-in Help sources, changelog and release notes for v1.8.4.
+- Passed 156 feature/schema checks and all 25 browser scripts, including network layouts/counts, all 17 graph tools and HTML figures, image-region resizing and profile persistence. Updated legacy 16-card assertions.
+- Built and inspected the Windows NSIS installer. The running development app locked its native SQLite module; verified Electron 31.7.7 / ABI 125 against an in-memory SQLite query, then packaged the compatible existing binary without rebuilding or closing the running app.
+- Excluded release outputs from Vite watchers after installer temporary files triggered Windows watch locks. The release workflow builds fresh Windows, macOS and Linux packages from the v1.8.4 tag.
+
+
+## 2026-10-17 — Unreleased: Co-occurrence visualizations
+
+- Fixed Code map's scrollbar-triggered toolbar clipping with stable scrollbar space, consistent responsive rail widths and explicitly aligned disclosure/icon/text columns. Browser checks measure real label bounds at 1440/1000/640 px and exercise every graph's tools. Validation passed: 35 relevant calculation/draft/palette/report tests, new co-occurrence UI checks, all 17 graph tool checks, all 17 families in HTML reports, production build and whitespace checks.
+
+- Added a shared, bounded text-code co-occurrence engine with document/coder/code scope, unique-range or decision-pair counts, strict overlap boundaries, shared-document counts, evidence ranges and explicit link limits. It feeds a new network family and matching heat-map/Sankey presets.
+- Network presets include separated connected components, a circle, projected sphere, a weighted 3D force arrangement with horizontal/vertical viewing angles, and proportional unordered-pair chord ribbons. Shaded balls, flat circles and text-only nodes are independent choices. Label collision handling, weighted/count-labelled edges, selected-relationship evidence, SVG gradients, standard drafts and report rendering use the existing canvas. No coding is changed by generation.
+- Added paired-count calculation, layout, scope, draft and UI regression coverage, integrated checks into CI, and updated contextual/offline Help. Gallery order now starts Code map, Network, Sankey, Word cloud, followed by Mind map. Version remains 1.8.3 pending the next release.
+
+## 2026-10-17 — Unreleased: QualCoder QDPX note dates
+
+- Tested the user's fictional demo archive: all 85 notes lacked dates and 24 repeated titles triggered QualCoder's duplicate-name error. Repaired a separate Downloads copy and verified all notes with the upstream importer, archive CRCs, unchanged other entries and REFI schema. The exporter now numbers repeated note titles globally while preserving contents and GUIDs; regression covers duplicate titles.
+
+- Matched the reported parse_notes None.replace failure to QualCoder's unconditional date processing. Exported notes now include creationDateTime and a valid creatingUser reference in full-project and codebook QDPX. The date records creation of the exchange memo at export, not an inferred historical edit date.
+- Added regression coverage for note metadata/files and an optional adapter that runs upstream QualCoder's actual parse_notes method against isolated temporary sources/SQLite, reproducing the old missing-date crash first.
+
+## 2026-10-17 — Unreleased: Resize coded image regions
+
+- Added Resize beside each code in the image-region popup, eight pointer handles, bounded zoom-aware previews and explicit Save/Cancel/Escape. Saves use the existing project persistence/Undo/Redo and retain region identity, attribution, star and memo. Switching source/project clears resize mode. Image width now follows the zoomed overlay width.
+- Added a browser regression for preview/save, metadata retention, cancellation, zoom, bounds and minimum size. Updated both offline Help sources.
+
+## 2026-10-17 — Unreleased: Linux release packaging
+
+- Added an Ubuntu 22.04 build job, Linux x64 AppImage/deb targets, release artifact uploads, Linux package metadata and PNG icon. Kept the published version at 1.8.3; applies to the next tagged release. Corrected manual update platform reporting and the packaged window icon path. Linux runtime verification requires a Linux desktop.
+
 ## 2026-10-17 — Unreleased: Required feedback sender details
 
 - Sender name and email are mandatory for bug reports, feature requests and other feedback. Both prefill from the active profile and stay editable; whitespace-only names, missing fields and invalid names/emails are rejected by the desktop/shared backend validator. The reviewed name is included in the report body; Reply-To remains the email address.

@@ -85,12 +85,21 @@ interface QdpxMemo {
   name: string;
 }
 
-function buildNotesXml(memos: QdpxMemo[], files: Record<string, string>): string {
+function buildNotesXml(memos: QdpxMemo[], files: Record<string, string>, creator: string, exportedAt: string): string {
   if (memos.length === 0) return '';
+  const usedNames = new Set<string>();
   const notes = memos
     .map(m => {
+      // QualCoder stores notes as journals with globally unique names.
+      // Number repeated titles without changing memo contents or references.
+      const baseName = m.name || 'Memo';
+      let name = baseName, suffix = 2;
+      while (usedNames.has(name)) name = `${baseName} (${suffix++})`;
+      usedNames.add(name);
       files[`sources/${m.guid}.txt`] = m.text;
-      return `<Note guid="${m.guid}" name="${esc(m.name)}" plainTextPath="internal://${m.guid}.txt"/>`;
+      // QualCoder assumes each Note has a creation/modification date even
+      // though REFI-QDA makes it optional. These memo records are created at export.
+      return `<Note guid="${m.guid}" name="${esc(name)}" plainTextPath="internal://${m.guid}.txt" creatingUser="${creator}" creationDateTime="${exportedAt}"/>`;
     })
     .join('');
   return `<Notes>${notes}</Notes>`;
@@ -294,7 +303,7 @@ export async function buildQdpxExport(project: Project): Promise<QdpxExportPaylo
     users.xml +
     codebook +
     (textSources || pictureSources ? `<Sources>${textSources}${pictureSources}</Sources>` : '') +
-    buildNotesXml(memos, files) +
+    buildNotesXml(memos, files, users.creator, nowIso) +
     `</Project>`;
 
   return {
@@ -321,7 +330,7 @@ export function buildQdpxCodebookExport(project: Project): QdpxExportPayload {
     `name="${esc(project.name)}" origin="eQc; code descriptions=definitions" creatingUserGUID="${users.creator}" creationDateTime="${nowIso}">` +
     users.xml +
     buildCodebook(project, codeGuids, memos) +
-    buildNotesXml(memos, files) +
+    buildNotesXml(memos, files, users.creator, nowIso) +
     `</Project>`;
 
   return {

@@ -1,4 +1,16 @@
-# Pre-release review — 16 October 2026
+# Pre-release review — v1.8.4 (17 October 2026)
+
+## v1.8.4 release checks
+
+- 156 feature and REFI-QDA schema checks passed.
+- All 25 browser scripts passed, covering coding/data integrity, offline Help, manuscript and HTML reports, image region resizing, all 17 visualization families, spatial/chord networks, palettes, drawing/editing, drafts and profile persistence.
+- Windows NSIS installer built successfully; packaged app metadata reports 1.8.4. Native SQLite verified against Electron 31.7.7 / ABI 125 before packaging without rebuilding the running app's locked binary.
+- Version/lockfile/citation metadata and packaging configuration agree. Help, README, documentation, changelogs and release notes describe the release.
+- Generated release files are excluded from development watching to avoid Windows locks and spurious reloads.
+- GitHub release builds provide Windows, Intel/Apple Silicon macOS and Linux x64 AppImage/deb packages. Linux desktop compatibility still needs broader validation.
+- Co-occurrence currently uses text coding; counts and layout caveats are documented. Full cross-application feature equivalence is not claimed for QDPX.
+
+## Previous review — 16 October 2026
 
 ## Completed changes
 

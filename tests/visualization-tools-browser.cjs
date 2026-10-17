@@ -23,7 +23,7 @@ const server=spawn(process.execPath,[path.resolve('node_modules/vite/bin/vite.js
   assert.equal(await help.locator('.tool-menu-content > strong').textContent(),graphName+' help');
   const guidance={
    'Code map':'shared-document links','Mind map':'branching codes and subcodes','Hierarchy':'parent codes and their subcodes',
-   'Word cloud':'word frequency','Sankey diagram':'weighted ribbons','Heat map':'Hide all-zero rows',
+   'Co-occurrence network':'overlapping coding-range pairs','Word cloud':'word frequency','Sankey diagram':'weighted ribbons','Heat map':'Hide all-zero rows',
    'Word tree':'phrase occurrences','Process map':'sequence, cycle or branching process','Journey map':'researcher-assigned experience ratings',
    'Pyramid':'top level to the base','Venn diagram':'two or three researcher-defined conceptual groups',
    'Honeycomb':'hexagons','Ecology map':'nested system layers','Histomap':'ordered event periods',
@@ -48,6 +48,13 @@ const server=spawn(process.execPath,[path.resolve('node_modules/vite/bin/vite.js
   await rail.locator('[data-tool="Draw"]').click();
   if(codeNodes){await rail.locator('[data-tool="Link"]').click();assert.equal(await rail.getByRole('button',{name:'Draw code connection',exact:true}).isVisible(),true);await rail.locator('[data-tool="Link"]').click();}
   if(type==='Create Code map'){
+   for(const width of [1440,1000,640]){
+    await page.setViewportSize({width,height:720});
+    const overflow=await rail.evaluate(el=>{const failures=[];for(const item of el.querySelectorAll('.tool-menu>summary,.map-text-tool')){const box=item.getBoundingClientRect(),walker=document.createTreeWalker(item,NodeFilter.SHOW_TEXT);let node;while(node=walker.nextNode()){if(!node.textContent.trim())continue;const range=document.createRange();range.selectNodeContents(node);const text=range.getBoundingClientRect();if(text.right>box.right-1||text.left<box.left)failures.push(item.textContent);}}return {failures,scrolls:el.scrollHeight>el.clientHeight,horizontal:el.scrollWidth>el.clientWidth+1};});
+    assert.deepEqual(overflow.failures,[],`Code map labels fit at ${width}px`);assert.equal(overflow.horizontal,false);assert.equal(overflow.scrolls,true);
+    await page.screenshot({path:path.join(out,'code-map-toolbar-'+width+'.png')});
+   }
+   await page.setViewportSize({width:1440,height:1000});
    await rail.locator('[data-tool="View"]').click();assert.equal(await rail.getByRole('button',{name:/Legend/}).count(),0);await rail.locator('[data-tool="View"]').click();
    await page.screenshot({path:path.join(out,'code-map-tools.png')});
   }
@@ -77,9 +84,9 @@ const server=spawn(process.execPath,[path.resolve('node_modules/vite/bin/vite.js
   }
   await page.getByRole('button',{name:'All visualization types',exact:true}).click();
  }
- assert.equal(types.length,16);assert.deepEqual(errors,[]);
+ assert.equal(types.length,17);assert.deepEqual(errors,[]);
  await page.locator('.tabs').getByRole('button',{name:'Help',exact:true}).click();
  await page.getByLabel('Search documentation').fill('');
  for(const name of ['Sankey diagram','Word cloud','Histomap','Dendrogram'])assert.ok((await page.locator('.help-sections').textContent()).includes(name));
- console.log('All 16 types: common/contextual tools, shapes under Draw, one Legend, Text/Inspector and responsive layout. Heat-map empty-axis filters/transpose retain counts, heading deletion and sources.');
+ console.log('All 17 types: common/contextual tools, shapes under Draw, one Legend, Text/Inspector and responsive layout. Heat-map empty-axis filters/transpose retain counts, heading deletion and sources.');
 }finally{if(browser)await browser.close();server.kill();}})().catch(e=>{console.error(e);process.exitCode=1;});

@@ -22,13 +22,13 @@ const server=spawn(process.execPath,[path.resolve('node_modules/vite/bin/vite.js
   await page.goto('http://127.0.0.1:5216');await page.locator('.tabs').getByRole('button',{name:'Analysis',exact:true}).click();
   const before=await page.evaluate(()=>JSON.stringify(window.__qaProject));
   await page.getByRole('button',{name:'⬇️ HTML Report',exact:true}).click();const dialog=page.getByRole('dialog',{name:'HTML report options',exact:true});await dialog.waitFor();
-  assert.equal(await dialog.locator('.report-draft-picker input:checked').count(),16);
+  assert.equal(await dialog.locator('.report-draft-picker input:checked').count(),visualizationTypes.length);
   assert.equal(await dialog.getByRole('checkbox',{name:'Include selected drafts’ visualization notes',exact:true}).isChecked(),false);
   await dialog.getByRole('button',{name:'Export HTML report',exact:true}).click();await dialog.waitFor({state:'hidden',timeout:60000});
   assert.equal(await page.evaluate(()=>JSON.stringify(window.__qaProject)),before);
   const html=await page.evaluate(()=>window.__reports.at(-1));assert.ok(html.includes('Additional ICR comparison: Characters'));assert.doesNotMatch(html,/Figure unavailable/);assert.doesNotMatch(html,/Optional team note/);
   const report=await browser.newPage({viewport:{width:1440,height:1000}});report.on('pageerror',error=>errors.push(error.message));const requests=[];report.on('request',request=>requests.push(request.url()));await report.setContent(html);
-  assert.equal(await report.locator('figure img').count(),16);await report.waitForFunction(()=>Array.from(document.querySelectorAll('figure img')).every(img=>img.complete&&img.naturalWidth>0));
+  assert.equal(await report.locator('figure img').count(),visualizationTypes.length);await report.waitForFunction(()=>Array.from(document.querySelectorAll('figure img')).every(img=>img.complete&&img.naturalWidth>0));
   assert.equal(await report.locator('details.report-table[open]').count(),0);assert.equal(await report.locator('details.report-table table').count(),await report.locator('table').count());
   const memo=report.locator('details.memo').first();assert.equal(await memo.getAttribute('open'),null);await memo.locator('summary').click();assert.notEqual(await memo.getAttribute('open'),null);await memo.locator('summary').click();
   assert.ok(await report.locator('section h3').filter({hasText:'Cases and attributes'}).count());
@@ -45,5 +45,5 @@ const server=spawn(process.execPath,[path.resolve('node_modules/vite/bin/vite.js
   await report.screenshot({path:path.join(out,'html-report-mobile.png')});assert.ok(requests.every(url=>url.startsWith('data:')));
   await page.getByRole('button',{name:'⬇️ HTML Report',exact:true}).click();await dialog.getByRole('button',{name:'Clear graph selection',exact:true}).click();await dialog.getByRole('checkbox',{name:'Sankey diagram draft',exact:true}).check();await dialog.getByRole('checkbox',{name:'Include selected drafts’ visualization notes',exact:true}).check();await dialog.getByRole('button',{name:'Export HTML report',exact:true}).click();await dialog.waitFor({state:'hidden'});const notesHtml=await page.evaluate(()=>window.__reports.at(-1));assert.match(notesHtml,/Optional team note/);assert.equal((notesHtml.match(/<figure /g)||[]).length,1);
   const fallback=await browser.newContext({javaScriptEnabled:false});const staticReport=await fallback.newPage();await staticReport.setContent(html);await staticReport.locator('details.report-table summary').first().click();assert.equal(await staticReport.locator('details.report-table[open]').count(),1);await fallback.close();
-  assert.deepEqual(errors,[]);console.log('HTML report: all 16 graph families, optional draft notes, unchanged project, ICR, table disclosure/search/print, offline images, script-free disclosure and responsive layout passed.');
+  assert.deepEqual(errors,[]);console.log('HTML report: all 17 graph families, optional draft notes, unchanged project, ICR, table disclosure/search/print, offline images, script-free disclosure and responsive layout passed.');
 }finally{if(browser)await browser.close();server.kill();}})().catch(error=>{console.error(error);process.exitCode=1;});

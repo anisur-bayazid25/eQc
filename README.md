@@ -4,7 +4,7 @@
 
 # eQc — Easy Qual Coding
 
-**Version 1.8.3** · A local desktop app for qualitative research.
+**Version 1.8.4** · A local desktop app for qualitative research.
 
 [![ORCID](https://img.shields.io/badge/ORCID-0000--0001--9015--4422-green?style=flat-square&logo=orcid&labelColor=A6CE39)](https://orcid.org/0000-0001-9015-4422) [![DOI](https://img.shields.io/badge/DOI-see%20releases-blue?style=flat-square)](https://github.com/anisur-bayazid25/eQc/releases/latest) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -36,7 +36,7 @@ The **Help** tab includes the complete guide and application reference offline. 
 | Display | 1366 × 768 | 1920 × 1080 or higher |
 | Graphics | Integrated graphics | Integrated graphics; no dedicated GPU required |
 
-**The hardware minimum is a provisional baseline for routine text coding, not a verified low-spec performance guarantee.** Large source collections, scanned PDFs and dense visualizations need more resources. The operating-system floor follows the current [Electron 31 runtime](https://github.com/electron/electron/blob/v31.7.7/README.md#platform-support); macOS installers are configured for Intel and Apple Silicon. There is currently no configured Linux release installer.
+**The hardware minimum is a provisional baseline for routine text coding, not a verified low-spec performance guarantee.** Large source collections, scanned PDFs and dense visualizations need more resources. The operating-system floor follows the current [Electron 31 runtime](https://github.com/electron/electron/blob/v31.7.7/README.md#platform-support); macOS installers are configured for Intel and Apple Silicon. The release workflow also builds Linux x64 AppImage and Debian/Ubuntu `.deb` packages on Ubuntu 22.04. Linux desktop compatibility still needs validation on real systems. Linux update notices link to a manual download.
 
 Normal coding, analysis and Help work offline. Installation downloads and updates need internet. OCR runs locally, but its current setup retrieves engine and Bengali/English language assets from online services; allow internet when using OCR. Offline OCR availability depends on those assets being available in the cache and is not guaranteed.
 
@@ -44,7 +44,16 @@ Normal coding, analysis and Help work offline. Installation downloads and update
 
 **Project and backup storage:** embedded images use base64, which adds roughly 33% to their binary size. HEIC-to-PNG conversion, retained original documents and PDF page images can add more. Photo-heavy projects can exceed 1 GB each; full JSON backups containing that media require additional space for every saved copy. The 1 GB installation allowance does not include project data or backups.
 
-## What's new in 1.8.3
+## What's new in 1.8.4
+
+- **Co-occurrence network:** connected groups, circle, projected sphere, spatial 3D force and chord presets; shaded balls, flat circles or text-only labels; weighted/count-labelled links and source evidence.
+- **Matching analytical views:** co-occurrence presets in Heat map and Sankey use the same explicit overlapping-range or shared-document counts, coder filters and scope. Drafts and HTML report figures retain their calculation details.
+- **Clearer visualization workspace:** Code map, Network, Sankey and Word cloud lead the gallery; scrollbar-safe toolbars keep labels aligned at different window sizes.
+- **Resize image coding:** adjust existing regions with corner/edge handles, preview, Save/Cancel and Undo/Redo while retaining attribution, notes and stars.
+- **Project exchange:** QDPX notes include dates, author references and unique titles to avoid QualCoder import errors.
+- **Linux packages:** x64 AppImage and Debian/Ubuntu `.deb` builds join Windows and macOS releases. Linux desktop validation remains limited.
+
+## Previous release: 1.8.3
 - **Visualization workspace:** sixteen diagram types, including Word Cloud, five Sankey presets, guided Histomap/Dendrogram setup and one dedicated Blank canvas. Code map offers Simple and Detailed designs.
 - **Figure editing:** edit text in place, draw standard shapes, group/align/resize objects, edit legends and apply 17 palettes or named custom palettes. The working canvas resumes after source navigation.
 - **Word Cloud:** shaped clouds and PNG/SVG masks, adjustable spacing, frequency/uniform sizing, local refitting and language-aware word filters shared with word frequencies.
@@ -66,7 +75,7 @@ Normal coding, analysis and Help work offline. Installation downloads and update
 2. Create codes, select a passage or image region, and apply a code.
 3. Use **Codebook** for definitions, summaries, merge and export.
 4. Open **Workspace → Research tools** for cases, groups, queries and recovery history.
-5. Use **Analysis** for frequencies, matrices, framework analysis, text searches, ICR and Consensus. **Visualization** offers a square-card library of editable code/mind/hierarchy maps, heat maps, word trees, word clouds (shapes and PNG/SVG masks), five Sankey presets, histomaps, dendrograms, and process/journey/pyramid/Venn/honeycomb/ecology diagrams, with presets, manual drawing, named drafts and SVG/image export. Generation runs only when requested.
+5. Use **Analysis** for frequencies, matrices, framework analysis, text searches, ICR and Consensus. **Visualization** offers a square-card library of editable code/mind/hierarchy maps, heat maps, word trees, word clouds (shapes and PNG/SVG masks), six Sankey presets, co-occurrence networks, histomaps, dendrograms, and process/journey/pyramid/Venn/honeycomb/ecology diagrams, with presets, manual drawing, named drafts and SVG/image export. Generation runs only when requested.
 6. Use **Memo-Book** to link evidence, develop writing and export notes or a manuscript skeleton.
 7. Export selected coding, analysis reports and regular JSON project backups.
 

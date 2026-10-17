@@ -17,7 +17,7 @@ test('heat-map empty axes and transpose retain cell values, provenance, styling 
  for(const preset of ['documents','shared'])assert.equal(total(buildVisualization(p,'heat-map',{...o,preset,heatTranspose:true})),total(buildVisualization(p,'heat-map',{...o,preset})));
 });
 test('all gallery types generate bounded editable snapshots without mutating research data',()=>{
- const original=JSON.stringify(data);assert.equal(visualizationTypes.length,16);
+ const original=JSON.stringify(data);assert.equal(visualizationTypes.length,17);
  for(const {id} of visualizationTypes){const s=buildVisualization(data,id,options);assert.equal(s.design.family,id);assert.ok(s.design.width>=1000);assert.ok(s.annotations.length<1000);assert.ok(s.annotations.every(a=>Number.isFinite(a.x)&&Number.isFinite(a.y)));assert.equal(JSON.stringify(data),original);}
 });
 test('heat maps use direct excerpt counts and selected shared-document counts with source IDs',()=>{

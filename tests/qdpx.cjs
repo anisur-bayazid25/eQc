@@ -57,6 +57,32 @@ test('single characters, emoji, Bengali and CRLF ranges use inclusive Unicode co
   assert.equal(qdaToUtf16Range(text, 3, 2), null);
 });
 
+test('all exported notes have QualCoder-compatible dates, user references and memo files', async () => {
+  const p = fixture();
+  p.codes[1].name = p.codes[0].name;
+  p.memos = [{ id: 'm', title: 'Team note', text: 'Keep the research memo', kind: 'analytic', docIds: [], codeIds: [], caseIds: [], segmentIds: [], createdAt: 1, updatedAt: 2 }];
+  for (const builder of [buildQdpxExport, buildQdpxCodebookExport]) {
+    const payload = await builder(p);
+    validate(payload);
+    const notes = payload.qdeXml.match(/<Note\s[^>]+\/>/g);
+    assert.ok(notes?.length);
+    assert.equal(new Set(notes.map(note => /\bname="([^"]+)"/.exec(note)?.[1])).size, notes.length, 'Note titles are globally unique');
+    for (const note of notes) {
+      const date = /creationDateTime="([^"]+)"/.exec(note)?.[1];
+      assert.ok(date && Number.isFinite(Date.parse(date)), 'Every note has a valid date');
+      const author = /creatingUser="([^"]+)"/.exec(note)?.[1];
+      assert.ok(author && payload.qdeXml.includes(`<User guid="${author}"`));
+      const name = /plainTextPath="internal:\/\/([^"]+)"/.exec(note)?.[1];
+      assert.ok(name && payload.sourceFiles['sources/' + name]);
+    }
+    if (process.env.EQC_QUALCODER_REFI) {
+      const result = spawnSync(process.env.EQC_PYTHON || 'python', ['-X', 'utf8', path.join(__dirname, 'qualcoder-notes.py'), process.env.EQC_QUALCODER_REFI], { input: JSON.stringify(payload), encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr || result.error?.message);
+      assert.equal(JSON.parse(result.stdout).importedNotes, notes.length);
+    }
+  }
+});
+
 test('corrupt hierarchies and invalid coding fail explicitly rather than losing data', async () => {
   const p = fixture(); p.codes[0].parentId = 'c';
   assert.throws(() => buildQdpxCodebookExport(p), /cyclic/);

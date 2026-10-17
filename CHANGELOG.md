@@ -4,6 +4,22 @@ All notable changes to **eQc - Easy Qual Coding** are documented in this file.
 
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 1.8.4 - 2026-10-17
+
+- Excluded generated installer/report files from the development watcher to avoid reloads and Windows file-lock errors during packaging.
+
+- Fixed clipped Code map toolbar labels when extra code controls require vertical scrolling. Tool rails now reserve scrollbar space consistently, with aligned disclosure icons/text and responsive widths.
+
+- Added a co-occurrence network with connected-group, circle, projected-sphere, spatial 3D force and chord presets. Node appearance independently supports shaded balls, flat circles and text-only labels. Added count labels, weighted links, source evidence, coder/scope controls, filters, drafts and figure export.
+- Added counted co-occurrence presets to heat maps and Sankey, sharing the same direct-text-code calculation for overlapping range pairs or shared documents. Documented counting units, pooled-coder deduplication, matrix symmetry, chord endpoint totals and non-directional Sankey pair weights.
+- Prioritized Code map, Co-occurrence network, Sankey and Word cloud in the first visualization row; moved Mind map to the next row.
+
+- Fixed QualCoder QDPX imports failing on undated notes and duplicate journal titles by including creation dates, author references and unique note titles in project and codebook exports.
+
+- Added resizing of existing coded image regions using corner/edge handles, with Save/Cancel, Escape, zoom-aware image bounds and Undo/Redo. Coding identity, coder attribution, notes and stars are retained.
+
+- Added Linux x64 AppImage and Debian/Ubuntu deb packaging to the release workflow alongside Windows and macOS. Linux uses its PNG application icon and reports the correct platform in manual update notices. Linux packages require validation on real Linux desktops.
+
 ## 1.8.3 - 2026-10-17
 
 - Required sender name and email for all feedback, with profile prefill and validation in the app and generated hosted script. Sender name is included in the report; existing rate limits remain. The Apps Script deployment must be updated to enforce the new name requirement.

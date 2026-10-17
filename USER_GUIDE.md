@@ -44,7 +44,7 @@ eQc is a desktop app for reading, coding and analysing qualitative material. Pro
 | Display | 1366 × 768 | 1920 × 1080 or higher |
 | Graphics | Integrated graphics | Integrated graphics; no dedicated GPU required |
 
-**The hardware minimum is a provisional baseline for routine text coding, not a verified low-spec performance guarantee.** Large source collections, scanned PDFs and dense visualizations need more resources. The operating-system floor follows the current [Electron 31 runtime](https://github.com/electron/electron/blob/v31.7.7/README.md#platform-support). Choose the matching Intel or Apple Silicon Mac installer. There is currently no configured Linux release installer.
+**The hardware minimum is a provisional baseline for routine text coding, not a verified low-spec performance guarantee.** Large source collections, scanned PDFs and dense visualizations need more resources. The operating-system floor follows the current [Electron 31 runtime](https://github.com/electron/electron/blob/v31.7.7/README.md#platform-support). Choose the matching Intel or Apple Silicon Mac installer. Linux x64 downloads include AppImage and Debian/Ubuntu `.deb` packages, built on Ubuntu 22.04. Linux desktop validation remains limited; update notices link to a manual download.
 
 Normal coding, analysis and Help work offline. Downloads and updates need internet. OCR runs locally, but its current setup downloads engine and Bengali/English language assets; allow internet when using OCR. Offline OCR is not guaranteed because it depends on cached assets.
 
@@ -100,6 +100,8 @@ Select text, then click a code or drag a code onto the selection. Multiple codes
 **Selection actions** lets you add an annotation, create an in-vivo code from selected words, apply several codes, or link the passage to a case. Annotations are separate passage notes; they also appear in Memo-Book. Click an underlined annotation to open its exact Memo-Book entry. Edit opens beside the note. Use Delete annotation to remove it; saving an empty annotation also removes its underline.
 
 For images, draw a region and choose a code. Region notes and stars work like passage notes. PDF page regions are stored with a linked page image.
+
+To resize existing image coding, click inside the coded region and choose **Resize** beside the relevant code. Drag any corner or edge, then choose **Save region size**. **Cancel resize** or Escape discards the preview. Overlapping codes are resized individually. The code, coder, star and memo stay attached; Undo/Redo restores saved size changes.
 
 Use a source memo for an observation about the whole document or image. For documents, click **Notes** below the viewer; the memo field opens directly below that button and receives focus. Notes save when you leave the field and also appear in Memo-Book. Starred quotes and images can be exported from [Section 4.3](#43-export-tab).
 
@@ -239,11 +241,14 @@ Select at least two memos, open **Export or merge selected memos**, choose a new
 
 ## 8. Visualization
 
+The first row focuses on **Code map → Co-occurrence network → Sankey diagram → Word cloud**. Mind map starts the next row.
+
 Choose a square type card, choose a preset and settings, then click **Generate visualization**. For a first figure, try Word Cloud: select your documents, Generate, then select a word to see its formatting and sources in the Inspector. Save a named draft before experimenting with a new design. Code map opens its Simple/Detailed preview designer. **Open current canvas** resumes your layout; **Open draft** loads a named version. Visiting this tab does not compile project data. The **▦ All visualization types** button returns to the library and unloads the renderer. Switching tabs also stops it automatically. **⚙ Settings** opens the current graph’s own settings; Back returns without replacing the canvas.
 
 | Type | What it uses |
 | --- | --- |
 | Code map | Simple/detailed theme clusters; optional shared-document links |
+| Co-occurrence network | Direct-code overlap or shared-document counts; grouped, circular, spherical, spatial 3D and chord layouts |
 | Mind map | Your topic, codes and subcodes, without cross-theme links |
 | Hierarchy | Code parent/child relationships, top down or left to right |
 | Heat map | Unique coded-passage counts by document, or shared-document counts between codes |
@@ -287,6 +292,20 @@ Generated views are **editable snapshots**. Use **⚙ Settings** and Generate ag
 **Working canvas:** leaving Visualization or following a source link unloads the renderer and retains your edits. Returning to the tab resumes the canvas, including legend formatting and zoom. The library also offers **Open current canvas**. View settings are saved once when leaving the editor; no background graph generation runs. Named drafts remain useful for keeping multiple versions. Generating a new figure replaces the current canvas.
 
 **Save/export:** **Drafts → Save map draft** retains the type, generation settings, layout, text/styles, annotations and legend. Reusing a name replaces that draft. Drafts travel in project JSON backups. Export SVG, PNG or JPEG; image resolution scales text and legends, and SVG remains scalable. Set **Printed width (mm)** and **Check print readability** to estimate the smallest text in points and raster DPI at the intended figure width. Increase fonts, reduce items or use a wider figure when text becomes too small. Vector exports include a title, method description and source-document names.
+
+### Co-occurrence network, matrix and ribbons
+
+Open **Visualization → Co-occurrence network**. Choose **Connected groups**, **Circle**, **Projected sphere**, **Spatial network (3D layout)** or **Chord diagram**. For node-based layouts, choose shaded balls, flat circles or text-only labels independently of the layout. Spatial network uses a force layout in three dimensions; horizontal/vertical viewing angles choose its projection. Projected labels are spread for readability. Depth is illustrative, not an extra measured variable. Click Generate to calculate an editable snapshot.
+
+Choose **Overlapping coded passages** or **Codes in the same document**. The overlap unit counts pairs of different direct codes on intersecting text ranges; touching boundaries do not overlap. Unique coding-range pairs deduplicate identical code/document/ranges across coders. All coding-decision pairs retain repeated coder assignments. All coders pools coding across people; choose one coder for an individual view. Shared documents counts each unordered code pair once per selected document, regardless of overlap. Image regions are not included. Source/code limits and the selected coder apply before counting.
+
+Network line labels show pair counts; line thickness increases with count. Minimum count and maximum links reduce clutter, with omitted links reported in the caption. Node or text size reflects coding frequency with label space. Colours distinguish connected groups, rather than statistically inferred communities. Select a line for its count, source links and up to 30 distinct supporting overlap ranges in the Inspector. Excerpts use current source text; regenerate after coding/source changes. Drag nodes, edit labels, save drafts and export SVG, PNG or JPEG normally. Named drafts can also be included in HTML reports.
+
+**Heat map → Codes × codes: co-occurrence** uses the same counting options. Cells contain counts, the diagonal is zero, and the two halves repeat the same pairs. Do not sum both halves. All pair counts are shown; network/Sankey link limits do not apply. Existing zero-axis filters and transpose remain available.
+
+**Sankey diagram → Code co-occurrence** uses proportional ribbons with count labels. Each unordered pair is shown once, with left/right placement chosen by codebook order. Ribbon direction is graphical, not temporal or causal. Node totals and percentages describe displayed pair weight, not participants; one document or passage can contribute to several pairs.
+
+**Chord diagram** uses the same unordered pairs, with proportional ribbon widths at both endpoints. Outer code labels show the sum of incident pair counts. The sum of all outer totals is twice the displayed pair-count total; these are not participant or coding frequencies. Zero-link codes are omitted. Use up to 40 connected codes, or narrow the selection for readable labels.
 
 ### Sankey diagram
 

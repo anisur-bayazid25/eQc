@@ -10,6 +10,7 @@ import {MapObject,ObjectCommand} from '../lib/mapObjects';
 import {mapPalettes,MapPalette,reversedPalette} from '../lib/mapPalettes';
 import VisualizationSetup,{VisualizationIcon} from './VisualizationSetup';
 import {visualizationTypes,VisualizationOptions} from '../lib/visualizations';
+import CooccurrenceEvidence from './CooccurrenceEvidence';
 import {visualizationHelp} from '../lib/visualizationHelp';
 import MapLegend from './MapLegend';
 import { fitMapText } from '../lib/mapTextFit';
@@ -19,7 +20,7 @@ import { useMapZoom } from '../lib/mapZoom';
 import MapSuggestions, { MapLabel } from './MapSuggestions';
 import { ellipseEndpoint, mapSharedDocuments, mapLabelLines, suggestedMapPairs, MapSuggestion } from '../lib/mapSuggestions';
 import ToolMenu from './ToolMenu';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useId } from 'react';
 import { VisualizationNote, AnalysisPeriod, Code, SourceDoc, VisualizationKind, CodedSegment, ID, MapAnnotation, MapDesign, CodeMapDraft, CodeMapView, MapLegendSettings, MapEdgeStyle, childCodes, descendantCodeIds, uid } from '../domain';
 
 interface Props {
@@ -224,6 +225,7 @@ function CodeMap({
   onUpdateAnnotations, onUpdateHiddenMapCodes,
   onShowToast
 }: Props) {
+  const ballPrefix='network-ball-'+useId().replace(/[^a-zA-Z0-9_-]/g,'');
   const [showNotes,setShowNotes]=useState(!!noteTarget);
   useEffect(()=>{if(noteTarget)setShowNotes(true);},[noteTarget]);
   const isCodeMap=!mapDesign?.family||mapDesign.family==='code-map';
@@ -1202,7 +1204,8 @@ function CodeMap({
             const a=box?{...saved,x:box.x,y:box.y,width:box.width,height:box.height}:saved;
             const selected = selectedAnnoId === a.id;
             const dash = a.lineStyle === 'dashed' ? '8 5' : a.lineStyle === 'dotted' ? '2 5' : undefined;
-            const sw = selected ? 4 : a.labelInside ? 3.5 : 2;
+            const baseStroke = a.strokeWidth ?? (a.labelInside ? 3.5 : 2);
+            const sw = selected ? Math.max(4,baseStroke) : baseStroke;
             // Apply the in-progress drag offset (if this is the annotation
             // currently being dragged) so it visually follows the pointer;
             // nothing persists until mouseup.
@@ -1210,12 +1213,15 @@ function CodeMap({
             const attached=(id:string)=>{const node=annotations.find(n=>n.id===id);if(!node)return null;const resize=resizeLive?.id===id?resizeLive:null,offset=annoLiveOffset?.id===id?annoLiveOffset:null;return {...node,...offset,...resize,kind:node.kind};};
             const from=a.fromAnnotationId?attached(a.fromAnnotationId):null,to=a.toAnnotationId?attached(a.toAnnotationId):null;
             const center=(node:MapAnnotation)=>({x:node.x+(node.width||0)/2,y:node.y+(node.height||0)/2});
-            const endpoint=(node:MapAnnotation,other:MapAnnotation)=>{const a=center(node),b=center(other);if(node.kind==='circle')return ellipseEndpoint(a,b,node.width||100,node.height||100);const dx=b.x-a.x,dy=b.y-a.y,ratio=Math.max(Math.abs(dx)/((node.width||100)/2),Math.abs(dy)/((node.height||100)/2));return ratio>1?{x:a.x+dx/ratio,y:a.y+dy/ratio}:a;};
+            const endpoint=(node:MapAnnotation,other:MapAnnotation)=>{const a=center(node),b=center(other);if(node.shapeType==='network-text')return a;if(node.kind==='circle')return ellipseEndpoint(a,b,node.width||100,node.height||100);const dx=b.x-a.x,dy=b.y-a.y,ratio=Math.max(Math.abs(dx)/((node.width||100)/2),Math.abs(dy)/((node.height||100)/2));return ratio>1?{x:a.x+dx/ratio,y:a.y+dy/ratio}:a;};
             const start=from&&to?endpoint(from,to):null,end=from&&to?endpoint(to,from):null;
             const ax = start?.x ?? live?.x ?? a.x;
             const ay = start?.y ?? live?.y ?? a.y;
             const ax2 = end?.x ?? live?.x2 ?? a.x2;
             const ay2 = end?.y ?? live?.y2 ?? a.y2;
+            const curved=a.shapeType==='network-link-curved',midX=(ax+(ax2??ax))/2,midY=(ay+(ay2??ay))/2;
+            const curveX=midX-((ay2??ay)-ay)*.16,curveY=midY+((ax2??ax)-ax)*.16;
+            const arrowPath=curved?`M ${ax} ${ay} Q ${curveX} ${curveY} ${ax2??ax} ${ay2??ay}`:`M ${ax} ${ay} L ${ax2??ax} ${ay2??ay}`;
             const select = (ev: React.MouseEvent) => {
               ev.stopPropagation();
               if (annoMovedRef.current) { annoMovedRef.current = false; return; }
@@ -1233,11 +1239,13 @@ function CodeMap({
             return (
               <g
                 key={"annotation:"+a.id} transform={selection.transformFor("annotation:"+a.id)} data-map-annotation={a.id} onDoubleClick={event=>{event.stopPropagation();setSelectedMapCodeId(null);setSelectedKey(null);setSelectedLegend(null);setSelectedAnnoId(a.id);beginInline('annotation',a.id);}}
+                stroke={a.shapeType==='network-text'?'white':undefined} strokeWidth={a.shapeType==='network-text'?5:undefined} paintOrder="stroke"
                 onMouseDown={startMove}
                 onClick={select}
                 style={{ cursor: annoDragMove?.id === a.id ? 'grabbing' : 'grab' }}
               >
                 {a.flow&&<title>{a.flow.sourceLabel+" → "+a.flow.targetLabel+": "+a.flow.value+" "+a.flow.unit}</title>}
+                {a.coocPair&&!a.flow&&<title>{a.coocPair.codeIds.map(id=>codes.find(c=>c.id===id)?.name||id).join(' × ')+': '+a.coocPair.value+' '+(a.coocPair.unit==='documents'?'shared documents':'overlapping range pairs')}</title>}
                 {a.imageData&&<image href={a.imageData} x={ax} y={ay} width={a.width} height={a.height} opacity={a.fillOpacity??1} preserveAspectRatio="none"/>}
                 {a.kind === 'rect' && !a.polygonPoints && (
                   <rect
@@ -1247,28 +1255,35 @@ function CodeMap({
                 )}
                 {a.kind==='rect'&&a.polygonPoints&&<polygon points={Array.from({length:a.polygonPoints.length/2},(_,i)=>`${ax+a.polygonPoints![i*2]*(a.width||0)},${ay+a.polygonPoints![i*2+1]*(a.height||0)}`).join(' ')} fill={a.gradientTo?`url(#map-gradient-${a.id.replace(/[^a-zA-Z0-9_-]/g,'-')})`:a.fill||'none'} fillOpacity={a.fillOpacity} stroke={a.color} data-export-stroke-width={a.labelInside?3.5:2} strokeWidth={sw} strokeDasharray={dash}/>}
                 {a.kind === 'circle' && (
+                  <>
+                  {a.shapeType==='network-ball'&&<defs><radialGradient id={ballPrefix+'-'+a.id.replace(/[^a-zA-Z0-9_-]/g,'-')} cx="32%" cy="25%" r="75%"><stop offset="0%" stopColor="#ffffff"/><stop offset="32%" stopColor={a.fill||a.color}/><stop offset="100%" stopColor={a.color}/></radialGradient></defs>}
                   <ellipse
                     cx={ax + (a.width || 0) / 2} cy={ay + (a.height || 0) / 2}
                     rx={(a.width || 0) / 2} ry={(a.height || 0) / 2}
-                    fill={a.fill||'none'} fillOpacity={a.fillOpacity} stroke={a.color} data-export-stroke-width={a.labelInside?3.5:2} strokeWidth={sw} strokeDasharray={dash}
+                    fill={a.shapeType==='network-ball'?`url(#${ballPrefix}-${a.id.replace(/[^a-zA-Z0-9_-]/g,'-')})`:a.fill||'none'} fillOpacity={a.fillOpacity} stroke={a.color} data-export-stroke-width={baseStroke} strokeWidth={sw} strokeDasharray={dash}
                   />
+                  </>
                 )}
                 {a.kind === 'arrow' && (
+                  <>
+                  {a.coocPair&&<path d={arrowPath} fill="none" stroke="transparent" strokeWidth={Math.max(16,sw)} pointerEvents="stroke"/>}
                   <path
-                    d={`M ${ax} ${ay} L ${ax2 ?? ax} ${ay2 ?? ay}`}
-                    fill={a.kind==='arrow'?'none':a.fill||'none'} stroke={a.color} data-export-stroke-width={a.labelInside?3.5:2} strokeWidth={sw} strokeDasharray={dash}
+                    d={arrowPath}
+                    fill={a.kind==='arrow'?'none':a.fill||'none'} stroke={a.color} data-export-stroke-width={baseStroke} strokeWidth={sw} strokeDasharray={dash}
                     markerEnd={a.arrowHead===false?undefined:'url(#arrow-end)'}
                   />
+                  </>
                 )}
-                {a.kind==='text'&&<>{a.flowNodeLabel&&a.flowLabelPlacement!=='inside'&&<rect x={ax-5} y={ay-3} width={(a.width||250)+10} height={(a.height||70)+6} fill="white" fillOpacity={.88} pointerEvents="none"/>}
+                {a.kind==='text'&&<>{(a.flowNodeLabel||a.shapeType==='cooc-value')&&a.flowLabelPlacement!=='inside'&&<rect x={ax-5} y={ay-3} width={(a.width||250)+10} height={(a.height||70)+6} fill="white" fillOpacity={.88} pointerEvents="none"/>}
                   {(selected||!a.text)&&<rect x={ax-4} y={a.width?ay-4:ay-(a.fontSize||14)} width={a.width||250} height={a.height||60} fill="transparent" stroke={selected?'#2563eb':'#94a3b8'} strokeDasharray="5 3" data-map-edit-outline/>}
-                  {a.flowNodeLabel?<MapLabel text={a.text||''} x={ax+(a.width||360)/2} y={ay+(a.height||70)/2} width={Math.abs(Math.sin((a.rotation||0)*Math.PI/180))>.7?(a.height||70):(a.width||360)} height={Math.abs(Math.sin((a.rotation||0)*Math.PI/180))>.7?(a.width||360):(a.height||70)} fontSize={a.fontSize||24} color={a.textColor||a.color} fontFamily={a.fontFamily} bold={a.bold!==false} italic={a.italic} underline={a.underline} rotation={a.rotation} writingMode={a.writingMode} textDirection={a.textDirection}/>: (()=>{const fitted=fitMapText(a.text||'',Math.max(20,(a.width||250)-8),Math.max(20,(a.height||90)-8),a.fontSize||14,a.fontFamily,a.bold!==false,a.italic);return <text transform={a.rotation?`rotate(${a.rotation} ${ax+(a.width||250)/2} ${ay+(a.height||90)/2})`:undefined} style={{writingMode:a.writingMode,direction:a.textDirection,unicodeBidi:'plaintext'}} x={ax} y={a.width?ay+fitted.fontSize:ay} fontFamily={a.fontFamily} fontSize={fitted.fontSize} fontWeight={a.bold===false?400:600} fontStyle={a.italic?'italic':undefined} textDecoration={a.underline?'underline':undefined} fill={a.textColor||a.color}>{fitted.lines.map((line,i)=><tspan key={i} x={ax} dy={i?fitted.fontSize*1.16:0}>{line}</tspan>)}</text>;})()}
+                  {(a.flowNodeLabel||a.shapeType==='network-text'||a.shapeType==='cooc-value')?<MapLabel text={a.text||''} x={ax+(a.width||360)/2} y={ay+(a.height||70)/2} width={Math.abs(Math.sin((a.rotation||0)*Math.PI/180))>.7?(a.height||70):(a.width||360)} height={Math.abs(Math.sin((a.rotation||0)*Math.PI/180))>.7?(a.width||360):(a.height||70)} fontSize={a.fontSize||24} color={a.textColor||a.color} fontFamily={a.fontFamily} bold={a.bold!==false} italic={a.italic} underline={a.underline} rotation={a.rotation} writingMode={a.writingMode} textDirection={a.textDirection}/>: (()=>{const fitted=fitMapText(a.text||'',Math.max(20,(a.width||250)-8),Math.max(20,(a.height||90)-8),a.fontSize||14,a.fontFamily,a.bold!==false,a.italic);return <text transform={a.rotation?`rotate(${a.rotation} ${ax+(a.width||250)/2} ${ay+(a.height||90)/2})`:undefined} style={{writingMode:a.writingMode,direction:a.textDirection,unicodeBidi:'plaintext'}} x={ax} y={a.width?ay+fitted.fontSize:ay} fontFamily={a.fontFamily} fontSize={fitted.fontSize} fontWeight={a.bold===false?400:600} fontStyle={a.italic?'italic':undefined} textDecoration={a.underline?'underline':undefined} fill={a.textColor||a.color}>{fitted.lines.map((line,i)=><tspan key={i} x={ax} dy={i?fitted.fontSize*1.16:0}>{line}</tspan>)}</text>;})()}
                 </>}
                 {a.text && a.labelInside && <MapLabel text={a.text} x={ax+(a.width||0)/2} y={ay+(a.height||0)*(a.polygonPoints?.length===6&&a.polygonPoints[0]===.5?.72:.5)} fontSize={a.fontSize||20} max={21} width={(a.width||250)*(a.polygonPoints?.[0]===.5?.5:.78)} height={(a.height||120)*(a.polygonPoints?.length===6&&a.polygonPoints[0]===.5?.35:.72)} color={a.textColor||a.color} fontFamily={a.fontFamily} bold={a.bold!==false} italic={a.italic} underline={a.underline} rotation={a.rotation} writingMode={a.writingMode} textDirection={a.textDirection}/>}
                 {a.text && !a.labelInside && a.kind !== 'text' && (
                   <text
-                    x={a.kind === 'arrow' ? (ax + (ax2 ?? ax)) / 2 : ax + (a.width || 0) / 2}
-                    y={a.kind === 'arrow' ? (ay + (ay2 ?? ay)) / 2 - 6 : ay - 6}
+                    x={a.kind === 'arrow' ? curved?(midX+curveX)/2:midX : ax + (a.width || 0) / 2}
+                    y={a.kind === 'arrow' ? (curved?(midY+curveY)/2:midY) - 6 : ay - 6}
+                    stroke={a.coocPair?'#ffffff':undefined} strokeWidth={a.coocPair?5:undefined} paintOrder="stroke"
                     transform={a.rotation?`rotate(${a.rotation} ${ax+(a.width||0)/2} ${ay-6})`:undefined} style={{writingMode:a.writingMode,direction:a.textDirection,unicodeBidi:'plaintext'}} textAnchor="middle" fontSize={a.fontSize||14} fontFamily={a.fontFamily} fontWeight={a.bold===false?400:600} fontStyle={a.italic?'italic':undefined} textDecoration={a.underline?'underline':undefined} fill={a.textColor||a.color}
                   >
                     {a.text}
@@ -1667,6 +1682,7 @@ function CodeMap({
       </div>
       <div className="visualization-detail-strip">{selectedAnno?.flowNodeLabel&&<section aria-label="Sankey label placement"><strong>Node label placement</strong><label>Position<select aria-label="Sankey label position" value={selectedAnno.flowLabelPlacement||'free'} onChange={e=>updateSelectedAnno({flowLabelPlacement:e.target.value as MapAnnotation['flowLabelPlacement'],...(e.target.value==='inside'?{flowLabelDistance:2}:{})})}><option value="free">Free position</option><option value="inside">Inside bar</option><option value="outside-right">Outside right</option><option value="outside-left">Outside left</option><option value="above">Above bar</option><option value="below">Below bar</option></select></label><label>{selectedAnno.flowLabelPlacement==='inside'?'Inner padding':'Distance from boundary'}<input aria-label="Sankey label boundary distance" type="number" min={0} max={300} value={selectedAnno.flowLabelDistance??14} onChange={e=>updateSelectedAnno({flowLabelDistance:Math.max(0,Math.min(300,Number(e.target.value)||0))})}/></label><small>Anchored labels follow their bar. Text fits the available box; use Free position for manual placement.</small></section>}
       {selectedAnno&&selectedAnno.kind!=='text'&&<div className="visualization-source-links">{selectedAnno.kind!=='arrow'&&<MapColorPicker label="Shape fill" value={selectedAnno.fill||'#ffffff'} onChange={fill=>updateSelectedAnno({fill})}/>}<MapColorPicker label="Shape border" value={selectedAnno.color} onChange={color=>updateSelectedAnno({color})}/><label>Opacity <input aria-label="Shape opacity" type="range" min={.1} max={1} step={.05} value={selectedAnno.fillOpacity??1} onChange={e=>updateSelectedAnno({fillOpacity:Number(e.target.value)})}/></label></div>}
+      {selectedAnno?.coocPair&&<CooccurrenceEvidence annotation={selectedAnno} docs={docs} onOpenDocument={onOpenDocument}/>}
       {selectedAnno&&(selectedAnno.sourceDocIds?.length||selectedAnno.sourceCodeIds?.length)?<div className="visualization-source-links map-inspector-evidence"><strong>Sources:</strong>{selectedAnno.sourceDocIds?.map(id=>{const doc=docs.find(d=>d.id===id);return doc?<button key={id} onClick={()=>onOpenDocument?.(id)}>{doc.name}</button>:null;})}{selectedAnno.sourceCodeIds?.map(id=>{const code=codes.find(c=>c.id===id);return code?<button key={'code:'+id} onClick={()=>onOpenCode?.(id)}>{code.name}</button>:null;})}</div>:null}
       </div>
       {mapDesign?.family==='word-cloud'&&onApplySuggestion&&<CloudStopWords value={cloudStopDraft} onChange={setCloudStopDraft} options={mapDesign.options} data={{id:projectId,name:projectName||'Word cloud',codes,docs,codedSegments}} palette={basePalette} inverted={mapDesign.paletteInverted} annotations={sourceAnnotations} description={mapDesign.description} onApply={onApplySuggestion}/>}

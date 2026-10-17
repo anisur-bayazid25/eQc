@@ -97,13 +97,16 @@ export interface MapAnnotation extends MapTextOrientation {
   imageData?:string;
 
   fillOpacity?:number; polygonPoints?:number[];
+  strokeWidth?:number;
+  networkPoint?:{x:number;y:number;z:number};
+  coocPair?:{codeIds:[ID,ID];value:number;unit:'overlap'|'documents';ranges:Array<{docId:ID;start:number;end:number}>};
   legendLabel?:string; sourceDocIds?:ID[]; sourceCodeIds?:ID[];
   fromAnnotationId?:ID; toAnnotationId?:ID; arrowHead?:boolean;
   labelInside?: boolean;
   fontFamily?:string; textColor?:string; underline?:boolean;
 }
 
-export type VisualizationKind = 'code-map'|'mind-map'|'hierarchy'|'heat-map'|'word-tree'|'process'|'journey'|'pyramid'|'venn'|'honeycomb'|'ecology'|'manual'|'histomap'|'dendrogram'|'sankey'|'word-cloud';
+export type VisualizationKind = 'code-map'|'cooccurrence-network'|'mind-map'|'hierarchy'|'heat-map'|'word-tree'|'process'|'journey'|'pyramid'|'venn'|'honeycomb'|'ecology'|'manual'|'histomap'|'dendrogram'|'sankey'|'word-cloud';
 export interface MapDesign {
   paletteId?:string; paletteInverted?:boolean;
   family?:VisualizationKind; generatedAt?:number; description?:string; options?:Record<string,unknown>;

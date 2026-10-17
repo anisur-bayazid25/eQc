@@ -1,4 +1,5 @@
 import {buildHeatmap} from './heatmap';
+import {buildCooccurrenceNetwork} from './cooccurrence';
 import {buildWordCloud} from './wordCloud';
 import {buildSankey} from './sankey';
 import {buildStatisticalVisualization} from './statisticalVisualizations';
@@ -6,9 +7,10 @@ import {AnalysisPeriod,Code,SourceDoc,CodedSegment,MapAnnotation,VisualizationKi
 import {MapSuggestion,suggestCodeMap} from './mapSuggestions';
 export const visualizationTypes:Array<{id:VisualizationKind;name:string;icon:string;description:string}>= [
  {id:'code-map',name:'Code map',icon:'network',description:'Simple or detailed theme clusters and shared-document links.'},
- {id:'mind-map',name:'Mind map',icon:'radial',description:'A study topic with branching codes and subcodes.'},
- {id:'word-cloud',name:'Word cloud',icon:'word-cloud',description:'Language-aware word frequencies in shapes or PNG/SVG masks.'},
+ {id:'cooccurrence-network',name:'Co-occurrence network',icon:'cooccurrence',description:'Counted relationships in grouped, circular, spatial 3D and chord layouts.'},
  {id:'sankey',name:'Sankey diagram',icon:'sankey',description:'Weighted flows, category paths, hierarchy and feedback loops.'},
+ {id:'word-cloud',name:'Word cloud',icon:'word-cloud',description:'Language-aware word frequencies in shapes or PNG/SVG masks.'},
+ {id:'mind-map',name:'Mind map',icon:'radial',description:'A study topic with branching codes and subcodes.'},
  {id:'hierarchy',name:'Hierarchy',icon:'tree',description:'A top-down or left-to-right code hierarchy.'},
  {id:'heat-map',name:'Heat map',icon:'grid',description:'Compare codes across documents or shared documents between codes.'},
  {id:'word-tree',name:'Word tree',icon:'words',description:'Explore the words before or after a phrase in your sources.'},
@@ -23,11 +25,13 @@ export const visualizationTypes:Array<{id:VisualizationKind;name:string;icon:str
  {id:'manual',name:'Blank canvas',icon:'blank',description:'Draw, add codes and build your own visualization.'}
 ];
 export interface VisualizationOptions {title:string;preset:string;wordLanguage?:string;wordMinLetters?:number;wordStops?:string;wordCaseSensitive?:boolean;wordMinCount?:number;cloudMask?:string;cloudMaskImage?:string;cloudMaskMode?:'auto'|'alpha'|'dark';cloudMaskThreshold?:number;cloudMaskInvert?:boolean;cloudOverlay?:''|'back'|'front';cloudOverlayOpacity?:number;cloudWidth?:number;cloudHeight?:number;cloudFont?:string;cloudUniformFont?:number;cloudWordStyles?:Record<string,{fontSize?:number;fontFamily?:string;bold?:boolean;italic?:boolean;rotation?:number;text?:string}>;cloudScale?:'sqrt'|'linear'|'log'|'uniform';cloudMinFont?:number;cloudMaxFont?:number;cloudRotation?:'horizontal'|'mixed'|'vertical'|'angled';cloudBold?:boolean;cloudDensity?:'compact'|'balanced'|'loose';cloudPadding?:number;cloudSeed?:number;cloudWords?:Array<{word:string;count:number;x:number;y:number;width:number;height:number;fontSize:number;rotation:number}>;cloudWordSources?:Record<string,string[]>;cloudOmitted?:number;cloudScanned?:number;cloudSourceLength?:number;sankeyInput?:'coding'|'links'|'paths';sankeyTable?:string;sankeyUnit?:string;sankeyStages?:string;sankeyExample?:boolean;sankeyLabels?:'none'|'value'|'percent'|'both';sankeyColor?:'source'|'target'|'gradient';sankeyOrder?:'input'|'barycenter';sankeyGap?:number;sankeyBarWidth?:number;sankeyOpacity?:number;sankeyCurvature?:number;codeIds:string[];docIds:string[];limit:number;docLimit?:number;labelLimit?:number;themeLimit?:number;childrenPerTheme?:number;phrase:string;labels:string;ratings:string;colour:string;hideZeroCodes?:boolean;heatHideZeroRows?:boolean;heatHideZeroColumns?:boolean;heatTranspose?:boolean;countMode?:'passages'|'decisions'|'presence';coder?:string;overlapLabel?:string;textScope?:'documents'|'coded';periods?:AnalysisPeriod[];docPeriods?:Record<string,string>;segmentPeriods?:Record<string,string>;timeWidth?:'share'|'count';treeOrientation?:'horizontal'|'vertical';}
+export interface VisualizationOptions {coocUnit?:'overlap'|'documents';coocMin?:number;coocMaxLinks?:number;coocHideIsolates?:boolean;coocNodeStyle?:'flat'|'ball'|'text';coocShowValues?:boolean;coocYaw?:number;coocPitch?:number;coocCurves?:boolean;}
 export interface VisualizationData {analysisPeriods?:AnalysisPeriod[];id:string;name:string;codes:Code[];docs:SourceDoc[];codedSegments:CodedSegment[];}
 const colours=[['#dbeafe','#2563eb'],['#dcfce7','#16803c'],['#ffedd5','#c45d12'],['#f3e8ff','#8745bc'],['#fce7f3','#b52a70'],['#cffafe','#0c8496'],['#fef3c7','#ad7a0a']];
 export function buildVisualization(data:VisualizationData,family:VisualizationKind,o:VisualizationOptions):MapSuggestion {
  o={...o,limit:Math.floor(Math.max(1,Math.min(family==='word-cloud'?300:200,o.limit||12))),docLimit:Math.floor(Math.max(1,Math.min(200,o.docLimit||24))),labelLimit:Math.floor(Math.max(2,Math.min(48,o.labelLimit||48)))};
  if(family==='word-cloud')return buildWordCloud(data,o);
+ if(family==='cooccurrence-network')return buildCooccurrenceNetwork(data,o);
  if(family==='sankey')return buildSankey(data,o);
  if(family==='histomap'||family==='dendrogram')return buildStatisticalVisualization(data,family,o);
  const selectedCodes=new Set(o.codeIds),selectedDocs=new Set(o.docIds);

@@ -163,7 +163,7 @@ function createWindow() {
     width: 1200,
     height: 800,
     title: 'eQc - Easy Qual Coding',
-    icon: path.join(__dirname, 'assets', 'eqc_icon.ico'), // Keep your new icon!
+    icon: path.join(__dirname, '..', 'assets', process.platform === 'linux' ? 'eQc-logo_square.png' : 'eqc_icon.ico'),
     webPreferences: {
       // Restore the preload script (adjust the filename if yours was named differently, like preload.js)
       preload: path.join(__dirname, 'preload.cjs'), 
@@ -278,14 +278,11 @@ async function checkForUpdates(silent) {
     return;
   }
 
-  // macOS: unsigned build — Squirrel.Mac's silent apply step requires a
-  // valid code signature to verify the downloaded update, which this
-  // build doesn't have. Check GitHub directly instead and point the user
-  // to a manual download rather than attempting (and failing) a silent
-  // install.
+  // macOS builds are unsigned; Linux offers both AppImage and deb packages.
+  // Both platforms check GitHub and let the user choose a manual download.
   const info = await fetchLatestGithubRelease();
   if (info && isNewerVersion(info.latestVersion, app.getVersion())) {
-    mainWindow.webContents.send('update:available', { version: info.latestVersion, url: info.url, platform: 'darwin' });
+    mainWindow.webContents.send('update:available', { version: info.latestVersion, url: info.url, platform: process.platform });
   } else if (!silent) {
     mainWindow.webContents.send('update:none');
   }

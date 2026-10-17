@@ -3,6 +3,7 @@ import React from 'react';
 export default function VisualizationIcon({type}:{type:string}){
  const node=(x:number,y:number,r=9)=><circle key={x+':'+y} cx={x} cy={y} r={r} fill="var(--panel)"/>;
  const icons:Record<string,React.ReactNode>={
+  cooccurrence:<><path d="M30 25L72 44L126 20 M72 44L121 80 M30 25L35 80L72 44"/>{[[30,25,13],[72,44,18],[126,20,10],[121,80,12],[35,80,9]].map(([x,y,r])=>node(x,y,r))}<text x="95" y="43" fontSize="14" stroke="none" fill="currentColor">6</text></>,
   network:<><path d="M28 25L80 17L132 35L115 82L45 80Z M28 25L115 82 M80 17L45 80 M132 35L45 80"/>{[[28,25],[80,17],[132,35],[115,82],[45,80]].map(([x,y])=>node(x,y))}</>,
   radial:<><path d="M80 50L35 20H12 M80 50L125 20H148 M80 50L35 80H12 M80 50L125 80H148"/><ellipse cx="80" cy="50" rx="23" ry="14" fill="var(--panel)"/><path d="M12 12H40 M120 12H148 M12 90H40 M120 90H148"/></>,
   tree:<><path d="M80 25V48H25V70 M80 48V70 M80 48H135V70"/>{[[65,8],[10,70],[65,70],[120,70]].map(([x,y])=><rect key={x+':'+y} x={x} y={y} width="30" height="22" rx="3" fill="var(--panel)"/>)}</>,

@@ -2,7 +2,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 require.extensions['.ts']=(m,f)=>m._compile(ts.transpileModule(fs.readFileSync(f,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,f);
 const {mapPalettes,recolorMap,readableInk}=require('../src/lib/mapPalettes.ts'),{buildVisualization,visualizationTypes}=require('../src/lib/visualizations.ts'),{applyCodeMapSuggestion}=require('../src/lib/mapSuggestions.ts');
 const project=require('../demo/climate-resilience/dataset/03_READY_TO_IMPORT_EQC.json');
-test('all seventeen palettes apply to all sixteen types without changing source records or layout',()=>{
+test('all seventeen palettes apply to all seventeen types without changing source records or layout',()=>{
  assert.equal(mapPalettes.length,17);assert.equal(new Set(mapPalettes.map(p=>p.id)).size,17);
  const options={cloudWords:[{word:'Water',count:3,x:150,y:200,width:180,height:70,fontSize:40,rotation:0}],title:'Palette review',preset:'documents',codeIds:project.codes.map(c=>c.id),docIds:project.docs.map(d=>d.id),limit:8,phrase:'water',labels:'Individual\nCommunity\nInstitutions',ratings:'2,3,5',colour:'#2563eb',periods:project.analysisPeriods,coder:'Amina'};
  for(const type of visualizationTypes){const generated=applyCodeMapSuggestion(project,buildVisualization(project,type.id,options)),before=JSON.stringify(generated);

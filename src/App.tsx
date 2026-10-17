@@ -1089,6 +1089,8 @@ useEffect(() => {
   const [pendingRegion, setPendingRegion] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   useEffect(() => { setPendingPdfRegion(null); setPendingSelection(null); setPendingRegion(null); }, [selectedDocId, selectedImageId, project?.id, documentView]);
   const [regionPopup, setRegionPopup] = useState<{ regions: CodedRegion[]; x: number; y: number } | null>(null);
+  const [resizingRegionId, setResizingRegionId] = useState<ID | null>(null);
+  useEffect(() => { setResizingRegionId(null); }, [project?.id, selectedImageId]);
   // All project replacements (switch, import, LAN, new/delete project) clear inspectors.
   useEffect(() => {
     setSegmentPopup(null);
@@ -3482,6 +3484,13 @@ function openDocxCommentImport() {
                     regions={imageRegions}
                     codesById={codesById}
                     pendingRegion={pendingRegion}
+                    resizingRegionId={resizingRegionId}
+                    onFinishResize={() => setResizingRegionId(null)}
+                    onResizeRegion={(id, box) => {
+                      if (!project) return;
+                      persist({ ...project, codedRegions: (project.codedRegions || []).map(r => r.id === id ? { ...r, ...box } : r) });
+                      timeTracking.markCoding();
+                    }}
                     onPendingRegionChange={setPendingRegion}
                     onClickRegions={(regions, x, y) => setRegionPopup({ regions, x, y })} requestDeleteImage={requestDeleteImage}                  />
                   <button onClick={handleExportCodedImage}>📤 Export Coded Image</button>
@@ -3616,6 +3625,7 @@ function openDocxCommentImport() {
                         <button className="mini-btn" onClick={() => toggleStarRegion(r.id)} title={r.starred ? 'Unstar' : 'Star as key region'}>
                           {r.starred ? '⭐' : '☆'}
                         </button>
+                        <button className="mini-btn" onClick={() => { setPendingRegion(null); setResizingRegionId(r.id); setRegionPopup(null); }}>Resize</button>
                         <button className="mini-btn" onClick={() => removeCodedRegion(r.id)}>Remove</button>
                       </div>
                       {editingRegionNoteFor === r.id ? (

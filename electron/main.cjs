@@ -362,6 +362,9 @@ ipcMain.handle('projects:delete', (_e, id) => {
 });
 
 ipcMain.handle('contact:openEmail', () => require('electron').shell.openExternal('mailto:anisur.rahman.bayazid@gmail.com'));
+require('./feedback.cjs').installFeedback({ipcMain,app,BrowserWindow,dialog,fs,JSZip,getWindow:()=>mainWindow,
+  nativeImage:require('electron').nativeImage,screen:{getDisplayMatching:bounds=>require('electron').screen.getDisplayMatching(bounds)},
+  endpoint:process.env.EQC_FEEDBACK_ENDPOINT || require('./feedbackConfig.cjs').endpoint});
 
 ipcMain.handle('update:check', () => checkForUpdates(false));
 
@@ -615,11 +618,11 @@ function buildTableDocx(title, headers, rows, imageCells = []) {
   });
 }
 
-function buildOutlineDocx(title, nodes) {
+function buildOutlineDocx(title, nodes, manuscript = false) {
   const levels = [HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3, HeadingLevel.HEADING_4, HeadingLevel.HEADING_5];
   const children = [new Paragraph({ text: title, heading: HeadingLevel.TITLE })];
   for (const node of nodes) {
-    children.push(new Paragraph({ text: node.name, heading: levels[Math.min(node.depth, levels.length - 1)] }));
+    children.push(new Paragraph({ text: node.name, heading: levels[Math.min(node.depth, levels.length - 1)], keepNext: true }));
     // Coding definition first — it is the operational rule for applying the
     // code, so it belongs directly under the heading. Memo/summary follows.
     if (node.definition) {
@@ -632,21 +635,34 @@ function buildOutlineDocx(title, nodes) {
       }));
     }
     if (node.summary) {
-      children.push(new Paragraph({ text: node.summary, indent: { left: 360 * (node.depth + 1) } }));
+      if(manuscript)for(const line of node.summary.split(/\r?\n/).filter(line=>line.trim()))children.push(new Paragraph({text:line,spacing:{after:120}}));
+      else children.push(new Paragraph({ text: node.summary, indent: { left: 360 * (node.depth + 1) } }));
     }
     for (const q of node.quotes || []) {
       children.push(new Paragraph({ children: [new TextRun({ text: q, italics: true })],
         indent: { left: 360 * (node.depth + 1) + 180 }, spacing: { after: 80 } }));
+    }
+    for (const q of node.attributedQuotes || []) {
+      children.push(new Paragraph({ children: [new TextRun({text: `“${q.text}”`, italics: true})],
+        indent: {left: 360}, keepNext: true, spacing: {after: 80} }));
+      children.push(new Paragraph({ children: q.attribution.split(/\r?\n/).map((text, index) => new TextRun({text, italics: true, ...(index ? {break: 1} : {})})),
+        indent: {left: 360}, spacing: {after: 180} }));
     }
     for (const iq of node.imageQuotes || []) {
       const scale = Math.min(1, 300 / iq.width, 300 / iq.height);
       children.push(new Paragraph({ indent: { left: 360 * (node.depth + 1) + 180 },
         children: [new ImageRun({ type: 'png', data: Buffer.from(iq.base64, 'base64'),
           transformation: { width: Math.max(1, Math.round(iq.width * scale)), height: Math.max(1, Math.round(iq.height * scale)) } })] }));
-      children.push(new Paragraph({ text: iq.caption, indent: { left: 360 * (node.depth + 1) + 180 }, spacing: { after: 120 } }));
+      children.push(new Paragraph({ children: [new TextRun({text: iq.caption, italics: true})], indent: { left: 360 * (node.depth + 1) + 180 }, spacing: { after: 120 } }));
     }
   }
-  return new Document({ sections: [{ children }] });
+  return new Document({
+    ...(manuscript?{styles:{default:{document:{run:{font:'Calibri',size:22,color:'000000'},paragraph:{spacing:{line:276,after:120}}}},paragraphStyles:[
+      {id:'Title',name:'Title',basedOn:'Normal',run:{size:32,bold:true,color:'000000'},paragraph:{spacing:{after:240},keepNext:true}},
+      ...levels.map((id,index)=>({id,name:'Heading '+(index+1),basedOn:'Normal',next:'Normal',run:{size:Math.max(22,28-index*2),bold:true,color:'000000'},paragraph:{spacing:{before:220,after:120},keepNext:true,outlineLevel:index}}))
+    ]}}:{}),
+    sections: [{...(manuscript?{properties:{page:{margin:{top:1080,bottom:1080,left:1080,right:1080}}}}:{}),children}]
+  });
 }
 
 function buildImageGalleryDocx(title, items) {
@@ -675,7 +691,7 @@ ipcMain.handle('export:docx', async (_e, payload) => {
   const doc = payload.kind === 'codeReport'
     ? buildCodeReportDocx(payload)
     : payload.kind === 'outline'
-    ? buildOutlineDocx(payload.title, payload.outline)
+    ? buildOutlineDocx(payload.title, payload.outline, payload.manuscript)
     : payload.kind === 'imageGallery'
     ? buildImageGalleryDocx(payload.title, payload.items)
     : buildTableDocx(payload.title, payload.headers, payload.rows, payload.imageCells);

@@ -14,3 +14,9 @@ test('both Help books follow the requested app order and finish with keyboard sh
  const order=['Codebook','Auto-Code','Analysis','Memo-Book','Visualization','About','LAN collaboration','Profile and time','Supported files','Keyboard shortcuts'];
  for(const file of ['USER_GUIDE.md','DOCUMENTATION.md']){const titles=helpSections(fs.readFileSync(file,'utf8')).map(s=>s.title.replace(/^\d+\. /,''));const filtered=titles.filter(t=>order.includes(t));assert.deepEqual(filtered,order);}
 });
+
+test('feedback shortcut is shared across every profile and suppresses repeats',()=>{
+ for(const profile of ['standard','codingBar','quickCode','numbered','selection'])assert.equal(resolveShortcut(key('b',{ctrlKey:true,shiftKey:true}),profile),'feedback');
+ assert.equal(resolveShortcut(key('b',{metaKey:true,shiftKey:true}),'standard'),'feedback');
+ assert.equal(resolveShortcut(key('b',{ctrlKey:true,shiftKey:true,repeat:true}),'standard'),null);
+});

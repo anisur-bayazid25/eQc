@@ -1,7 +1,7 @@
 import { Project, ResearchMemo, uid } from '../domain';
 
 export interface MemoRecord extends ResearchMemo { origin: { kind: string; id: string }; }
-export const memoCategories: Record<string, string> = {standalone:'Project memos', document:'Document memos', image:'Document memos', code:'Code memos', framework:'Framework matrix memos', relationship:'Code co-occurrence memos', excerpt:'Quote notes', region:'Quote notes', annotation:'Annotations', case:'Case memos', map:'Code map notes', edge:'Code map notes'};
+export const memoCategories: Record<string, string> = {standalone:'Project memos', document:'Document memos', image:'Document memos', code:'Code memos', framework:'Framework matrix memos', relationship:'Code co-occurrence memos', excerpt:'Quote notes', region:'Quote notes', annotation:'Annotations', case:'Case memos', map:'Visualization labels', edge:'Visualization labels', visualization:'Visualization notes','visualization-draft':'Visualization notes'};
 export function memoCategory(memo: MemoRecord) { return memoCategories[memo.origin.kind] || 'Other notes'; }
 export function listMemoRecords(project: Project): MemoRecord[] {
   const records: MemoRecord[] = (project.memos || []).map(m => ({ ...m, origin:{kind:'standalone',id:m.id} }));
@@ -24,12 +24,16 @@ export function listMemoRecords(project: Project): MemoRecord[] {
   project.annotations?.forEach(a => add('annotation',a.id,'Passage annotation — '+source(a.docId),a.note,[a.docId],[],[],[],a.createdAt));
   project.mapAnnotations?.forEach(a => add('map',a.id,'Code map note',a.text));
   project.mapEdgeStyles?.forEach(e => add('edge',e.id,'Code map link — '+code(e.fromCodeId)+' / '+code(e.toCodeId),e.label,[],[e.fromCodeId,e.toCodeId]));
+  project.visualizationNotes?.forEach(note=>add('visualization',note.id,'Working visualization — '+note.title,note.text,[],[],[],[],0,note.updatedAt));
+  project.mapDrafts?.forEach(draft=>draft.notes?.forEach(note=>add('visualization-draft',draft.id+'::'+note.id,draft.name+' — '+note.title,note.text,[],[],[],[],0,note.updatedAt)));
   return records;
 }
 
 /** Update only a memo field; never change its source text, code or coding location. */
 export function updateMemoText(project: Project, record: MemoRecord, text: string): Project {
   const {kind,id} = record.origin, now = Date.now();
+  if(kind==='visualization')return {...project,visualizationNotes:project.visualizationNotes?.map(note=>note.id===id?{...note,text,updatedAt:now}:note)};
+  if(kind==='visualization-draft'){const [draftId,noteId]=id.split('::');return {...project,mapDrafts:project.mapDrafts?.map(draft=>draft.id===draftId?{...draft,updatedAt:now,notes:draft.notes?.map(note=>note.id===noteId?{...note,text,updatedAt:now}:note)}:draft)};}
   if (kind === 'standalone') return {...project,memos:project.memos?.map(m => m.id === id ? {...m,text,updatedAt:now} : m)};
   if (kind === 'document') return {...project,docs:project.docs.map(d => d.id === id ? {...d,notes:text} : d)};
   if (kind === 'code') return {...project,codes:project.codes.map(c => c.id === id ? {...c,summary:text} : c)};

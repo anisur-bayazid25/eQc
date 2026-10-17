@@ -47,7 +47,7 @@ export default function ToolMenu({ label, children }: { label: string; children:
       ref.current.querySelector('summary')?.focus();
     }
   }}>
-    <summary>{label}</summary>
+    <summary data-tool={label}>{label}</summary>
     <div ref={contentRef} className="tool-menu-content">{children}</div>
   </details>;
 }

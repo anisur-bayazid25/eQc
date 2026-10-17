@@ -35,6 +35,10 @@ eQc keeps qualitative research projects locally. Read and code sources, compare 
 
 Normal coding, analysis and Help work offline. Downloads and updates need internet. OCR runs locally, but its current setup downloads engine and Bengali/English language assets; allow internet when using OCR. Offline OCR is not guaranteed because it depends on cached assets.
 
+**OCR languages:** scanned-PDF recognition currently uses Bengali and English only. Other OCR languages are not selectable. This limitation applies to scanned-text recognition, not ordinary imported text; language choices in Word Cloud and word-frequency analysis do not change OCR recognition.
+
+**Project and backup storage:** embedded images use base64, which adds roughly 33% to their binary size. HEIC-to-PNG conversion, retained original documents and PDF page images can add more. Photo-heavy projects can exceed 1 GB each; full JSON backups containing that media require additional space for every saved copy. The 1 GB installation allowance does not include project data or backups.
+
 ## Quick start
 
 Create a project, add an interview, create a code, select text and apply it. Review excerpts in Codebook, compare them in Analysis, and write interpretations in Memo-Book. Export a JSON backup.
@@ -61,9 +65,11 @@ Preview word/phrase matches and target codes before applying coding. Review resu
 
 ## Analysis
 
-Frequency/Documents count coding entries, not participants. Co-occurrence counts different codes on overlapping passages/regions; click a pair for evidence and a relationship memo. Framework stores editable source × theme summaries. Word frequencies needs Generate List; KWIC needs Search. Interview prompts and headers can contribute words. Export tables or a combined HTML Report.
+Frequency/Documents count coding entries, not participants. Co-occurrence counts different codes on overlapping passages/regions; click a pair for evidence and a relationship memo. Framework stores editable source × theme summaries. Word frequencies needs Generate List; KWIC needs Search. Interview prompts and headers can contribute words. Export tables or a combined HTML Report. HTML options include selected saved draft figures and optional visualization notes; figures use isolated copies of the saved canvases and do not restore or edit the working project. Regenerate saved graphs first if their analysis needs updating. Reports embed figures offline, show all selected source-level coder pairs plus the saved additional ICR comparison and calculation details, and use collapsible/searchable tables, individually collapsible code summaries and research records grouped by type. Print expands details and filtered rows temporarily, then restores the previous view.
 
-ICR uses selected sources/coders and includes source × code presence measures. Repeated coding to one code/source counts once for presence; joint absences can raise agreement. Consensus groups overlapping text, with at least two participating coders. Agreement requires the same single code; multi-code groups appear as Disagreements even when sets match. Cu-alpha includes uncoded ratings. Regions are not passage-consensus items. Export ICR and save a checkpoint before adjudication removes other coders' entries.
+ICR uses selected sources/coders and includes source × code presence measures. Repeated coding to one code/source counts once for presence; joint absences can raise agreement. Consensus groups overlapping text, with at least two participating coders. Agreement requires the same single code; multi-code groups appear as Disagreements even when sets match. Text-unit nominal alpha uses a dominant code on overlap groups and includes uncoded ratings; it is not semantic-domain Cu-alpha. Regions are not passage-consensus items. Export ICR and save a checkpoint before adjudication removes other coders' entries.
+
+ICR uses one method selector with contextual inputs and an explicit Calculate action. Summary cards lead; pairwise/code tables and diagnostics are collapsed. Detailed tables support search, 20-row pages and complete CSV/Word exports. ICR help opens the Help tab at the formulas, comparison-unit rules and worked examples. Additional comparisons provide character/sentence/paragraph units, presence with RK correction, exact frequency equality, segment overlap with Brennan–Prediger corrections, semantic domains with exclusive-code validation and imported fixed-test decisions with per-code Pearson correlation. Calculate saves settings/test rows in the project. The paragraph preview and copy button are available only in manuscript skeleton export options and produce prose only. Native comparison units and aggregation are explicit; the exploratory global Cu-style coefficient has not been validated as equivalent to published global Cu-alpha and is excluded from manuscript reporting.
 
 ## Memo-Book
 
@@ -71,7 +77,7 @@ Gather notes from projects, documents/images, codes, quotes/regions, annotations
 
 Create analytic/methodological/journal memos with source/code/case/excerpt links. Attached edits update original fields. Go to source returns to the original item or matrix; project memos provide individual evidence links.
 
-Word/Excel exports include readable memo sources, document names, code names, quotes/annotations, authors, locations and available dates. Missing links retain IDs. Code/pair memos include related documents. Excel uses category worksheets; long text continues with source fields repeated. Manuscript skeleton Word uses the whole project, including analysis notes and starred evidence. Merging memos combines text/links and clears original attached note fields after confirmation; Undo restores them.
+Word/Excel exports include readable memo sources, document names, code names, quotes/annotations, authors, locations and available dates. Missing links retain IDs. Code/pair memos include related documents. Excel uses category worksheets; long text continues with source fields repeated. Manuscript skeleton Word uses the whole project with content options and an ICR scope/paragraph preview before Results. It omits generated document lists, coder labels, excerpt/source/case memos, annotations and visualization notes. Starred quotations have italic case-based attribution or source-name fallback. Framework/co-occurrence memos default on; analytic project memos are optional and not repeated across linked codes. Other exports retain their audit metadata. Case editing uses separate standard fields plus named custom attributes; existing keys remain compatible. Merging memos combines text/links and clears original attached note fields after confirmation; Undo restores them.
 
 ## Visualization
 
@@ -87,11 +93,17 @@ Word clouds support standard/random shapes and PNG/SVG masks, overlays, spacing/
 
 The centered canvas uses left-side tools and a right-side Inspector. Toggle the Inspector for more space; zoom controls remain at the top.
 
+Every graph shares Colours, Text, Canvas, Arrange, Draw (including shapes/text boxes), Legend, Drafts and Export. Code-node tools appear only on Code map, Mind map, Hierarchy and Blank canvas; only Code map exposes View/re-layout/shared-document controls. Heat map display in the right Inspector can hide all-zero rows/columns and swap axes immediately. Histomap can hide zero-assignment codes in Choose display while retaining periods and gaps.
+
 Results are editable snapshots: regenerate explicitly after data changes. Draw or double-click text, format in the grouped right Inspector (Font, Size & style, Text colour; Direction & rotation opens advanced controls), resize with automatic fitting, and customise shapes/legends. Connections follow process/journey blocks when moved. Save a named draft before changing designs; drafts retain family/settings and map geometry without copying transcript contents. Export the same canvas as SVG/PNG/JPEG. Set a physical print width and check text size/DPI before export. SVG retains vector text/shapes plus accessible figure/source descriptions. See the [User Guide](USER_GUIDE.md) for controls, limits and the guided period-assignment/clustering settings for histomaps and dendrograms.
+
+Visualization notes are separate draggable cards toggled with Notes, snapshotted independently in named drafts and aggregated under Visualization notes in Memo-Book. Canvas/edge labels are Visualization labels. Notes are excluded from figure exports and manuscripts, but retained in native JSON backups and LAN snapshots. LAN is whole-project last-writer-wins; simultaneous canvas edits can overwrite one another.
 
 ## About
 
 Check the installed version and updates. Click the email to open your email app, or right-click to copy the address/link. Right-click Source & releases to copy GitHub's address.
+
+Feedback in the toolbar, Help's reporting button or Ctrl/Cmd+Shift+B opens a direct-report form. It prefills the active profile email, captures the eQc window before opening, previews removable screenshots and reviewable optional device information, and sends only the selected report fields. The default backend is a standalone Google Apps Script web app executed under the developer's authorization; no website, purchased domain or end-user Google login is needed. The recipient is fixed to the developer's email; the reporter's address is Reply-To. Persistent locks/counters enforce a 50-attempt rolling daily cap and shorter rate limits. Accepted retries are deduplicated, and uncertain sends are not repeated automatically. Google ContentService response redirects are followed with a GET only to the expected Google content host. Offline ZIP download is available; failed sends retain the draft in memory. The service must be deployed and its public `/exec` URL configured before Send is enabled. Setup is in `services/feedback/README.md`.
 
 ## LAN collaboration
 

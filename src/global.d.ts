@@ -143,6 +143,7 @@ export interface QvBridge {
   profileTime?: import('./lib/profileRepository').ProfileRepositoryBridge;
   exportImage: any;
   openContactEmail(): Promise<void>;
+  feedback?: import('./lib/feedback').FeedbackBridge;
   pickAndEncodeImages: any;
   listProjects(): Promise<ProjectSummary[]>;
   loadProject(id: string): Promise<Project | null>;
@@ -186,7 +187,7 @@ export interface QvBridge {
   exportDocxTable: (payload:
     | import('./lib/codeReport').CodeReport
     | { kind: 'table'; title: string; headers: string[]; rows: (string | number)[][]; imageCells?: Array<{ row: number; column: number; base64: string; width: number; height: number }>; filenameBase: string }
-    | { kind: 'outline'; title: string; outline: Array<{ name: string; depth: number; summary?: string; definition?: string; quotes?: string[]; imageQuotes?: Array<{ base64: string; width: number; height: number; caption: string }> }>; filenameBase: string }
+    | { kind: 'outline'; manuscript?:boolean; title: string; outline: Array<{ name: string; depth: number; summary?: string; definition?: string; quotes?: string[]; attributedQuotes?: Array<{text:string;attribution:string}>; imageQuotes?: Array<{ base64: string; width: number; height: number; caption: string }> }>; filenameBase: string }
   ) => Promise<string | null>;
 
   exportReport(project: Project, html: string): Promise<string | null>;

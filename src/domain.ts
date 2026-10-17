@@ -135,11 +135,14 @@ export interface CodeMapView {
   zoom?:number; fitToWindow?:boolean;
 }
 export interface CodeMapDraft {
+  notes?: VisualizationNote[];
   id: ID; name: string; updatedAt: number;
   nodes: Array<Pick<Code,'id'|'mapPosition'|'mapShape'|'mapAppearance'|'mapLabel'|'mapGroupId'|'mapLayer'|'mapScale'>>;
   annotations: MapAnnotation[]; edges: MapEdgeStyle[]; hiddenIds: ID[];
   design?: MapDesign; view: CodeMapView;
 }
+
+export interface VisualizationNote {id:ID;title:string;text:string;x:number;y:number;updatedAt:number;}
 
 export interface CodedSegment {
   periodId?:ID;
@@ -222,6 +225,7 @@ export interface ActivityEntry { id: number; at: number; actor: string; summary:
 export interface ProjectSnapshot { id: number; at: number; label: string; automatic: boolean; sizeBytes: number }
 
 export interface Project {
+  icrComparison?: import('./lib/icrComparisons').IcrComparisonSettings;
   analysisPeriods?:AnalysisPeriod[];
   id: ID;
   name: string;
@@ -242,6 +246,7 @@ export interface Project {
   mapDesign?: MapDesign;
   mapView?: CodeMapView;
   mapDrafts?: CodeMapDraft[];
+  visualizationNotes?: VisualizationNote[];
   coderName?: string;   // this project's coder identity, stamped onto segments when merged into another project
   cases?: ResearchCase[];
   groups?: ResearchGroup[];

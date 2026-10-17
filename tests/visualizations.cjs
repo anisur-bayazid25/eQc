@@ -3,6 +3,19 @@ require.extensions['.ts']=(m,f)=>m._compile(ts.transpileModule(fs.readFileSync(f
 const {buildVisualization,visualizationTypes}=require('../src/lib/visualizations.ts');
 const data={analysisPeriods:[{id:'before',label:'Before',order:0},{id:'after',label:'After',order:1}],id:'p',name:'Climate recovery',codes:[{id:'a',name:'Water',color:'#112233',parentId:null},{id:'b',name:'Cost',color:'#445566',parentId:'a'},{id:'c',name:'Care',color:'#778899',parentId:null}],docs:[{id:'d1',periodId:'before',name:'Interview A',content:'Water is scarce. Water costs time.'},{id:'d2',periodId:'after',name:'Interview B',content:'Water costs time. Care is shared.'}],codedSegments:[{codeId:'a',docId:'d1'},{codeId:'a',docId:'d1'},{codeId:'b',docId:'d1'},{codeId:'a',docId:'d2'},{codeId:'c',docId:'d2'}]};
 const options={cloudWords:[{word:'Water',count:3,x:150,y:200,width:180,height:70,fontSize:40,rotation:0}],title:'Climate recovery',preset:'documents',codeIds:['a','b','c'],docIds:['d1','d2'],limit:12,phrase:'Water',labels:'Individual\nCommunity\nInstitutions',ratings:'2,3,5',colour:'#2563eb'};
+
+test('heat-map empty axes and transpose retain cell values, provenance, styling and decorations',()=>{
+ const {retainHeatmapEdits}=require('../src/lib/heatmap.ts');
+ const p={...data,codes:[...data.codes,{id:'z',name:'Unused',color:'#000'}],docs:[...data.docs,{id:'dz',name:'Empty source',content:''}]},o={...options,codeIds:['a','b','c','z'],docIds:['d1','d2','dz']},before=JSON.stringify(p);
+ const base=buildVisualization(p,'heat-map',o),cells=s=>s.annotations.filter(a=>a.kind==='rect'&&a.sourceCodeIds),total=s=>cells(s).reduce((n,a)=>n+Number(a.text),0);
+ assert.equal(cells(base).length,12);
+ const compact=buildVisualization(p,'heat-map',{...o,heatHideZeroRows:true,heatHideZeroColumns:true});assert.equal(cells(compact).length,6);assert.equal(total(compact),total(base));assert.ok(cells(compact).some(a=>a.text==='0'));
+ const flipped=buildVisualization(p,'heat-map',{...o,heatHideZeroRows:true,heatHideZeroColumns:true,heatTranspose:true});assert.equal(cells(flipped).length,6);for(const a of cells(compact)){const b=cells(flipped).find(b=>b.id===a.id);assert.equal(b.text,a.text);assert.deepEqual(b.sourceCodeIds,a.sourceCodeIds);assert.deepEqual(b.sourceDocIds,a.sourceDocIds);assert.equal((a.x-400)/120,(b.y-240)/74);assert.equal((a.y-240)/74,(b.x-400)/120);}
+ const current=structuredClone(base.annotations).filter(a=>a.id!=='suggested:viz:0');current.find(a=>a.id==='suggested:viz:1').text='Edited subtitle';current.find(a=>a.id===cells(compact)[0].id).fontSize=42;current.push({id:'manual-note',kind:'text',text:'Keep this',x:10,y:10,color:'#000',lineStyle:'solid'});
+ const kept=retainHeatmapEdits(flipped,base,current);assert.ok(!kept.annotations.some(a=>a.id==='suggested:viz:0'));assert.equal(kept.annotations.find(a=>a.id==='suggested:viz:1').text,'Edited subtitle');assert.equal(cells(kept)[0].fontSize,42);assert.ok(kept.annotations.some(a=>a.id==='manual-note'));assert.equal(JSON.stringify(p),before);
+ const empty=buildVisualization({...p,codedSegments:[]},'heat-map',{...o,heatHideZeroRows:true,heatHideZeroColumns:true});assert.equal(cells(empty).length,0);assert.ok(empty.annotations.some(a=>a.id==='suggested:heat:empty'));
+ for(const preset of ['documents','shared'])assert.equal(total(buildVisualization(p,'heat-map',{...o,preset,heatTranspose:true})),total(buildVisualization(p,'heat-map',{...o,preset})));
+});
 test('all gallery types generate bounded editable snapshots without mutating research data',()=>{
  const original=JSON.stringify(data);assert.equal(visualizationTypes.length,16);
  for(const {id} of visualizationTypes){const s=buildVisualization(data,id,options);assert.equal(s.design.family,id);assert.ok(s.design.width>=1000);assert.ok(s.annotations.length<1000);assert.ok(s.annotations.every(a=>Number.isFinite(a.x)&&Number.isFinite(a.y)));assert.equal(JSON.stringify(data),original);}

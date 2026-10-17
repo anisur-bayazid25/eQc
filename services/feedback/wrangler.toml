@@ -1,0 +1,13 @@
+name = "eqc-feedback"
+main = "worker.mjs"
+compatibility_date = "2026-10-17"
+
+# Set RESEND_API_KEY and FEEDBACK_FROM with `wrangler secret put`.
+# No email credentials belong in this file or the distributed desktop app.
+[observability]
+enabled = false
+
+[[ratelimits]]
+name = "REPORT_LIMIT"
+namespace_id = "171017"
+simple = { limit = 5, period = 60 }

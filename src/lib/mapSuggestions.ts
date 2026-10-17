@@ -117,7 +117,7 @@ export function applyCodeMapSuggestion(project:Project,suggestion:MapSuggestion)
   const samePair=(a:MapEdgeStyle,b:MapEdgeStyle)=>a.kind===b.kind&&[a.fromCodeId,a.toCodeId].includes(b.fromCodeId)&&[a.fromCodeId,a.toCodeId].includes(b.toCodeId);
   const previous=suggestion.replaceCanvas?[]:project.mapEdgeStyles||[];
   const edges=suggestion.edges.map(edge=>{const old=previous.find(e=>samePair(e,edge));return old?.label?{...edge,label:old.label,labelDx:old.labelDx,labelDy:old.labelDy,labelFontSize:old.labelFontSize,labelColor:old.labelColor,labelFontFamily:old.labelFontFamily,labelBold:old.labelBold,labelItalic:old.labelItalic,labelUnderline:old.labelUnderline}:edge;});
-  return {...project,mapView:undefined,codes:project.codes.map(c=>patches.has(c.id)?{...c,mapGroupId:undefined,mapLayer:undefined,mapScale:undefined,...patches.get(c.id)}:c),hiddenMapCodeIds:suggestion.hiddenIds,mapDesign:suggestion.design,
+  return {...project,visualizationNotes:(project.mapDesign?.family||'code-map')===(suggestion.design.family||'code-map')?project.visualizationNotes:[],mapView:undefined,codes:project.codes.map(c=>patches.has(c.id)?{...c,mapGroupId:undefined,mapLayer:undefined,mapScale:undefined,...patches.get(c.id)}:c),hiddenMapCodeIds:suggestion.hiddenIds,mapDesign:suggestion.design,
     mapAnnotations:[...(suggestion.design.mode==='manual'||suggestion.replaceCanvas?[]:project.mapAnnotations||[]).filter(a=>!a.id.startsWith('suggested:')), ...suggestion.annotations],
     mapEdgeStyles:[...(suggestion.design.mode==='manual'||suggestion.replaceCanvas?[]:previous).filter(e=>(!e.id.startsWith('suggested:')||!!e.label)&&!edges.some(s=>samePair(s,e))),...edges]};
 }

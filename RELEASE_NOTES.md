@@ -1,18 +1,17 @@
-# eQc 1.8.2
+﻿# eQc 1.8.3
 
-This release adds a complete visualization workspace and improves editing, reliability and offline Help.
+- Required sender name and email for all feedback, with profile prefill and validation in the app and generated hosted script. Sender name is included in the report; existing rate limits remain. The Apps Script deployment must be updated to enforce the new name requirement.
+- Switched the default feedback backend to Google Apps Script for a zero-budget setup without a website/domain. Added a single paste-ready script, quota/rate limits, duplicate protection, conservative uncertain-send handling and Google response-redirect support. Live delivery requires the owner's one-time deployment and public URL.
+- Added Feedback in the toolbar/Help and Ctrl/Cmd+Shift+B, with profile-email prefill, screenshot capture/attachment preview, optional device details, direct-send handling and offline report ZIPs. Prepared a hosted email service; live sending requires service activation.
+- Reworked HTML reports with all selected ICR coder pairs, saved comparison statistics/settings, calculation help, selected draft graph figures and optional visualization notes. Added contents navigation, collapsible/searchable tables, collapsible code summaries, research records grouped by type, and print expansion.
+- Added a Starred Quotes download beside the half-width Starred Images button, with manuscript attribution or full document/code/case details in Word.
+- Added ICR comparison units and methods, compact summary cards, expandable/searchable/paginated tables and calculation guidance linked from ICR to Help. Manuscript statistics preview/copy is available only in export options.
+- Simplified manuscript content with case-based italic quote attribution, optional framework/co-occurrence memos and separate case attribute fields. Added draggable visualization notes with independent draft snapshots and Memo-Book access.
 
-- **Sixteen visualization types:** code/mind/hierarchy maps, heat maps, word trees, Word Cloud, five Sankey presets, guided Histomap and Dendrogram, process/journey/pyramid/Venn/honeycomb/ecology diagrams, and one dedicated Blank canvas.
-- **Editable figures:** double-click text to edit in place; draw standard shapes; select, group, align, resize and reorder objects; customise legends, labels, text direction and export size. The Inspector has clearer, consistently sized controls.
-- **Colour choices:** 17 palettes, including scientific, muted, monochrome and colour-blind-friendly options, palette inversion, named custom palettes and expanded individual colour controls.
-- **Word Cloud:** shapes and PNG/SVG masks, adjustable packing, uniform or frequency-based word sizes, refitting after font changes, stop-word controls and lightweight language profiles. Word-frequency analysis shares language-aware length filtering.
-- **Safer navigation:** your working canvas resumes after opening a source or another tab, while the hidden renderer unloads. Named drafts preserve additional versions.
-- **Guided data preparation:** Histomap and Dendrogram explain required inputs and show readiness checks before generation. The fictional demo now has uneven coding and reusable period assignments.
-- **Usability:** profile-picture zoom/positioning, keyboard text selection and configurable shortcut profiles, readable light-mode action buttons, and updated offline Help with minimum/recommended computer requirements.
-- **Reliability fixes:** consistent coder filters, retained legend choices, view-save edit timestamps without extra Undo entries, project LAN-key cleanup, and explicit framework-cell cleanup when a document is deleted. Document deletion supports Undo/Redo.
+- Clarified that scanned-PDF OCR uses Bengali/English only, and that media encoding, retained sources, PDF page images and repeated full JSON backups require storage beyond the app installation allowance.
 
-Code map now offers Simple and Detailed designs. Start a free drawing through the separate **Blank canvas** card.
+- Reorganized visualization tools into a consistent common set, with Shapes inside Draw, a fully labelled Text button, one Legend control and graph-specific code-node controls.
+- Added Heat map Inspector controls to hide all-zero rows/columns and swap axes while retaining heading edits, added objects, palette and source links. Added optional zero-assignment code filtering to Histomap without removing periods or gaps.
 
-Existing JSON backups remain supported. Keep a JSON backup before upgrading. Routine coding, analysis and Help work offline; OCR may download engine/language assets. Published hardware minimums are provisional pending low-spec PC validation.
+Full details in CHANGELOG.md. All demo content is fictional training data.
 
-Acknowledgments: the CARE project and BRAC James P Grant School of Public Health, BRAC University.

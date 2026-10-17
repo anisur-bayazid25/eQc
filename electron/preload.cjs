@@ -2,6 +2,13 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('qv', {
   openContactEmail: () => ipcRenderer.invoke('contact:openEmail'),
+  feedback: {
+    context: () => ipcRenderer.invoke('feedback:context'),
+    capture: () => ipcRenderer.invoke('feedback:capture'),
+    pickScreenshot: () => ipcRenderer.invoke('feedback:pickScreenshot'),
+    send: report => ipcRenderer.invoke('feedback:send',report),
+    save: report => ipcRenderer.invoke('feedback:save',report),
+  },
   profileTime: {
     open: legacy => ipcRenderer.invoke('profiles:open',legacy),
     write: payload => ipcRenderer.invoke('profiles:write',payload),

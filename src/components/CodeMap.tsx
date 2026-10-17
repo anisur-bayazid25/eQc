@@ -1,4 +1,6 @@
+import VisualizationNotes from './VisualizationNotes';
 import CloudStopWords from './CloudStopWords';
+import HeatmapDisplay from './HeatmapDisplay';
 import {flowGeometry,flowLabelGeometry} from '../lib/sankey';
 import DrawingShapes from './DrawingShapes';
 import {drawingShapes,drawingAnnotation} from '../lib/mapShapes';
@@ -8,6 +10,7 @@ import {MapObject,ObjectCommand} from '../lib/mapObjects';
 import {mapPalettes,MapPalette,reversedPalette} from '../lib/mapPalettes';
 import VisualizationSetup,{VisualizationIcon} from './VisualizationSetup';
 import {visualizationTypes,VisualizationOptions} from '../lib/visualizations';
+import {visualizationHelp} from '../lib/visualizationHelp';
 import MapLegend from './MapLegend';
 import { fitMapText } from '../lib/mapTextFit';
 import MapTextEditor from './MapTextEditor';
@@ -17,10 +20,13 @@ import MapSuggestions, { MapLabel } from './MapSuggestions';
 import { ellipseEndpoint, mapSharedDocuments, mapLabelLines, suggestedMapPairs, MapSuggestion } from '../lib/mapSuggestions';
 import ToolMenu from './ToolMenu';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AnalysisPeriod, Code, SourceDoc, VisualizationKind, CodedSegment, ID, MapAnnotation, MapDesign, CodeMapDraft, CodeMapView, MapLegendSettings, MapEdgeStyle, childCodes, descendantCodeIds, uid } from '../domain';
+import { VisualizationNote, AnalysisPeriod, Code, SourceDoc, VisualizationKind, CodedSegment, ID, MapAnnotation, MapDesign, CodeMapDraft, CodeMapView, MapLegendSettings, MapEdgeStyle, childCodes, descendantCodeIds, uid } from '../domain';
 
 interface Props {
   active?: boolean;
+  visualizationNotes?:VisualizationNote[];
+  onVisualizationNotes?:(notes:VisualizationNote[])=>void;
+  noteTarget?:{id:string;nonce:number}|null;
   projectId: ID;
   projectName?: string;
   mapView?: CodeMapView;
@@ -212,11 +218,16 @@ function relaxLayout(layout: Map<ID, { x: number; y: number }>, codes: Code[], v
 
 function CodeMap({
   active = true,
+  visualizationNotes=[],onVisualizationNotes,noteTarget,
   projectId, projectName, mapView, drafts, customMapPalettes=[], onSavePalette, onObjectCommand, onApplyPalette, onRememberView, onSaveDraft, onRestoreDraft, onDeleteDraft, onLibrary, onConfigure, mapDesign, onApplySuggestion, onResizeCanvas, onOpenDocument, docs=[], onOpenCode, onOpenCodeMemo, codes, codedSegments, mapEdgeStyles, annotations:sourceAnnotations, hiddenMapCodeIds,
   onUpdateCode, onUpdateCodesBatch, onUpdateEdgeStyle, onAddEdgeStyle, onDeleteEdgeStyle,
   onUpdateAnnotations, onUpdateHiddenMapCodes,
   onShowToast
 }: Props) {
+  const [showNotes,setShowNotes]=useState(!!noteTarget);
+  useEffect(()=>{if(noteTarget)setShowNotes(true);},[noteTarget]);
+  const isCodeMap=!mapDesign?.family||mapDesign.family==='code-map';
+  const hasCodeTools=isCodeMap||['mind-map','hierarchy','manual'].includes(mapDesign?.family||'');
   const annotations=useMemo(()=>sourceAnnotations.map(a=>a.flow?{...a,...flowGeometry(a.flow,sourceAnnotations,Number(mapDesign?.options?.sankeyCurvature)||.5)}:a.flowNodeLabel?{...a,...flowLabelGeometry(a,sourceAnnotations)}:a),[sourceAnnotations,mapDesign?.options?.sankeyCurvature]);
   const basePalette=[...mapPalettes,...customMapPalettes].find(p=>p.id===mapDesign?.paletteId);
   const palette=basePalette?reversedPalette(basePalette,!!mapDesign?.paletteInverted):undefined;
@@ -294,6 +305,7 @@ function CodeMap({
   // holds the chosen node and the add-codes popover flag.
   const [selectedMapCodeId, setSelectedMapCodeId] = useState<ID | null>(null);
   const [showAddCodes, setShowAddCodes] = useState(false);
+  useEffect(()=>{setDrawMode(false);setDrawSource(null);setShowAddCodes(false);setFindCode('');},[mapDesign?.family]);
   // Whether the legend is baked into SVG/PNG/JPEG exports.
   const [includeLegendInExport, setIncludeLegendInExport] = useState(true);
   const [exportScale,setExportScale]=useState(3.125);
@@ -1067,7 +1079,7 @@ function CodeMap({
     const el = svgRef.current;
     if (!el) return { xml: null, width: canvas.w, height: canvas.h };
     const clone = el.cloneNode(true) as SVGSVGElement;
-    clone.querySelectorAll('[data-map-editor],[data-map-edit-outline]').forEach(el=>el.remove());
+    clone.querySelectorAll('[data-map-editor],[data-map-edit-outline],[data-visualization-notes]').forEach(el=>el.remove());
     const w = Math.max(1, Math.round(canvas.w * scale));
     const h = Math.max(1, Math.round(canvas.h * scale));
     clone.setAttribute('width', physical?publicationWidthMm+'mm':String(w));
@@ -1378,85 +1390,7 @@ function CodeMap({
       {designOpen&&onApplySuggestion&&<MapSuggestions projectId={projectId} name={annotations.find(a=>a.id===mapDesign?.hubId)?.text||projectName||'Research themes'} codes={codes} segments={codedSegments} initialDesign={mapDesign} onApply={s=>onApplySuggestion({...s,design:{...s.design,family:'code-map'}})} onClose={()=>setDesignOpen(false)}/>}
       <div className="map-toolbar" aria-label="Visualization tools">
         <div className="map-header-actions"><strong className="map-title">{visualizationTypes.find(t=>t.id===mapDesign?.family)?.name||'Code map'}</strong><button className="mini-btn" title="All visualization types" aria-label="All visualization types" onClick={onLibrary}>▦</button><button className="mini-btn" title="Edit visualization settings" aria-label={'Edit '+(visualizationTypes.find(t=>t.id===mapDesign?.family)?.name||'Code map')+' settings'} onClick={()=>mapDesign?.family&&mapDesign.family!=='code-map'?onConfigure?.():setDesignOpen(true)} disabled={!onApplySuggestion}>⚙</button>
-        </div><aside className="map-tools-rail" aria-label="Drawing tools"><ToolMenu label="View"><label>Find a code<input aria-label="Find code on map" value={findCode} onChange={e=>setFindCode(e.target.value)}/></label>{findCode.trim()&&<div className="map-code-results">{codes.filter(c=>c.name.toLocaleLowerCase().includes(findCode.toLocaleLowerCase())).slice(0,20).map(c=><button key={c.id} onClick={()=>{if(hiddenIds.has(c.id))onUpdateHiddenMapCodes(hiddenMapCodeIds.filter(id=>id!==c.id));setViewMode('full');setSelectedLegend(null);setSelectedMapCodeId(c.id);setJumpCode(c.id);setFindCode('');}}>{c.name}</button>)}</div>}
-        <select
-          value={viewMode}
-          onChange={e => handleViewModeChange(e.target.value as 'auto' | 'full' | 'custom')}
-          style={{ fontSize: '12px', padding: '2px 4px' }}
-          title="Which codes to show on the map"
-        >
-          <option value="auto">View: Auto</option>
-          <option value="full">View: Show everything</option>
-          <option value="custom">View: Custom (pick expanded roots)</option>
-        </select>
-        {foldMode && (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }} title="How many children of each expanded node to render (ranked by co-occurrence weight)">
-            <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Children/root</span>
-            {[3, 5, 10].map(n => (
-              <button
-                key={n}
-                className="mini-btn"
-                style={{ padding: '1px 5px', fontSize: '11px', ...(childrenPerRoot === n ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}) }}
-                onClick={() => setChildrenPerRoot(n)}
-              >
-                {n}
-              </button>
-            ))}
-            <button
-              className="mini-btn"
-              style={{ padding: '1px 5px', fontSize: '11px', ...(childrenPerRoot === 'all' ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}) }}
-              onClick={() => setChildrenPerRoot('all')}
-            >
-              All
-            </button>
-          </span>
-        )}
-        <button className="mini-btn" onClick={reAutoLayout} title="Re-run auto layout for the visible codes">↻ Re-layout</button>
-        <button
-          className="mini-btn"
-          style={showLegend ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
-          onClick={() => setShowLegend(v => !v)}
-          title="Toggle the legend overlay"
-        >
-          ◆ Legend
-        </button>
-        <label className="mini-label" style={{ fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-          <input
-            type="checkbox"
-            checked={showCooc}
-            onChange={e => setShowCooc(e.target.checked)}
-          />
-          {mapDesign&&mapDesign.mode!=='manual'?`Shared-document links (${edges.filter(e=>e.kind==='cooccurrence').length} of ${coocCount})`:`Co-occurrence (${coocCount})`}
-        </label>
-        {showCooc && (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>min</span>
-            {[1, 2, 3, 5, 8].map(n => (
-              <button
-                key={n}
-                className="mini-btn"
-                style={{ padding: '1px 5px', fontSize: '11px', ...(minShared === n ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}) }}
-                onClick={() => setMinShared(n)}
-                title={`Only draw co-occurrence edges sharing at least ${n} document${n === 1 ? '' : 's'}`}
-              >
-                {n}
-              </button>
-            ))}
-          </span>
-        )}
-        </ToolMenu>
-        <ToolMenu label="Draw">
-        <button
-          className="mini-btn"
-          style={drawMode ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
-          onClick={() => { setSelectedKey(null); setDrawMode(m => !m); setDrawSource(null); }}
-        >
-          {drawMode ? 'Cancel draw' : '✏️ Draw edge'}
-        </button>
-        {annotateMode&&<button onClick={()=>setAnnotateMode(false)}>Cancel shape drawing</button>}
-        </ToolMenu>
-        <ToolMenu label="Shapes"><DrawingShapes selected={annotateShape} onSelect={shape=>{setAnnotateShape(shape.id);setAnnotateMode(true);setDrawMode(false);setSelectedKey(null);setSelectedAnnoId(null);}}/></ToolMenu>
-        <ToolMenu label="Arrange">{selection.toolbar}</ToolMenu><ToolMenu label="Colours"><MapPaletteGallery custom={customMapPalettes} selected={mapDesign?.paletteId} inverted={mapDesign?.paletteInverted} onApply={onApplyPalette} onSave={onSavePalette}/></ToolMenu><ToolMenu label="Canvas">
+        </div><aside className="map-tools-rail" aria-label="Drawing tools"><ToolMenu label="Colours"><MapPaletteGallery custom={customMapPalettes} selected={mapDesign?.paletteId} inverted={mapDesign?.paletteInverted} onApply={onApplyPalette} onSave={onSavePalette}/></ToolMenu><button className="mini-btn map-text-tool" title="Text formatting" aria-pressed={textEditorOpen&&inspectorOpen} onClick={()=>{const open=!textEditorOpen||!inspectorOpen;setTextEditorOpen(open);if(open)setInspectorOpen(true);}}><span aria-hidden="true">T</span>Text</button><ToolMenu label="Canvas">
         <select
           value={customMode ? 'custom' : String(presetIdx)}
           onChange={e => selectCanvasPreset(e.target.value)}
@@ -1505,8 +1439,77 @@ function CodeMap({
         >
           {canvas.w > canvas.h ? '⬜ Landscape' : '▯ Portrait'}
         </button>
-        </ToolMenu>
-        <ToolMenu label="Codes">
+        </ToolMenu><ToolMenu label="Arrange">{selection.toolbar}</ToolMenu><ToolMenu label="Draw"><strong>Shapes</strong><DrawingShapes selected={annotateShape} onSelect={shape=>{setAnnotateShape(shape.id);setAnnotateMode(true);setDrawMode(false);setSelectedKey(null);setSelectedAnnoId(null);}}/>{annotateMode&&<button onClick={()=>setAnnotateMode(false)}>Cancel shape drawing</button>}</ToolMenu><ToolMenu label="Legend"><button onClick={()=>setShowLegend(v=>!v)}>{showLegend?'Hide legend':'Show legend'}</button><label>Columns<select aria-label="Legend columns" value={legendSettings.columns||1} onChange={e=>setLegendSettings(v=>({...v,columns:Number(e.target.value)}))}><option value={1}>1</option><option value={2}>2</option><option value={3}>3</option></select></label><button onClick={()=>setLegendSettings({})}>Reset legend</button><small>Double-click labels to edit. Drag the background to move; drag the corner to resize. Save a draft to keep your changes.</small>{[...legendEntries].sort((a,b)=>(legendSettings.order?.indexOf(a.key)??-1)-(legendSettings.order?.indexOf(b.key)??-1)).map((entry,i,rows)=><div key={entry.key} className="map-draft-row"><label><input type="checkbox" aria-label={'Show legend entry '+entry.label} checked={!legendSettings.hidden?.includes(entry.key)} onChange={e=>setLegendSettings(v=>({...v,hidden:e.target.checked?(v.hidden||[]).filter(k=>k!==entry.key):[...(v.hidden||[]),entry.key]}))}/>{legendSettings.labels?.[entry.key]??entry.label}</label>{[-1,1].map(d=><button key={d} aria-label={(d<0?'Move legend entry up ':'Move legend entry down ')+entry.label} disabled={i+d<0||i+d>=rows.length} onClick={()=>{const order=rows.map(r=>r.key);[order[i],order[i+d]]=[order[i+d],order[i]];setLegendSettings(v=>({...v,order}));}}>{d<0?'↑':'↓'}</button>)}</div>)}</ToolMenu><ToolMenu label="Drafts"><label>Draft name<input aria-label="Map draft name" value={draftName} onChange={e=>setDraftName(e.target.value)} placeholder="e.g. Findings — first draft"/></label><button disabled={!draftName.trim()||!onSaveDraft} onClick={()=>{onSaveDraft?.(draftName,{cloudStopDraft,width:canvas.w,height:canvas.h,viewMode,expandedRoots:Array.from(expandedRoots),childrenPerRoot,showCooc,minShared,showLegend,includeLegendInExport,legendPos,exportScale,publicationWidthMm,legend:legendSettings});setDraftMessage('Draft stored in this project.');}}>Save map draft</button>{draftMessage&&<small role="status">{draftMessage}</small>}<small>Using an existing name replaces that draft. Layouts store links to codes, not copies of transcripts.</small>{drafts?.map(d=><div className="map-draft-row" key={d.id}><span>{d.name}</span><button onClick={()=>{onRestoreDraft?.(d.id);setDraftName(d.name);setDraftMessage('Draft loaded.');}}>Load</button><button aria-label={'Delete map draft '+d.name} onClick={()=>onDeleteDraft?.(d.id)}>Delete</button></div>)}</ToolMenu><ToolMenu label="Export"><label>Image resolution<select aria-label="Map export resolution" value={exportScale} onChange={e=>setExportScale(Number(e.target.value))}><option value={1}>1×</option><option value={2}>2×</option><option value={3.125}>High resolution (3.125×)</option></select></label><small>SVG retains vector text/shapes; PNG/JPEG use the selected pixel resolution.</small><label>Printed width (mm)<input aria-label="Figure print width" type="number" min={60} max={500} value={publicationWidthMm} onChange={e=>{const value=Number(e.target.value);if(value>=60&&value<=500){setPublicationWidthMm(value);setPrintCheck('');}}}/></label><button onClick={()=>{const sizes=Array.from(svgRef.current?.querySelectorAll('text')||[]).filter(el=>includeLegendInExport||!el.closest('[data-map-legend]')).map(el=>Number(el.getAttribute('data-export-font-size')||el.getAttribute('font-size'))).filter(n=>n>0),pt=sizes.length?Math.min(...sizes)*publicationWidthMm/canvas.w*72/25.4:0,scale=Math.min(exportScale,8192/Math.max(canvas.w,canvas.h),Math.sqrt(40000000/(canvas.w*canvas.h)));setPrintCheck((pt?'Smallest text ≈ '+pt.toFixed(1)+' pt. ':'No figure text. ')+Math.round(canvas.w*scale)+' × '+Math.round(canvas.h*scale)+' pixels; ≈ '+Math.round(canvas.w*scale/publicationWidthMm*25.4)+' dpi at this width. '+(pt&&pt<8?'For small text, reduce items, enlarge fonts or use a wider figure.':''));}}>Check print readability</button>{printCheck&&<small role="status">{printCheck}</small>}
+        <label className="mini-label" style={{ fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }} title="Bake the legend into exported SVG / PNG / JPEG">
+          <input
+            type="checkbox"
+            checked={includeLegendInExport}
+            onChange={e => setIncludeLegendInExport(e.target.checked)}
+          />
+          Export legend
+        </label>
+        <button className="mini-btn" onClick={exportSvg}>⬇️ SVG</button>
+        <button className="mini-btn" onClick={() => exportRaster('png')}>⬇️ PNG</button>
+        <button className="mini-btn" onClick={() => exportRaster('jpeg')}>⬇️ JPEG</button>
+        </ToolMenu>{hasCodeTools&&<div className="map-graph-tools" role="group" aria-label="Code node tools"><small>Code nodes</small>{isCodeMap&&<ToolMenu label="View"><label>Find a code<input aria-label="Find code on map" value={findCode} onChange={e=>setFindCode(e.target.value)}/></label>{findCode.trim()&&<div className="map-code-results">{codes.filter(c=>c.name.toLocaleLowerCase().includes(findCode.toLocaleLowerCase())).slice(0,20).map(c=><button key={c.id} onClick={()=>{if(hiddenIds.has(c.id))onUpdateHiddenMapCodes(hiddenMapCodeIds.filter(id=>id!==c.id));setViewMode('full');setSelectedLegend(null);setSelectedMapCodeId(c.id);setJumpCode(c.id);setFindCode('');}}>{c.name}</button>)}</div>}
+        <select
+          value={viewMode}
+          onChange={e => handleViewModeChange(e.target.value as 'auto' | 'full' | 'custom')}
+          style={{ fontSize: '12px', padding: '2px 4px' }}
+          title="Which codes to show on the map"
+        >
+          <option value="auto">View: Auto</option>
+          <option value="full">View: Show everything</option>
+          <option value="custom">View: Custom (pick expanded roots)</option>
+        </select>
+        {foldMode && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }} title="How many children of each expanded node to render (ranked by co-occurrence weight)">
+            <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Children/root</span>
+            {[3, 5, 10].map(n => (
+              <button
+                key={n}
+                className="mini-btn"
+                style={{ padding: '1px 5px', fontSize: '11px', ...(childrenPerRoot === n ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}) }}
+                onClick={() => setChildrenPerRoot(n)}
+              >
+                {n}
+              </button>
+            ))}
+            <button
+              className="mini-btn"
+              style={{ padding: '1px 5px', fontSize: '11px', ...(childrenPerRoot === 'all' ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}) }}
+              onClick={() => setChildrenPerRoot('all')}
+            >
+              All
+            </button>
+          </span>
+        )}
+        <button className="mini-btn" onClick={reAutoLayout} title="Re-run auto layout for the visible codes">↻ Re-layout</button>
+        <label className="mini-label" style={{ fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+          <input
+            type="checkbox"
+            checked={showCooc}
+            onChange={e => setShowCooc(e.target.checked)}
+          />
+          {mapDesign&&mapDesign.mode!=='manual'?`Shared-document links (${edges.filter(e=>e.kind==='cooccurrence').length} of ${coocCount})`:`Co-occurrence (${coocCount})`}
+        </label>
+        {showCooc && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+            <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>min</span>
+            {[1, 2, 3, 5, 8].map(n => (
+              <button
+                key={n}
+                className="mini-btn"
+                style={{ padding: '1px 5px', fontSize: '11px', ...(minShared === n ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}) }}
+                onClick={() => setMinShared(n)}
+                title={`Only draw co-occurrence edges sharing at least ${n} document${n === 1 ? '' : 's'}`}
+              >
+                {n}
+              </button>
+            ))}
+          </span>
+        )}
+        </ToolMenu>}<ToolMenu label="Codes">
         {selectedMapCodeId && shownCodes.some(c => c.id === selectedMapCodeId) && (
           <button
             className="mini-btn"
@@ -1539,8 +1542,14 @@ function CodeMap({
         >
           ➕ Add codes
         </button>
-        </ToolMenu>
-        <button className="mini-btn" aria-label="Edit text / fonts" title="Text formatting" aria-pressed={textEditorOpen} onClick={()=>setTextEditorOpen(v=>!v)}>T</button><ToolMenu label="Link">{selectedEdge && (<><label>Line colour<MapColorPicker label="Map relationship colour" value={selectedEdge.style?.color||mapColors[selectedEdge.kind]} onChange={color=>commitStyle(selectedEdge,{color})}/></label>
+        </ToolMenu><ToolMenu label="Link">        <button
+          className="mini-btn"
+          style={drawMode ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
+          onClick={() => { setSelectedKey(null); setDrawMode(m => !m); setDrawSource(null); }}
+        >
+          {drawMode ? 'Cancel draw' : 'Draw code connection'}
+        </button>
+{selectedEdge && (<><label>Line colour<MapColorPicker label="Map relationship colour" value={selectedEdge.style?.color||mapColors[selectedEdge.kind]} onChange={color=>commitStyle(selectedEdge,{color})}/></label>
         <div className="sort-row" style={{ gap: '8px', marginBottom: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
           <span style={{ fontSize: '12px', fontWeight: 600 }}>
             {selectedEdge.kind === 'custom'
@@ -1623,20 +1632,7 @@ function CodeMap({
         </div></>
       )}{!selectedEdge&&<small>Select a relationship to change its line, arrow or colour.</small>}</ToolMenu><ToolMenu label="Node">
         {(()=>{const code=codes.find(c=>c.id===selectedMapCodeId);if(!code)return <p>Select a node to edit its style or open its research records.</p>;const appearance=code.mapAppearance||{fill:code.color,stroke:code.color,width:180,height:80,fontSize:16};return <><strong>{code.name}</strong><small>{counts.get(code.id)||0} directly coded passages</small>{onOpenCode&&<button onClick={()=>onOpenCode(code.id)}>Open code details</button>}{onOpenCodeMemo&&<button disabled={!code.summary.trim()} onClick={()=>onOpenCodeMemo(code.id)}>Open code memo</button>}<label>Node shape<select aria-label="Node shape" value={code.mapShape||'circle'} onChange={e=>onUpdateCode(code.id,{mapShape:e.target.value as Code['mapShape']})}>{SHAPES.map(shape=><option key={shape}>{shape}</option>)}</select></label><label>Map fill<MapColorPicker label="Map node fill" value={appearance.fill} onChange={fill=>onUpdateCode(code.id,{mapAppearance:{...appearance,fill}})}/></label><label>Map border<MapColorPicker label="Map node border" value={appearance.stroke} onChange={stroke=>onUpdateCode(code.id,{mapAppearance:{...appearance,stroke}})}/></label><button onClick={()=>onUpdateCode(code.id,{mapAppearance:undefined,mapShape:'circle'})}>Reset node style</button></>;})()}
-        </ToolMenu><ToolMenu label="Legend"><button onClick={()=>setShowLegend(v=>!v)}>{showLegend?'Hide legend':'Show legend'}</button><label>Columns<select aria-label="Legend columns" value={legendSettings.columns||1} onChange={e=>setLegendSettings(v=>({...v,columns:Number(e.target.value)}))}><option value={1}>1</option><option value={2}>2</option><option value={3}>3</option></select></label><button onClick={()=>setLegendSettings({})}>Reset legend</button><small>Double-click labels to edit. Drag the background to move; drag the corner to resize. Save a draft to keep your changes.</small>{[...legendEntries].sort((a,b)=>(legendSettings.order?.indexOf(a.key)??-1)-(legendSettings.order?.indexOf(b.key)??-1)).map((entry,i,rows)=><div key={entry.key} className="map-draft-row"><label><input type="checkbox" aria-label={'Show legend entry '+entry.label} checked={!legendSettings.hidden?.includes(entry.key)} onChange={e=>setLegendSettings(v=>({...v,hidden:e.target.checked?(v.hidden||[]).filter(k=>k!==entry.key):[...(v.hidden||[]),entry.key]}))}/>{legendSettings.labels?.[entry.key]??entry.label}</label>{[-1,1].map(d=><button key={d} aria-label={(d<0?'Move legend entry up ':'Move legend entry down ')+entry.label} disabled={i+d<0||i+d>=rows.length} onClick={()=>{const order=rows.map(r=>r.key);[order[i],order[i+d]]=[order[i+d],order[i]];setLegendSettings(v=>({...v,order}));}}>{d<0?'↑':'↓'}</button>)}</div>)}</ToolMenu><ToolMenu label="Drafts"><label>Draft name<input aria-label="Map draft name" value={draftName} onChange={e=>setDraftName(e.target.value)} placeholder="e.g. Findings — first draft"/></label><button disabled={!draftName.trim()||!onSaveDraft} onClick={()=>{onSaveDraft?.(draftName,{cloudStopDraft,width:canvas.w,height:canvas.h,viewMode,expandedRoots:Array.from(expandedRoots),childrenPerRoot,showCooc,minShared,showLegend,includeLegendInExport,legendPos,exportScale,publicationWidthMm,legend:legendSettings});setDraftMessage('Draft stored in this project.');}}>Save map draft</button>{draftMessage&&<small role="status">{draftMessage}</small>}<small>Using an existing name replaces that draft. Layouts store links to codes, not copies of transcripts.</small>{drafts?.map(d=><div className="map-draft-row" key={d.id}><span>{d.name}</span><button onClick={()=>{onRestoreDraft?.(d.id);setDraftName(d.name);setDraftMessage('Draft loaded.');}}>Load</button><button aria-label={'Delete map draft '+d.name} onClick={()=>onDeleteDraft?.(d.id)}>Delete</button></div>)}</ToolMenu><ToolMenu label="Export"><label>Image resolution<select aria-label="Map export resolution" value={exportScale} onChange={e=>setExportScale(Number(e.target.value))}><option value={1}>1×</option><option value={2}>2×</option><option value={3.125}>High resolution (3.125×)</option></select></label><small>SVG retains vector text/shapes; PNG/JPEG use the selected pixel resolution.</small><label>Printed width (mm)<input aria-label="Figure print width" type="number" min={60} max={500} value={publicationWidthMm} onChange={e=>{const value=Number(e.target.value);if(value>=60&&value<=500){setPublicationWidthMm(value);setPrintCheck('');}}}/></label><button onClick={()=>{const sizes=Array.from(svgRef.current?.querySelectorAll('text')||[]).filter(el=>includeLegendInExport||!el.closest('[data-map-legend]')).map(el=>Number(el.getAttribute('data-export-font-size')||el.getAttribute('font-size'))).filter(n=>n>0),pt=sizes.length?Math.min(...sizes)*publicationWidthMm/canvas.w*72/25.4:0,scale=Math.min(exportScale,8192/Math.max(canvas.w,canvas.h),Math.sqrt(40000000/(canvas.w*canvas.h)));setPrintCheck((pt?'Smallest text ≈ '+pt.toFixed(1)+' pt. ':'No figure text. ')+Math.round(canvas.w*scale)+' × '+Math.round(canvas.h*scale)+' pixels; ≈ '+Math.round(canvas.w*scale/publicationWidthMm*25.4)+' dpi at this width. '+(pt&&pt<8?'For small text, reduce items, enlarge fonts or use a wider figure.':''));}}>Check print readability</button>{printCheck&&<small role="status">{printCheck}</small>}
-        <label className="mini-label" style={{ fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }} title="Bake the legend into exported SVG / PNG / JPEG">
-          <input
-            type="checkbox"
-            checked={includeLegendInExport}
-            onChange={e => setIncludeLegendInExport(e.target.checked)}
-          />
-          Export legend
-        </label>
-        <button className="mini-btn" onClick={exportSvg}>⬇️ SVG</button>
-        <button className="mini-btn" onClick={() => exportRaster('png')}>⬇️ PNG</button>
-        <button className="mini-btn" onClick={() => exportRaster('jpeg')}>⬇️ JPEG</button>
-        </ToolMenu>
-        </aside><div className="map-header-view"><button className="mini-btn" aria-label="Toggle inspector" title="Show/hide inspector" aria-pressed={inspectorOpen} onClick={()=>setInspectorOpen(v=>!v)}>☷</button><div className="map-zoom">
+        </ToolMenu></div>}</aside><div className="map-header-view"><button className="mini-btn" aria-label="Toggle inspector" title="Show/hide inspector" aria-pressed={inspectorOpen} onClick={()=>setInspectorOpen(v=>!v)}>☷</button><div className="map-zoom">
           <button title="Zoom out" aria-label="Zoom out" onClick={() => manualZoom(zoom - 0.1)}>−</button>
           <input aria-label="Map zoom" type="range" min={10} max={400} step={10} value={Math.max(10, Math.round(zoom * 100))} onChange={e => manualZoom(Number(e.target.value) / 100)} />
           <span>{Math.round(zoom * 100)}%</span>
@@ -1651,9 +1647,11 @@ function CodeMap({
         >
           {isFullscreen ? '✕ Exit fullscreen' : '⛶ Fullscreen'}
         </button>
+        <ToolMenu label="Notes"><button onClick={()=>setShowNotes(value=>!value)}>{showNotes?'Hide visualization notes':'Show visualization notes'}</button><button disabled={!onVisualizationNotes} onClick={()=>{onVisualizationNotes?.([...visualizationNotes,{id:uid('viznote'),title:'Visualization note',text:'',x:Math.min(80,canvas.w/4),y:Math.min(160,canvas.h/4),updatedAt:Date.now()}]);setShowNotes(true);}}>Add visualization note</button><small>Drag notes anywhere on this canvas. Notes are saved with the working visualization and named drafts, and listed in Memo-Book. They are excluded from figure images and the manuscript skeleton.</small></ToolMenu>
         <ToolMenu label="Help">
-          <p>Drag nodes to rearrange; right-click a node to change its shape. Node size reflects coding frequency.</p>
-          <p>Click a leaf node to select it. Remove from map hides it; Add codes brings it back. Click a folded node or its + badge to expand or collapse it.</p>
+          <strong>{visualizationTypes.find(t=>t.id===mapDesign?.family)?.name||'Code map'} help</strong>
+          {visualizationHelp[mapDesign?.family||'code-map'].map((text,index)=><p key={index}>{text}</p>)}
+          <p>Double-click text to edit in place. Use Text for formatting, Draw for shapes and text boxes, and Arrange to align, group or resize selected objects.</p>
           <p>Fit shows the whole canvas and follows window resizing. Zoom in for detail; canvas size and export resolution are independent of screen zoom.</p>
         </ToolMenu>
         {drawMode && <span className="map-mode">Drawing edge</span>}
@@ -1662,6 +1660,7 @@ function CodeMap({
       </div>
 
       <aside className="map-inspector" aria-label="Text and appearance inspector" hidden={!inspectorOpen}><h3>Inspector</h3>{cloudSizing&&<p role="status">Refitting words…</p>}
+      {mapDesign?.family==='heat-map'&&mapDesign.options&&onApplySuggestion&&<HeatmapDisplay data={{id:projectId,name:projectName||'Heat map',codes,docs,codedSegments}} options={mapDesign.options} palette={basePalette} inverted={mapDesign.paletteInverted} annotations={sourceAnnotations} onApply={onApplySuggestion}/>}
 
 
       <div className="map-format-strip">{textEditorOpen&&(()=>{const node=codes.find(c=>c.id===selectedMapCodeId);if(selectedLegend&&showLegend)return <MapTextEditor label={selectedLegend==='title'?'Legend title':'Legend entry'} style={{fontSize:14,...legendSettings,...legendSettings.styles?.[selectedLegend]}} onEdit={()=>setLegendEditRequest(n=>n+1)} onStyle={patch=>setLegendSettings(v=>selectedLegend==='title'?{...v,...patch}:{...v,styles:{...v.styles,[selectedLegend]:{...v.styles?.[selectedLegend],...patch}}})} onDelete={()=>{if(selectedLegend==='title')setShowLegend(false);else setLegendSettings(v=>({...v,hidden:[...(v.hidden||[]),selectedLegend]}));setSelectedLegend(null);}}/>;if(selectedAnno)return <MapTextEditor key={'annotation:'+selectedAnno.id} label="Annotation / topic text" text={selectedAnno.text||''} style={{...selectedAnno,fontSize:(cloudSizing?.id===selectedAnno.id?cloudSizing.size:selectedAnno.fontSize)||(selectedAnno.labelInside?20:14),textColor:selectedAnno.textColor||selectedAnno.color}} onEdit={()=>beginInline('annotation',selectedAnno.id)} onStyle={patch=>updateSelectedAnno(selectedAnno.kind==='text'&&patch.textColor?{...patch,color:patch.textColor}:patch)} onDelete={()=>{onUpdateAnnotations(annotations.filter(a=>a.id!==selectedAnno.id&&a.fromAnnotationId!==selectedAnno.id&&a.toAnnotationId!==selectedAnno.id));setSelectedAnnoId(null);}}/>;if(selectedEdge)return <MapTextEditor key={'edge:'+selectedEdge.key} label="Relationship label" text={selectedEdge.style?.label||''} style={{fontFamily:selectedEdge.style?.labelFontFamily,fontSize:selectedEdge.style?.labelFontSize||12,rotation:selectedEdge.style?.labelRotation,writingMode:selectedEdge.style?.labelWritingMode,textDirection:selectedEdge.style?.labelTextDirection,textColor:selectedEdge.style?.labelColor||'#334155',bold:selectedEdge.style?.labelBold,italic:selectedEdge.style?.labelItalic,underline:selectedEdge.style?.labelUnderline}} onEdit={()=>beginInline('edge',selectedEdge.key)} onStyle={patch=>commitStyle(selectedEdge,{...(patch.rotation!==undefined?{labelRotation:patch.rotation}:{}),...(patch.writingMode!==undefined?{labelWritingMode:patch.writingMode}:{}),...(patch.textDirection!==undefined?{labelTextDirection:patch.textDirection}:{}),...(patch.fontFamily!==undefined?{labelFontFamily:patch.fontFamily}:{}),...(patch.fontSize!==undefined?{labelFontSize:patch.fontSize}:{}),...(patch.textColor!==undefined?{labelColor:patch.textColor}:{}),...(patch.bold!==undefined?{labelBold:patch.bold}:{}),...(patch.italic!==undefined?{labelItalic:patch.italic}:{}),...(patch.underline!==undefined?{labelUnderline:patch.underline}:{})})}/>;if(node){const appearance=node.mapAppearance||{fill:node.color,stroke:node.color,width:180,height:80,fontSize:16};return <MapTextEditor key={'code:'+node.id} label={'Code label — '+node.name} text={node.mapLabel??node.name} style={appearance} onEdit={()=>beginInline('code',node.id)} onStyle={patch=>onUpdateCode(node.id,{mapAppearance:{...appearance,...patch}})} onRename={()=>beginInline('rename',node.id)}/>;}return <p className="map-text-hint">Double-click a label to edit it in place. Select an item for formatting.</p>;})()}
@@ -1673,7 +1672,7 @@ function CodeMap({
       {mapDesign?.family==='word-cloud'&&onApplySuggestion&&<CloudStopWords value={cloudStopDraft} onChange={setCloudStopDraft} options={mapDesign.options} data={{id:projectId,name:projectName||'Word cloud',codes,docs,codedSegments}} palette={basePalette} inverted={mapDesign.paletteInverted} annotations={sourceAnnotations} description={mapDesign.description} onApply={onApplySuggestion}/>}
       {mapDesign?.family&&<div className="visualization-snapshot">Editable snapshot · {visualizationTypes.find(t=>t.id===mapDesign.family)?.name} · Use ⚙ for this graph’s settings; ▦ for all types. Your working canvas is kept when you leave. Save a named draft to keep another version.</div>}
       </aside>
-      {showAddCodes && (
+      {hasCodeTools && showAddCodes && (
         <div
           style={{
             position: 'absolute',
@@ -1857,6 +1856,7 @@ function CodeMap({
           {/* Nodes */}
           {objectElements}
           {showLegend&&<MapLegend entries={legendEntries} settings={legendSettings} position={legendPos} zoom={zoom} selected={selectedLegend} editRequest={legendEditRequest} onSelect={key=>{setSelectedLegend(key);setSelectedAnnoId(null);setSelectedKey(null);setSelectedMapCodeId(null);setTextEditorOpen(true);}} onSettings={setLegendSettings} onPosition={setLegendPos}/> }
+          {showNotes&&onVisualizationNotes&&<VisualizationNotes notes={visualizationNotes} onChange={onVisualizationNotes} width={canvas.w} height={canvas.h}/>}
           {selection.overlay}
           {selection.keys.length<2&&!selectedAnno?.flow&&!inlineEdit&&(()=>{const kind=selectedAnno?'annotation':selectedEdge?'edge':selectedMapCodeId?'code':null,id=selectedAnno?.id||selectedEdge?.key||selectedMapCodeId;if(!kind||!id)return null;const box=resizeLive?.id===id?resizeLive:textBox(kind,id);if(!box)return null;const size=8/zoom;return <g data-map-edit-outline><rect x={box.x} y={box.y} width={box.width} height={box.height} fill="none" stroke="#2563eb" strokeWidth={1/zoom} strokeDasharray={4/zoom+' '+3/zoom} pointerEvents="none"/>{[['nw',0,0],['n',.5,0],['ne',1,0],['e',1,.5],['se',1,1],['s',.5,1],['sw',0,1],['w',0,.5]].map(([handle,px,py])=><rect key={handle} data-map-resize={handle} x={box.x+Number(px)*box.width-size/2} y={box.y+Number(py)*box.height-size/2} width={size} height={size} fill="white" stroke="#2563eb" strokeWidth={1/zoom} style={{cursor:handle+'-resize'}} onMouseDown={event=>{event.preventDefault();event.stopPropagation();resizeLiveRef.current=null;setResizeDrag({kind,id,handle:String(handle),startX:event.clientX,startY:event.clientY,box});}} onClick={event=>event.stopPropagation()}/>)}</g>;})()}
           {inlineEdit&&(()=>{
@@ -1879,12 +1879,16 @@ function CodeMap({
 const CachedCodeMap = React.memo(CodeMap, (previous, next) => previous.active === false && next.active === false && previous.projectId === next.projectId);
 
 
+// The report uses the same canvas renderer in an isolated, read-only mount.
+export { CodeMap as ReportCodeMap };
+
 export default function DeferredCodeMap(props: Props) {
   const [enabledProject,setEnabledProject] = useState<string|null>(null);
   const [family,setFamily]=useState<VisualizationKind|null>(null);
   const workingView=useRef<CodeMapView>();
 
   useEffect(()=>{setEnabledProject(null);setFamily(null);workingView.current=undefined;},[props.projectId]);
+  useEffect(()=>{if(props.noteTarget){workingView.current=undefined;setEnabledProject(props.projectId);setFamily(null);}},[props.noteTarget]);
   if(props.active===false)return null;
   const data={id:props.projectId,name:props.projectName||'Research themes',codes:props.codes,analysisPeriods:props.analysisPeriods,docs:props.docs||[],codedSegments:props.codedSegments};
   const apply=(suggestion:MapSuggestion)=>{workingView.current=undefined;props.onApplySuggestion?.(suggestion);setFamily(null);setEnabledProject(props.projectId);};

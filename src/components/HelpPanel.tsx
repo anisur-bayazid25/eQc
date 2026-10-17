@@ -46,7 +46,7 @@ function MarkdownText({ text, onDocument, onAnchor }: { text: string; onDocument
   }
   return <div className="help-text">{blocks}</div>;
 }
-export default function HelpPanel({shortcutProfile,onShortcutProfile,codes,favorites,onFavorite}:{shortcutProfile:ShortcutProfile;onShortcutProfile:(p:ShortcutProfile)=>void;codes:Code[];favorites:string[];onFavorite:(slot:number,id:string)=>void}) {
+export default function HelpPanel({onFeedback,request,shortcutProfile,onShortcutProfile,codes,favorites,onFavorite}:{onFeedback?:()=>void;request?:{anchor:string;nonce:number}|null;shortcutProfile:ShortcutProfile;onShortcutProfile:(p:ShortcutProfile)=>void;codes:Code[];favorites:string[];onFavorite:(slot:number,id:string)=>void}) {
   const [search, setSearch] = useState(''), [book, setBook] = useState('guide'), [expanded, setExpanded] = useState(false);
   const [anchor, setAnchor] = useState('');
   const [revealedSection, setRevealedSection] = useState('');
@@ -61,8 +61,9 @@ export default function HelpPanel({shortcutProfile,onShortcutProfile,codes,favor
     }
   }, [anchor, anchorVisit, book, search]);
   const terms = search.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
+  useEffect(()=>{if(!request)return;setBook('guide');setSearch('');setRevealedSection('help-6-analysis');setAnchor(request.anchor);setAnchorVisit(visit=>visit+1);},[request]);
   const matches = sections.filter(section => terms.every(term => (section.title + ' ' + section.text).toLocaleLowerCase().includes(term)));
-  return <main className="panel help-panel"><header><h1>Help</h1></header>
+  return <main className="panel help-panel"><header><h1>Help</h1>{onFeedback&&<button onClick={onFeedback}>Report a problem / Suggest a feature</button>}</header>
     <p>Search a feature or open a section below. These instructions are available offline.</p>
     <div className="help-controls"><label>Search documentation<input type="search" placeholder="Try: Memo-Book, export, coding, ICR…" value={search} onChange={e => { setRevealedSection(''); setAnchor(''); setSearch(e.target.value); }} /></label><label>Read<select aria-label="Documentation to read" value={book} onChange={e => { setRevealedSection(''); setAnchor(''); setSearch(''); setBook(e.target.value); }}><option value="guide">User guide</option><option value="documentation">Application reference</option></select></label><button onClick={() => { setRevealedSection(''); setAnchor(''); setExpanded(!expanded); }}>{expanded ? 'Collapse all sections' : 'Expand all sections'}</button></div>
     {search && <p role="status">{matches.length} sections match your search.</p>}

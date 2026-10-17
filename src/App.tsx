@@ -1,3 +1,7 @@
+import IcrWorkspace from './components/IcrWorkspace';
+import ManuscriptExportDialog from './components/ManuscriptExportDialog';
+import HtmlReportExportDialog from './components/HtmlReportExportDialog';
+import FeedbackDialog from './components/FeedbackDialog';
 import ProfilePhoto from './components/ProfilePhoto';
 import {wordFrequencies,languageDefaults} from './lib/wordAnalysis';
 import { saveMapDraft, restoreMapDraft } from './lib/mapDrafts';
@@ -42,12 +46,13 @@ import { importDocxComments, extractDocXmlTextAndCommentRanges } from './lib/doc
 import { mergeProjectInto } from './lib/merge';
 import { mergeCodes } from './lib/mergeCodes';
 import { codingFrequency, codeDocumentMatrix, codeCooccurrenceMatrix } from './lib/analysis';
-import { collectIcrCoders, scopedCoderCounts, computePairwiseIcr, computeFleissIcr, computeBinaryAlpha, computeCuAlpha, buildCodingUnits, formatIcrValue, kappaInterpretation } from './lib/icr';
+import { collectIcrCoders, scopedCoderCounts, computePairwiseIcr, computeFleissIcr, computeBinaryAlpha, computeCuAlpha, buildCodingUnits } from './lib/icr';
 import { buildReportHtml, ReportExtras } from './lib/report';
 import { AUTO_CODE_LANGUAGES, CaptureBoundary, AutoCodeMatchMode, runAutoCode } from './lib/autoCode';
 import { buildScopedExport, ExportScope, SCOPE_LABELS } from './lib/exportBuilders';
 import { listMemoRecords, memoExportRows, MemoRecord, memoCategory } from './lib/memoTools';
 import { buildCodeReport, codeExportFilename, CodeReport } from './lib/codeReport';
+import { buildStarredQuotesExport, StarredQuoteFormat } from './lib/starredQuotes';
 import { sourceLineRange } from './lib/sourceLines';
 import { retainOriginalFile, hashSourceText } from './lib/sourceOriginal';
 import pkg from '../package.json';
@@ -404,6 +409,21 @@ export default function App() {
   const [editingNoteFor, setEditingNoteFor] = useState<ID | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
   const [projectModalOpen, setProjectModalOpen] = useState(false);
+  const [manuscriptOpen,setManuscriptOpen]=useState(false);
+  const [htmlReportExtras,setHtmlReportExtras]=useState<ReportExtras|null>(null);
+  const [feedbackOpen,setFeedbackOpen]=useState(false);
+  const [feedbackCapture,setFeedbackCapture]=useState<{nonce:number;screenshot?:import('./lib/feedback').FeedbackScreenshot}|null>(null);
+  const feedbackStarted=useRef(false),feedbackOpening=useRef(false);
+  async function openFeedback(){
+    if(feedbackOpen||feedbackOpening.current)return;
+    feedbackOpening.current=true;
+    try{
+      if(!feedbackStarted.current){let screenshot;try{screenshot=await window.qv.feedback?.capture();}catch{}setFeedbackCapture({nonce:Date.now(),screenshot});feedbackStarted.current=true;}
+      setFeedbackOpen(true);
+    }finally{feedbackOpening.current=false;}
+  }
+  const [helpRequest,setHelpRequest]=useState<{anchor:string;nonce:number}|null>(null);
+  const [visualizationNoteTarget,setVisualizationNoteTarget]=useState<{id:string;nonce:number}|null>(null);
   const [projectNameDraft, setProjectNameDraft] = useState('');
   const [projectCoderDraft, setProjectCoderDraft] = useState('');
   const [deleteStep, setDeleteStep] = useState<0 | 1 | 2>(0); // 0 = rename view, 1 = first confirm, 2 = final confirm
@@ -2232,66 +2252,18 @@ function toggleStarSegment(segId: ID) {
     if (path) showToast(`Exported ${starred.length + regions.length} starred excerpts to ${path}`);
   }
 
-async function handleExportManuscriptSkeleton() {
+  async function handleDownloadStarredQuotes(format: StarredQuoteFormat) {
     if (!project) return;
+    const ids = exportIds();
+    if (ids && !ids.size) { showToast('Select at least one code to export.'); return; }
+    const { count, payload } = buildStarredQuotesExport(project, format, ids || undefined);
+    if (!count) { showToast('No starred text quotes in the export selection.'); return; }
+    const path = await window.qv.exportDocxTable(payload);
+    if (path) showToast(`Exported ${count} starred quote(s) to ${path}`);
+  }
 
-    const outline: Array<{ name: string; depth: number; summary?: string; definition?: string; quotes?: string[]; imageQuotes?: Array<{ base64: string; width: number; height: number; caption: string }> }> = [];
-    const memoRecords = listMemoRecords(project);
-
-    async function walk(parentId: ID | null, depth: number) {
-      for (const code of childCodes(project!.codes, parentId)) {
-        const summary = memoRecords.filter(m=>m.origin.kind==='code'&&m.origin.id===code.id || m.origin.kind==='standalone'&&m.codeIds.includes(code.id)).map(m=>m.title+'\n'+m.text).join('\n\n');
-        if (summary) {
-          const starredQuotes = project!.codedSegments
-            .filter(s => s.codeId === code.id && s.starred)
-            .map(s => {
-              const doc = project!.docs.find(d => d.id === s.docId);
-              const attribution = s.coder ? ` [Coded by: ${s.coder}]` : '';
-              return `"${s.text}"${s.note ? `\nQuote note: ${s.note}` : ''} (${doc?.name || 'Unknown source'})${attribution}`;
-            });
-
-          const starredRegions = (project!.codedRegions || []).filter(r => r.codeId === code.id && r.starred);
-          const imageQuotes: Array<{ base64: string; width: number; height: number; caption: string }> = [];
-          for (const r of starredRegions) {
-            const image = (project!.images || []).find(i => i.id === r.imageId);
-            if (!image) continue;
-            const cropped = await cropRegionToPng(image.dataUrl, r);
-            imageQuotes.push({ ...cropped, caption: image.name + (r.coder ? ` [Coded by: ${r.coder}]` : '') + (r.note ? ` — ${r.note}` : '') });
-          }
-
-          outline.push({
-            name: code.name,
-            depth,
-            summary: `Documents: ${[...new Set([
-              ...project!.codedSegments.filter(s => s.codeId === code.id).map(s => project!.docs.find(d => d.id === s.docId)?.name || 'Unknown source'),
-              ...(project!.codedRegions || []).filter(r => r.codeId === code.id).map(r => project!.images?.find(i => i.id === r.imageId)?.name || 'Unknown source')
-            ])].join('; ') || 'No coded sources'}\n\n${summary}`,
-            quotes: starredQuotes.length > 0 ? starredQuotes : undefined,
-            imageQuotes: imageQuotes.length > 0 ? imageQuotes : undefined
-          });
-        }
-        await walk(code.id, depth + 1);
-      }
-    }
-    await walk(null, 0);
-    const notes=memoRecords.filter(m=>m.origin.kind!=='code' && !(m.origin.kind==='standalone'&&m.codeIds.some(id=>project.codes.some(c=>c.id===id))));
-    for(const category of Array.from(new Set(notes.map(memoCategory)))) {
-      outline.push({name:category,depth:0});
-      for(const memo of notes.filter(m=>memoCategory(m)===category)) outline.push({name:memo.title,depth:1,summary:[memo.text,'Source: '+memo.origin.kind+' / '+memo.origin.id,...memo.docIds.map(id=>'Document: '+([...project.docs,...(project.images||[])].find(d=>d.id===id)?.name||'Unavailable source')),...memo.codeIds.map(id=>'Code: '+(project.codes.find(c=>c.id===id)?.name||'Unavailable code'))].join('\n\n')});
-    }
-
-    if (outline.length === 0) {
-      showToast('No memos or notes yet — write a code, analysis or project memo first.');
-      return;
-    }
-
-    const path = await window.qv.exportDocxTable({
-      kind: 'outline',
-      title: `${project!.name} — Results Skeleton`,
-      outline,
-      filenameBase: `${project!.name.replace(/[^\w\- ]/g, '_')}_results_skeleton`
-    } as any);
-    if (path) showToast(`Manuscript skeleton exported to ${path}`);
+async function handleExportManuscriptSkeleton() {
+    if(project)setManuscriptOpen(true);
   }
 
   function openMemoSource(memo: MemoRecord) {
@@ -2308,6 +2280,7 @@ async function handleExportManuscriptSkeleton() {
     if(kind==='code') {setCodebookSelectedCodeId(id);setTab('codebook');return;}
     if(kind==='framework'||kind==='relationship') {setMemoSourceTarget({kind,id,nonce:Date.now()});setTab('analysis');return;}
     if(kind==='case') {setMemoSourceTarget({kind,id,nonce:Date.now()});setResearchSection('cases');setResearchOpen(true);return;}
+    if(kind==='visualization'||kind==='visualization-draft'){if(kind==='visualization-draft'){const draftId=id.split('::')[0];persist(restoreMapDraft(project,draftId));}setVisualizationNoteTarget({id,nonce:Date.now()});setTab('codemap');return;}
     if(kind==='map'||kind==='edge') {setTab('codemap');return;}
     showToast('This memo has no available source link.');
   }
@@ -2572,16 +2545,23 @@ function openDocxCommentImport() {
   // =================================================================
   // Analysis / report
   // =================================================================
-  async function handleExportReport(extras?: ReportExtras) {
-    if (!project) return;
+  function handleExportReport(extras?: ReportExtras) {
+    if (project) setHtmlReportExtras(extras||{});
+  }
+
+  async function exportHtmlReport(draftIds:string[],includeNotes:boolean,onProgress:(message:string)=>void) {
+    if (!project) return false;
+    const draftFigures=draftIds.length?await (await import('./lib/reportFigures')).renderReportFigures(project,draftIds,includeNotes,onProgress):[];
+    onProgress('Preparing report tables and image excerpts…');
     const imageExcerpts: Array<{ regionId: string; base64: string }> = [];
     for (const region of project.codedRegions || []) {
       const image = project.images?.find(i => i.id === region.imageId);
       if (image) imageExcerpts.push({ regionId: region.id, base64: (await cropRegionToPng(image.dataUrl, region)).base64 });
     }
-    const html = buildReportHtml(project, { ...extras, imageExcerpts });
+    const html = buildReportHtml(project, { ...htmlReportExtras, imageExcerpts, draftFigures });
     const path = await window.qv.exportReport(project, html);
     if (path) showToast(`Report exported to ${path}`);
+    return !!path;
   }
 
   // ------------------------------------------------------------------
@@ -2682,12 +2662,13 @@ function openDocxCommentImport() {
       const target=event.target as HTMLElement|null;
       const editable=!!target?.closest('input,textarea,select,[contenteditable="true"],[role="textbox"]');
       const action=resolveShortcut(event,shortcutProfile);if(!action)return;
-      if(editable && action!=='save' && action!=='help')return;
+      if(editable && action!=='save' && action!=='help' && action!=='feedback')return;
       if(action==='codePicker' && event.key===' ' && target?.closest('button,a,summary,[role="button"]'))return;
       event.preventDefault();
       const hasSelection=tab==='workspace'&&!!(pendingSelection||pendingPdfRegion||pendingRegion);
       const apply=(codeId:string|undefined)=>{if(!hasSelection){showToast('Select text or an image region first.');return;}const code=project?.codes.find(c=>c.id===codeId);if(code)handleWorkspaceCodeClick(code);else showToast('Choose and apply a code first, or assign a numbered code in Help.');};
       if(action==='help'){setTab('help');return;}
+      if(action==='feedback'){void openFeedback();return;}
       if(action==='save'){
         if(editingDocId){void saveEditDoc();return;}
         if(target?.id==='document-memo-text'&&selectedDoc){updateDocNotes(selectedDoc.id,docNotesDraft);return;}
@@ -2730,6 +2711,7 @@ function openDocxCommentImport() {
     }
   }, [project?.codes, sortOrder, codeCodedCounts]);
 
+  const feedbackDialog=<FeedbackDialog open={feedbackOpen} profileName={timeTracking.profile.name} profileEmail={timeTracking.profile.email} capture={feedbackCapture} onClose={()=>setFeedbackOpen(false)} onSent={()=>{feedbackStarted.current=false;}}/>;
   if (!project || !minLoadingElapsed || !timeTracking.ready) {
     return (
       <div className="loading-screen">
@@ -2737,11 +2719,13 @@ function openDocxCommentImport() {
         <div className="loading-title">eQc — Easy Qual Coding</div>
         <div className="loading-spinner" />
         <div className="loading-subtitle">{timeTracking.error||'Loading your projects…'}</div>{timeTracking.error&&<button onClick={timeTracking.retry}>Retry profile storage</button>}
+        <button onClick={()=>void openFeedback()}>Report a problem</button>{feedbackDialog}
       </div>
     );
   }
   return (
     <div className="app-shell">
+      {feedbackDialog}
       {researchOpen && <ResearchWorkspace initialCaseId={memoSourceTarget?.kind==='case'?memoSourceTarget.id:undefined} project={project} section={researchSection} onSection={setResearchSection} onClose={() => setResearchOpen(false)} onChange={persist} actor={activeCoderName} selection={pendingSelection && selectedDoc ? { docId: selectedDoc.id, start: pendingSelection.start, end: pendingSelection.end } : null}
         onNavigate={id => {
           const seg = project.codedSegments.find(s => s.id === id);
@@ -2824,6 +2808,8 @@ function openDocxCommentImport() {
 )}
 
 {/* --- RESTORED PROJECT SETTINGS MODAL --- */}
+{manuscriptOpen && project && <ManuscriptExportDialog project={project} onClose={()=>setManuscriptOpen(false)} onMessage={showToast}/>}
+{htmlReportExtras && project && <HtmlReportExportDialog project={project} extras={htmlReportExtras} onExport={exportHtmlReport} onClose={()=>setHtmlReportExtras(null)}/>}
 {projectModalOpen && (
   <>
     <div style={{ position: 'fixed', inset: 0, zIndex: 99, backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setProjectModalOpen(false)} />
@@ -3074,6 +3060,7 @@ function openDocxCommentImport() {
           <ReaderFontSize value={readerFontSize} onChange={setReaderFontSize}/>
 
           </ToolMenu>
+          <button className="icon-btn" title="Report a problem or suggest a feature (Ctrl+Shift+B)" onClick={()=>void openFeedback()}>Feedback</button>
           <button className="icon-btn" title="Toggle light/dark theme" onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}>
             {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
           </button>
@@ -3832,13 +3819,14 @@ function openDocxCommentImport() {
               </button>
             </div>
 
-            <button 
-              className="mini-btn" 
-              style={{ width: '100%', padding: '6px 4px', marginTop: '2px' }} 
-              onClick={handleExportStarredImages}
-            >
-              ⭐ Starred Images (DOCX)
-            </button>
+            <div className="starred-export-row">
+              <button className="mini-btn" title="Download starred images as Word" onClick={handleExportStarredImages}>⭐ Starred Images</button>
+              <ToolMenu label="⭐ Starred Quotes">
+                <p>Download starred text quotes as Word. Uses the codes selected above.</p>
+                <button className="mini-btn" onClick={e => { e.currentTarget.closest('details')?.removeAttribute('open'); void handleDownloadStarredQuotes('manuscript'); }}>Manuscript format (DOCX)</button>
+                <button className="mini-btn" onClick={e => { e.currentTarget.closest('details')?.removeAttribute('open'); void handleDownloadStarredQuotes('details'); }}>Document, code &amp; all case attributes (DOCX)</button>
+              </ToolMenu>
+            </div>
             <details className="disclosure project-exports"><summary>Project exports</summary>
               <p className="section-hint">These exports always use the whole project.</p>
           <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleQdpxExport}>
@@ -4220,7 +4208,7 @@ function openDocxCommentImport() {
 {tab === 'memos' && <ResearchWorkspace memoTarget={memoTarget} onMemoTargetHandled={()=>setMemoTarget(null)} memoRequest={memoRequest} onMemoRequestHandled={()=>setMemoRequest(null)} embedded project={project} section="notes" onSection={()=>{}} onClose={()=>setTab('workspace')} onChange={persist} onNavigate={()=>{}} onAdjust={()=>{}} onMemoSource={openMemoSource} onManuscript={handleExportManuscriptSkeleton} actor={activeCoderName}/>}
 
 {tab === 'analysis' && (
-  <AnalysisTab sourceTarget={memoSourceTarget} project={project} onExportReport={handleExportReport} onSaveCell={updateFrameworkCell} onSaveRelationNote={updateRelationNote} onDeleteSegments={deleteSegmentsByIds} showToast={showToast} />
+  <AnalysisTab onIcrHelp={()=>{setHelpRequest({anchor:'icr-calculations-and-reporting',nonce:Date.now()});setTab('help');}} onIcrSettings={settings=>persist({...project,icrComparison:settings})} sourceTarget={memoSourceTarget} project={project} onExportReport={handleExportReport} onSaveCell={updateFrameworkCell} onSaveRelationNote={updateRelationNote} onDeleteSegments={deleteSegmentsByIds} showToast={showToast} />
 )}
 
 <div
@@ -4242,6 +4230,9 @@ function openDocxCommentImport() {
       mapDesign={project.mapDesign}
       mapView={project.mapView}
       drafts={project.mapDrafts||[]}
+      visualizationNotes={project.visualizationNotes||[]}
+      onVisualizationNotes={notes=>persist({...project,visualizationNotes:notes})}
+      noteTarget={visualizationNoteTarget}
       customMapPalettes={project.customMapPalettes}
       onSavePalette={palette=>{const current=projectRef.current;if(current)persist({...current,customMapPalettes:[...(current.customMapPalettes||[]).filter(p=>p.id!==palette.id),palette]});}}
       onObjectCommand={async(keys,command)=>{const {applyObjectCommand}=await import('./lib/mapObjects');const current=projectRef.current;if(current?.id===project.id)persist(applyObjectCommand(current,keys,command));}}
@@ -4272,7 +4263,7 @@ function openDocxCommentImport() {
 
 {importReport && <div className="research-overlay" onKeyDown={e => { if(e.key === 'Escape') setImportReport(null); if(e.key === 'Tab') e.preventDefault(); }}><section className="project-export-dialog" role="dialog" aria-modal="true" aria-labelledby="import-report-title"><h2 id="import-report-title">{importReport.title}</h2><p style={{whiteSpace:'pre-wrap'}}>{importReport.message}</p><button autoFocus onClick={() => setImportReport(null)}>Close import report</button></section></div>}
 {projectExportOpen && <ProjectExportDialog getProfileBackup={timeTracking.exportProfile} project={project} onClose={() => setProjectExportOpen(false)} onMessage={showToast} />}
-{tab === 'help' && <HelpPanel shortcutProfile={shortcutProfile} onShortcutProfile={value=>{setShortcutProfile(value);localStorage.setItem('eqc-shortcut-profile',value);}} codes={project.codes} favorites={favoriteCodes} onFavorite={(slot,id)=>{const next=Array.from({length:9},(_,i)=>i===slot?id:favoriteCodes[i]||'');setFavoriteCodes(next);localStorage.setItem('eqc-code-shortcuts-'+project.id,JSON.stringify(next));}}/>}
+{tab === 'help' && <HelpPanel onFeedback={()=>void openFeedback()} request={helpRequest} shortcutProfile={shortcutProfile} onShortcutProfile={value=>{setShortcutProfile(value);localStorage.setItem('eqc-shortcut-profile',value);}} codes={project.codes} favorites={favoriteCodes} onFavorite={(slot,id)=>{const next=Array.from({length:9},(_,i)=>i===slot?id:favoriteCodes[i]||'');setFavoriteCodes(next);localStorage.setItem('eqc-code-shortcuts-'+project.id,JSON.stringify(next));}}/>}
 {tab === 'profile' && <ProfilePanel {...timeTracking} setProfile={saveUnifiedProfile} onClose={() => setTab('workspace')}/>}
 {timeTracking.profile.workspaceAnimations && tab === 'workspace' && (['sources','codes'] as const).map(side => <div key={side} className={`workspace-surprises workspace-surprises-${side}`}>{workspaceEggs.filter(egg => (egg.kind === 'jiji') === (side === 'codes')).map(egg => <WorkspaceCritter key={egg.id} kind={egg.kind} onDone={() => setWorkspaceEggs(current => current.filter(item => item.id !== egg.id))}/>)}</div>)}
 {treeOpen && <GrowingCodeTree project={project} onClose={() => setTreeOpen(false)}/>}
@@ -4425,7 +4416,7 @@ function AnalysisExportButtons({
   );
 }
 
-function AnalysisTab({ sourceTarget, project, onExportReport, onSaveCell, onSaveRelationNote, onDeleteSegments, showToast }: { sourceTarget?: {kind:string;id:string;nonce:number} | null; project: Project; onExportReport: (extras?: ReportExtras) => void; onSaveCell: (docId: ID, codeId: ID, text: string) => void; onSaveRelationNote: (codeAId: ID, codeBId: ID, note: string) => void; onDeleteSegments: (ids: ID[]) => void; showToast: (msg: string) => void }) {
+function AnalysisTab({ onIcrHelp,onIcrSettings, sourceTarget, project, onExportReport, onSaveCell, onSaveRelationNote, onDeleteSegments, showToast }: { onIcrHelp:()=>void;onIcrSettings:(settings:import('./lib/icrComparisons').IcrComparisonSettings)=>void; sourceTarget?: {kind:string;id:string;nonce:number} | null; project: Project; onExportReport: (extras?: ReportExtras) => void; onSaveCell: (docId: ID, codeId: ID, text: string) => void; onSaveRelationNote: (codeAId: ID, codeBId: ID, note: string) => void; onDeleteSegments: (ids: ID[]) => void; showToast: (msg: string) => void }) {
   const [subTab, setSubTab] = useState<'frequency' | 'docMatrix' | 'coMatrix' | 'framework' | 'words' | 'kwic' | 'icr' | 'consensus'>('frequency');
   const codesByIdLocal = useMemo(() => new Map(project.codes.map(c => [c.id, c])), [project.codes]);
 
@@ -4542,7 +4533,7 @@ function AnalysisTab({ sourceTarget, project, onExportReport, onSaveCell, onSave
     const imageCount = (project.images || []).length;
     return (
       <details className="disclosure analysis-scope">
-        <summary>Scope: {icrSelCoders.length} coders · {selDocs.length} documents{icrIncludeImages && imageCount > 0 ? ` · ${imageCount} images` : ''}</summary>
+        <summary>Scope: {icrSelCoders.length} coder{icrSelCoders.length===1?'':'s'} · {selDocs.length} document{selDocs.length===1?'':'s'}{icrIncludeImages && imageCount > 0 ? ` · ${imageCount} images` : ''}</summary>
         <div className="scope-grid">
         <div>
           <label style={{ marginBottom: 4, display: 'block' }}>Coders in scope ({icrSelCoders.length}/{icrCoders.length})</label>
@@ -5086,215 +5077,7 @@ function AnalysisTab({ sourceTarget, project, onExportReport, onSaveCell, onSave
         </section>
       )}
 
-      {subTab === 'icr' && (
-        <section>
-          <div className="section-hint" style={{ marginBottom: '8px' }}>
-            Agreement over code occurrence: one item = one code applied (or not) to one document or image.
-            Pick the coders and documents in scope below. Pairwise: percent agreement, Holsti's index and Cohen's κ.
-            With 3+ coders: Fleiss' κ. Binary alpha uses the same source/code scope; Cu-Alpha uses text passage groups only.
-          </div>
-          {renderIcrScopePicker()}
-          <details className="analysis-counts"><summary>How to use ICR, with an example</summary><p>ICR compares independent coding to identify where your coding rules need clarification. Select the same sources and coders, then choose Coder A and Coder B. Review both agreement percentages and chance-corrected coefficients; use Consensus to discuss passage-level differences.</p><p><strong>Example:</strong> Amina applies Water access to five passages in Interview 1; Ravi applies it to two. For the occurrence table, both marked the same one source–code item. If only Amina applies Cost in that interview, that item is a disagreement. These totals do not measure how closely the selected words match.</p><p>Coder labels show text coding entries and image regions in the current scope. Several codes on one passage create several entries. The agreement table instead counts one source–code pair once per coder, even if that coder used the code many times in the source.</p><p>Percent agreement includes pairs neither coder coded. With many unused source–code pairs, this percentage can be high while Holsti or κ is low. Consensus counts grouped text passages and excludes image regions, so its totals will differ.</p></details>
-          {icrSelCoders.length < 2 ? (
-            <div className="empty-hint">Select at least two coders in scope above. Need a second coder? Merge another coder's project, or check coder names in Project Settings.</div>
-          ) : icrScope.docIds.length === 0 && !icrScope.includeImages ? (
-            <div className="empty-hint">Select at least one document (or include images) in scope above.</div>
-          ) : (
-            <>
-              <div className="sort-row" style={{ flexDirection: 'row', alignItems: 'flex-end', gap: '8px', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <label style={{ marginBottom: 0 }}>Coder A</label>
-                  <select
-                    value={icrEffA}
-                    onChange={e => setIcrCoderA(e.target.value)}
-                    style={{ padding: '4px 8px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text)' }}
-                  >
-                    {icrSelCoders.map(n => {
-                      const info = scopedCoderCounts(project,n,icrScope.docIds,icrScope.includeImages);
-                      return <option key={n} value={n}>{n} — {info.segments} text entries, {info.regions} image regions</option>;
-                    })}
-                  </select>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <label style={{ marginBottom: 0 }}>Coder B</label>
-                  <select
-                    value={icrEffB}
-                    onChange={e => setIcrCoderB(e.target.value)}
-                    style={{ padding: '4px 8px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '4px', backgroundColor: 'var(--bg-panel)', color: 'var(--text)' }}
-                  >
-                    {icrSelCoders.map(n => {
-                      const info = scopedCoderCounts(project,n,icrScope.docIds,icrScope.includeImages);
-                      return <option key={n} value={n}>{n} — {info.segments} text entries, {info.regions} image regions</option>;
-                    })}
-                  </select>
-                </div>
-                {icrPair && (
-                  <AnalysisExportButtons
-                    title={`${project.name} — Inter-Coder Reliability (${icrPair.coderA} vs ${icrPair.coderB})`}
-                    filenameBase={`${project.name.replace(/[^\w\- ]/g, '_')}_icr_pairwise`}
-                    headers={['Code', 'Both coded', `${icrPair.coderA} only`, `${icrPair.coderB} only`, 'Neither', '% agreement', "Cohen's kappa (chance-corrected)", 'Holsti index (not chance-corrected)']}
-                    rows={icrPair.perCode.map(r => [r.codeName, r.bothYes, r.aOnly, r.bOnly, r.bothNo, r.percent.toFixed(1), formatIcrValue(r.kappa), formatIcrValue(r.holsti)])}
-                    showToast={showToast}
-                  />
-                )}
-              </div>
-
-              {!icrPair ? (
-                <div className="empty-hint" style={{ marginTop: '12px' }}>Pick two different coders to compare.</div>
-              ) : (
-                <>
-                  <div className="section-hint" style={{ marginTop: '12px' }}>
-                    <strong>{icrPair.coderA} vs {icrPair.coderB}</strong>
-                    {' '}— {icrPair.items} items ({icrPair.sources} sources × {icrPair.codes} codes):{' '}
-                    <strong>{icrPair.percent.toFixed(1)}% agreement</strong>, Holsti ={' '}
-                    <strong>{formatIcrValue(icrPair.holsti)}</strong> (not chance-corrected), Cohen's κ ={' '}
-                    <strong>{formatIcrValue(icrPair.kappa)}</strong> ({kappaInterpretation(icrPair.kappa)})
-                  </div>
-                  <div className="matrix-wrap" style={{ marginTop: '8px' }}>
-                    <table className="matrix-table">
-                      <thead>
-                        <tr>
-                          <th></th>
-                          <th>{icrPair.coderB}: coded</th>
-                          <th>{icrPair.coderB}: not coded</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td>{icrPair.coderA}: coded</td>
-                          <td>{icrPair.contingency.bothYes}</td>
-                          <td>{icrPair.contingency.aOnly}</td>
-                        </tr>
-                        <tr>
-                          <td>{icrPair.coderA}: not coded</td>
-                          <td>{icrPair.contingency.bOnly}</td>
-                          <td>{icrPair.contingency.bothNo}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className="matrix-wrap" style={{ marginTop: '12px' }}>
-                    <table className="matrix-table">
-                      <thead>
-                        <tr>
-                          <th>Code</th>
-                          <th>Both</th>
-                          <th>{icrPair.coderA} only</th>
-                          <th>{icrPair.coderB} only</th>
-                          <th>Neither</th>
-                          <th>% agree</th>
-                          <th>Cohen's κ</th>
-                          <th>Holsti</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {icrPair.perCode.map(r => (
-                          <tr key={r.codeId}>
-                            <td>{r.codeName}</td>
-                            <td>{r.bothYes}</td>
-                            <td>{r.aOnly}</td>
-                            <td>{r.bOnly}</td>
-                            <td>{r.bothNo}</td>
-                            <td>{r.percent.toFixed(1)}%</td>
-                            <td>{formatIcrValue(r.kappa)}</td>
-                            <td>{formatIcrValue(r.holsti)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {icrPair.perCode.length === 0 && <div className="empty-hint">No codes yet.</div>}
-                  </div>
-                </>
-              )}
-
-              {icrFleiss && (
-                <>
-                  <div className="section-hint" style={{ marginTop: '16px' }}>
-                    <strong>Scoped {icrFleiss.coders.length} coders</strong>
-                    {' '}({icrFleiss.coders.join(', ')}) — {icrFleiss.items} items:{' '}
-                    <strong>{icrFleiss.percentFull.toFixed(1)}% full agreement</strong>, Fleiss' κ ={' '}
-                    <strong>{formatIcrValue(icrFleiss.kappa)}</strong> ({kappaInterpretation(icrFleiss.kappa)})
-                  </div>
-                  <div className="matrix-wrap" style={{ marginTop: '8px' }}>
-                    <table className="matrix-table">
-                      <thead>
-                        <tr>
-                          <th>Code</th>
-                          <th>Full agreement</th>
-                          <th>% full</th>
-                          <th>Fleiss' κ</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {icrFleiss.perCode.map(r => (
-                          <tr key={r.codeId}>
-                            <td>{r.codeName}</td>
-                            <td>{r.fullAgreement}/{r.items}</td>
-                            <td>{r.percentFull.toFixed(1)}%</td>
-                            <td>{formatIcrValue(r.kappa)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {icrFleiss.perCode.length === 0 && <div className="empty-hint">No codes yet.</div>}
-                  </div>
-                </>
-              )}
-
-              {icrBinary && (
-                <>
-                  <div className="section-hint" style={{ marginTop: '16px' }}>
-                    <strong>Krippendorff's c-Alpha-binary</strong> — per-code agreement over
-                    present/absent ratings ({icrBinary.coders.join(', ')}; {icrBinary.items} items):{' '}
-                    overall α = <strong>{formatIcrValue(icrBinary.alpha)}</strong> ({kappaInterpretation(icrBinary.alpha)})
-                  </div>
-                  <div className="sort-row" style={{ marginTop: '4px' }}>
-                    <AnalysisExportButtons
-                      title={`${project.name} — Krippendorff c-Alpha-binary`}
-                      filenameBase={`${project.name.replace(/[^\w\- ]/g, '_')}_icr_calpha_binary`}
-                      headers={['Code', 'Items', 'c-Alpha-binary']}
-                      rows={icrBinary.perCode.map(r => [r.codeName, r.items, formatIcrValue(r.alpha)])}
-                      showToast={showToast}
-                    />
-                  </div>
-                  <div className="matrix-wrap" style={{ marginTop: '8px' }}>
-                    <table className="matrix-table">
-                      <thead>
-                        <tr>
-                          <th>Code</th>
-                          <th>Items</th>
-                          <th>c-Alpha-binary</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {icrBinary.perCode.map(r => (
-                          <tr key={r.codeId}>
-                            <td>{r.codeName}</td>
-                            <td>{r.items}</td>
-                            <td>{formatIcrValue(r.alpha)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {icrBinary.perCode.length === 0 && <div className="empty-hint">No codes yet.</div>}
-                  </div>
-                </>
-              )}
-
-              {icrCu && (
-                <div className="section-hint" style={{ marginTop: '16px' }}>
-                  <strong>Krippendorff's Cu-Alpha</strong> — agreement on <em>which</em> code was
-                  assigned to each jointly-considered quote ({icrCu.units} quote-units across the scoped documents;
-                  a quote left uncoded by a coder counts as a disagreement):{' '}
-                  Cu-α = <strong>{formatIcrValue(icrCu.alpha)}</strong> ({kappaInterpretation(icrCu.alpha)}),{' '}
-                  full agreement on {icrCu.fullAgreement}/{icrCu.units} units ({icrCu.percentFull.toFixed(1)}%).
-                  {' '}Review every unit quote-by-quote in the <strong>Consensus</strong> tab.
-                </div>
-              )}
-            </>
-          )}
-        </section>
-      )}
+      {subTab === 'icr' && <IcrWorkspace project={project} coders={icrSelCoders} scope={icrScope} scopePicker={renderIcrScopePicker()} pair={icrPair} fleiss={icrFleiss} binary={icrBinary} cu={icrCu} coderA={icrEffA} coderB={icrEffB} onCoderA={setIcrCoderA} onCoderB={setIcrCoderB} onSettings={onIcrSettings} onHelp={onIcrHelp} onMessage={showToast}/>}
 
       {subTab === 'consensus' && (
         <section>

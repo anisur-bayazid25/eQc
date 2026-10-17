@@ -48,9 +48,30 @@ export function researchRows(project: Project): string[][] {
   return rows;
 }
 export function researchCsv(project: Project): string { return Papa.unparse(researchRows(project)); }
-export function researchHtml(project: Project): string {
+export function researchHtml(project: Project, grouped = false): string {
   const esc = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
   const rows = researchRows(project);
+  if (grouped) {
+    const categories: Record<string,string> = {
+      Case:'Cases and attributes',Attribute:'Cases and attributes','Case link':'Cases and attributes',
+      Group:'Source and code groups',Annotation:'Annotations',
+      'Memo: analytic':'Analytic memos','Memo: methodological':'Methodological memos','Memo: reflexive':'Reflexive memos',
+      'Source memo':'Source memos','Image memo':'Source memos','Code memo':'Code memos',
+      'Excerpt memo':'Excerpt memos','Region memo':'Excerpt memos','Framework memo':'Framework memos',
+      'Relationship memo':'Code co-occurrence memos','Saved query':'Saved query definitions'
+    };
+    const sections = new Map<string,string[][]>();
+    for (const row of rows.slice(1)) {
+      const category = categories[row[0]] || row[0];
+      if (!sections.has(category)) sections.set(category,[]);
+      sections.get(category)!.push(row);
+    }
+    return `<section><h2>Research records</h2><p>Browse each record type separately. All records are included; empty columns are omitted within each section.</p>${sections.size ? [...sections].map(([category,records])=>{
+      const mixedTypes=new Set(records.map(row=>row[0])).size>1;
+      const columns=rows[0].map((_,index)=>index).filter(index=>(index!==0||mixedTypes)&&records.some(row=>row[index]?.trim()));
+      return `<h3>${esc(category)}</h3><table><thead><tr>${columns.map(index=>`<th>${esc(rows[0][index])}</th>`).join('')}</tr></thead><tbody>${records.map(row=>`<tr>${columns.map(index=>`<td style="white-space:pre-wrap">${esc(row[index]||'')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    }).join('') : '<p>No research records yet.</p>'}</section>`;
+  }
   return `<section><h2>Research records</h2><p>Cases, attributes, groups, annotations, memos and saved query definitions.</p><table><thead><tr>${rows[0].map(x => `<th>${esc(x)}</th>`).join('')}</tr></thead><tbody>${rows.slice(1).map(row => `<tr>${row.map(x => `<td style="white-space:pre-wrap">${esc(x)}</td>`).join('')}</tr>`).join('')}</tbody></table></section>`;
 }
 export function retrievedReport(project: Project, rows: RetrievedExcerpt[], title: string) {

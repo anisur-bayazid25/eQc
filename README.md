@@ -4,7 +4,7 @@
 
 # eQc — Easy Qual Coding
 
-**Version 1.8.4** · A local desktop app for qualitative research.
+**Version 1.8.5** · A local desktop app for qualitative research.
 
 [![ORCID](https://img.shields.io/badge/ORCID-0000--0001--9015--4422-green?style=flat-square&logo=orcid&labelColor=A6CE39)](https://orcid.org/0000-0001-9015-4422) [![DOI](https://img.shields.io/badge/DOI-see%20releases-blue?style=flat-square)](https://github.com/anisur-bayazid25/eQc/releases/latest) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -44,7 +44,15 @@ Normal coding, analysis and Help work offline. Installation downloads and update
 
 **Project and backup storage:** embedded images use base64, which adds roughly 33% to their binary size. HEIC-to-PNG conversion, retained original documents and PDF page images can add more. Photo-heavy projects can exceed 1 GB each; full JSON backups containing that media require additional space for every saved copy. The 1 GB installation allowance does not include project data or backups.
 
-## What's new in 1.8.4
+## What's new in 1.8.5
+
+- **LAN announcements:** a button beside Profile shows unread counts and opens team notices. Hosts control each member's posting permission. Save notices with the project or keep them for the current session; pop-up notices close after 30 seconds or can be dismissed. Hosts can delete any notice, and permitted members can delete their own.
+- **Word clouds from selected codes:** choose coded passages, then search/select one or multiple codes. Shared ranges and repeated coder assignments count once, with matching source evidence.
+- **Editable graph lines and labels:** drag lines or either endpoint, including topic links. Edit number text and label background colour/opacity; Sankey ribbons can be moved/resized manually. Drafts retain manual styles and source evidence.
+- **Cleaner chord diagrams:** smoother ribbons, connected label leaders, spacing for wrapped code names and counts placed on their own ribbons.
+- **Updated Help:** offline instructions cover announcements, permissions, code-scoped clouds and the new graph editing controls.
+
+## Previous release: 1.8.4
 
 - **Co-occurrence network:** connected groups, circle, projected sphere, spatial 3D force and chord presets; shaded balls, flat circles or text-only labels; weighted/count-labelled links and source evidence.
 - **Matching analytical views:** co-occurrence presets in Heat map and Sankey use the same explicit overlapping-range or shared-document counts, coder filters and scope. Drafts and HTML report figures retain their calculation details.

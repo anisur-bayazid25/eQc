@@ -68,10 +68,12 @@ export interface LanCoder {
   coderName: string;
   source: 'host' | 'client';
   activeDocId?: string | null;   // document/image the coder is currently viewing, for presence badges
+  canAnnounce?:boolean;
   clientId?: string;             // set for clients only — lets the host disconnect one specific peer
 }
 
 export interface LanSessionState {
+  sessionId?:string;selfClientId?:string;canAnnounce?:boolean;announcements?:import('./domain').Announcement[];
   role: LanRole;
   projectId: string;
   myName: string;
@@ -121,6 +123,9 @@ export interface LanRejectedNotice {
 }
 
 export interface LanBridge {
+  postAnnouncement:(payload:{text:string;retention:'project'|'session'})=>Promise<{ok:boolean;error?:string}>;
+  deleteAnnouncement:(id:string)=>Promise<{ok:boolean;error?:string}>;
+  setAnnouncementPermission:(payload:{clientId:string;allowed:boolean})=>Promise<{ok:boolean;error?:string}>;
   updateName: (name: string) => Promise<{ ok: boolean }>;
   startHost: (config: LanStartHostConfig) => Promise<{ ok: boolean; error?: string; wsPort?: number; ip?: string }>;
   stopHost: () => Promise<{ ok: boolean }>;

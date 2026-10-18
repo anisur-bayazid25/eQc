@@ -1,15 +1,14 @@
-# eQc 1.8.4
+# eQc 1.8.5
 
-This release adds co-occurrence visualizations, editable image-coding boundaries, improved QDPX exchange and Linux downloads.
+This release adds LAN team announcements, word clouds from selected codes, and more flexible figure editing.
 
-- **Co-occurrence network:** connected-group, circle, projected-sphere, spatial 3D force and chord layouts. Choose shaded balls, flat circles or text-only labels independently of layout. Spatial settings include horizontal/vertical viewing angles. Counts, weighted links, filters and source evidence help interpret the network.
-- **Matching heat maps and Sankey:** new co-occurrence presets share the network's direct-text-code calculation. Choose overlapping coding-range pairs or shared documents, with explicit coder and scope settings. Captions explain deduplication, matrix symmetry, chord totals and association-only Sankey ribbons.
-- **Visualization usability:** Code map, Network, Sankey and Word cloud form the first gallery row. Toolbars keep arrows, icons and labels aligned when scrolling. Saved drafts work with figure export and offline HTML reports.
-- **Resize existing image coding:** click a region, choose Resize, drag an edge/corner and save. Cancel/Escape discards the preview. Undo/Redo works; the code, coder, star and memo stay attached.
-- **QualCoder exchange fixes:** exported QDPX notes now include creation dates, author references and unique titles. Verified against the REFI-QDA schema and QualCoder's note importer; this does not guarantee complete cross-application feature equivalence.
-- **Linux x64:** AppImage and Debian/Ubuntu `.deb` downloads join the Windows installer and Intel/Apple Silicon macOS packages. Linux packages are built on Ubuntu 22.04; broader desktop compatibility testing is still needed. Linux updates use manual downloads.
-- **Help and citation:** updated offline guidance, calculation explanations, platform notes and citation metadata for v1.8.4.
+- **LAN announcements:** open the announcement button beside Profile. Hosts can post and give individual connected members permission to post. Choose **Save with project** or **This LAN session only**. Saved notices travel in native project backups and remain readable offline; temporary notices end with the host session and are available to members joining that ongoing session. Permissions reset on reconnect.
+- **Notifications and deletion:** new notices appear beneath the button for 30 seconds and can be dismissed. A highlighted badge counts unread notices; opening the list marks them read for the local profile. Hosts can delete any announcement, while permitted members can delete their own. The host enforces these rules.
+- **Code-scoped word clouds:** choose **Coded passages only** in Word cloud settings, then search and select one or several codes. Select subcodes separately. Shared text and repeated coder assignments count once, and source links stay available when earlier documents have no matching passages. Selections are retained in settings and drafts.
+- **Figure editing:** select and move graph lines, or drag either endpoint to change length/direction. Topic links are editable too. Number labels support text editing and background colour/opacity. Sankey ribbons can be resized or positioned manually while retaining original flow metadata. Manual edits affect the figure; calculated evidence and coding remain unchanged.
+- **Chord layout fixes:** smoother quadratic ribbons, continuous leaders attached to sectors, spacing for wrapped outer labels and collision-aware numbers that stay on their own ribbons. Crowded number labels may be hidden; selecting a ribbon still shows its count. Regenerate existing chord figures to apply the layout fixes.
+- **Offline Help and documentation:** expanded instructions for announcements, permissions, selected-code clouds, graph editing, drafts and exports.
 
-Co-occurrence figures currently use text coding, not image regions. Layout positions, 3D depth and decorative shading are not additional measured variables. Regenerate saved figures after changing coding or source text.
+Windows, Intel/Apple Silicon macOS and Linux x64 AppImage/deb downloads are provided. Linux updates use manual downloads. Existing project JSON backups remain supported.
 
-Existing project JSON backups remain supported. Make a project backup before upgrading. All demonstration content is fictional.
+Save a named draft before regenerating a figure. Announcements support up to 2,000 characters and require compatible app versions for host and members. All demonstration content is fictional.

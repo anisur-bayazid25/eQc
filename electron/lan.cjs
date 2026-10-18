@@ -8,6 +8,7 @@
 // send the sequence number they last applied, and the host hands them only
 // the newest snapshot (minimal transfer, last-writer-wins concurrency).
 
+const {randomUUID} = require('node:crypto');
 const dgram = require('node:dgram');
 const os = require('node:os');
 const { Server: WebSocketServer, WebSocket } = require('ws');
@@ -43,6 +44,40 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
     pruneTimer: null,
     hostsByKey: new Map()
   };
+
+  const announcementRequests = new Map();
+  function cancelAnnouncementRequests(){for(const request of announcementRequests.values()){clearTimeout(request.timer);request.resolve({ok:false,error:'Disconnected from the session.'});}announcementRequests.clear();}
+  function announcementList(host){return [...(Array.isArray(host.currentProject?.announcements)?host.currentProject.announcements:[]),...(host.sessionAnnouncements||[])];}
+  function announcementAction(payload,senderWs=null){
+    const host=state.host;if(state.role!=='host'||!host)return {ok:false,error:'No active host session.'};
+    const peer=senderWs?host.clients.get(senderWs):null,isHost=!senderWs;
+    if(!isHost&&!peer)return {ok:false,error:'Not authenticated.'};
+    const authorId=(host.announcementSessionId||'session')+':'+(isHost?'host':peer.clientId),list=announcementList(host);
+    let next,scope;
+    if(payload?.operation==='post'){
+      if(!isHost&&!peer.canAnnounce)return {ok:false,error:'The host has not allowed you to post announcements.'};
+      const text=typeof payload.text==='string'?payload.text.trim():'';scope=payload.retention;
+      if(!text||text.length>2000)return {ok:false,error:'Enter an announcement of 1–2,000 characters.'};
+      if(scope!=='project'&&scope!=='session')return {ok:false,error:'Choose project or session-only storage.'};
+      if(list.length>=500)return {ok:false,error:'Delete an older announcement before adding another (500 maximum).'};
+      next=[...list,{id:randomUUID(),text,retention:scope,createdAt:Date.now(),authorName:isHost?host.hostName:peer.coderName,authorId}];
+    }else if(payload?.operation==='delete'){
+      const entry=list.find(a=>a.id===payload.id);if(!entry)return {ok:false,error:'This announcement was already deleted.'};
+      if(!isHost&&(!peer.canAnnounce||entry.authorId!==authorId))return {ok:false,error:'Only the host or its permitted author can delete this announcement.'};
+      scope=entry.retention;next=list.filter(a=>a.id!==entry.id);
+    }else return {ok:false,error:'Unknown announcement action.'};
+    if(scope==='project'){
+      const project={...host.currentProject,announcements:next.filter(a=>a.retention==='project'),updatedAt:Date.now()};
+      try{saveProject(project);}catch{return {ok:false,error:'The announcement could not be saved. Try again.'};}
+      acceptDispatch({coderName:isHost?host.hostName:peer.coderName,project,senderWs:null,notifyHostRenderer:true,announcementUpdate:true,quiet:true});
+    }else host.sessionAnnouncements=next.filter(a=>a.retention==='session');
+    broadcastPresence();return {ok:true};
+  }
+  function requestAnnouncement(payload){
+    if(state.role==='host')return announcementAction(payload);
+    const client=state.client;if(state.role!=='client'||!client||client.ws?.readyState!==1)return {ok:false,error:'Join a LAN session first.'};
+    return new Promise(resolve=>{const requestId=randomUUID(),timer=setTimeout(()=>{announcementRequests.delete(requestId);resolve({ok:false,error:'The host did not respond. Check the connection and that the host uses a current app version.'});},10000);announcementRequests.set(requestId,{resolve,timer});sendMsg(client.ws,{type:'ANNOUNCEMENT_ACTION',requestId,payload});});
+  }
 
   function pushToRenderer(channel, payload) {
     const win = getWindow ? getWindow() : null;
@@ -89,6 +124,8 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
       sessionProjectId: project.id,
       projectName: project.name,
       currentProject: project,
+      announcementSessionId:randomUUID(),
+      sessionAnnouncements:[],
       seq: 0,
       log: [],
       activeDocId: null,       // doc/image the host renderer is currently viewing
@@ -200,13 +237,15 @@ function stopHost() {
     if (state.role !== 'host' || !state.host) return;
     const coders = [
       { coderName: state.host.hostName, source: 'host', activeDocId: state.host.activeDocId },
-      ...[...state.host.clients.values()].map(c => ({ coderName: c.coderName, source: 'client', activeDocId: c.activeDocId || null, clientId: c.clientId }))
+      ...[...state.host.clients.values()].map(c => ({ coderName: c.coderName, source: 'client', activeDocId: c.activeDocId || null, clientId: c.clientId, canAnnounce:!!c.canAnnounce }))
     ];
     // The host renderer reports itself as the host…
     pushToRenderer('lan:sessionState', {
       role: 'host',
       projectId: state.host.projectId,
       myName: state.host.hostName,
+      sessionId:state.host.announcementSessionId,
+      selfClientId:'host',canAnnounce:true,announcements:announcementList(state.host),
       coders
     });
     // …but every connected client must see ITS OWN role ('client'), own
@@ -221,6 +260,8 @@ function stopHost() {
           projectId: state.host.projectId,
           myName: info.coderName,
           hostName: state.host.hostName,
+          sessionId:state.host.announcementSessionId,
+          selfClientId:info.clientId,canAnnounce:!!info.canAnnounce,announcements:announcementList(state.host),
           coders
         }
       });
@@ -281,6 +322,9 @@ function stopHost() {
         } else {
           sendMsg(ws, { type: 'AUTH_SUCCESS', projectId: state.host.projectId, sessionProjectId: state.host.sessionProjectId, seq, totalChunks: 0, totalSize: 0 });
         }
+      } else if(msg.type==='ANNOUNCEMENT_ACTION'){
+        const result=authed?announcementAction(msg.payload,ws):{ok:false,error:'Not authenticated.'};
+        sendMsg(ws,{type:'ANNOUNCEMENT_RESULT',requestId:msg.requestId,...result});
       } else if (msg.type === 'ACTION_DISPATCH' && authed && state.host) {
         acceptDispatch({ coderName: ws.coderName, project: msg.project, senderWs: ws, notifyHostRenderer: true });
       } else if (msg.type === 'SET_CODER_NAME' && authed && state.host) {
@@ -313,7 +357,7 @@ function stopHost() {
     }
   }
 
-  function acceptDispatch({ coderName, project, senderWs, notifyHostRenderer }) {
+  function acceptDispatch({ coderName, project, senderWs, notifyHostRenderer, announcementUpdate=false, quiet=false }) {
     if (state.role !== 'host' || !state.host) return { ok: false, error: 'Not hosting' };
     if (!project || !project.id) return { ok: false, error: 'Invalid project payload' };
     // Hard project-id lock: the session was started for exactly ONE project
@@ -325,15 +369,20 @@ function stopHost() {
       if (senderWs) sendMsg(senderWs, { type: 'REJECTED', reason: 'project-mismatch' });
       return { ok: false, error: 'project-mismatch' };
     }
+    // Announcements are host-authoritative and cannot be forged, deleted or
+    // resurrected by a normal/stale project snapshot, including from the host UI.
+    const canonical=state.host.currentProject?.announcements;
+    const corrected=!announcementUpdate&&JSON.stringify(project.announcements)!==JSON.stringify(canonical);
+    if(!announcementUpdate)project={...project,announcements:canonical};
     const seq = ++state.host.seq;
     state.host.currentProject = project;
     state.host.log.push({ seq, coderName: String(coderName || 'Coder') });
     if (state.host.log.length > 1000) state.host.log.shift();
-    const broadcast = { type: 'ACTION_DISPATCH', seq, coderName: String(coderName || 'Coder'), project };
+    const broadcast = { type: 'ACTION_DISPATCH', seq, coderName: String(coderName || 'Coder'), project, quiet:quiet||corrected };
     for (const ws of state.host.clients.keys()) {
-      if (ws !== senderWs) sendMsg(ws, broadcast);
+      if (ws !== senderWs||corrected) sendMsg(ws, broadcast);
     }
-    if (notifyHostRenderer) pushToRenderer('lan:remoteProject', { seq, coderName: String(coderName || 'Coder'), project });
+    if (notifyHostRenderer||corrected) pushToRenderer('lan:remoteProject', { seq, coderName: String(coderName || 'Coder'), project,quiet:quiet||corrected });
     return { ok: true, seq };
   }
 
@@ -490,6 +539,8 @@ function stopHost() {
           try { msg = JSON.parse(String(data)); } catch { return; }
           if (!msg) return;
 
+          if(msg.type==='ANNOUNCEMENT_RESULT'){const request=announcementRequests.get(msg.requestId);if(request){clearTimeout(request.timer);announcementRequests.delete(msg.requestId);request.resolve({ok:!!msg.ok,error:msg.error});}return;}
+
           if (msg.type === 'AUTH_FAILED') {
             fail(msg.reason || 'Authentication failed');
             return;
@@ -531,7 +582,7 @@ function stopHost() {
             if (client.syncing) {
               client.buffered.push(msg); // live edits that raced the (re)sync
             } else {
-              pushToRenderer('lan:remoteProject', { seq: msg.seq, coderName: msg.coderName, project: msg.project });
+              pushToRenderer('lan:remoteProject', { seq: msg.seq, coderName: msg.coderName, project: msg.project,quiet:!!msg.quiet });
             }
             return;
           }
@@ -560,6 +611,7 @@ function stopHost() {
 
         ws.on('close', code => {
           if (state.client !== client) return;
+          cancelAnnouncementRequests();
           if (!client.resolved) {
             // Initial join interrupted before we ever had a session — fail it.
             if (!settled) {
@@ -627,7 +679,7 @@ function stopHost() {
         client.resolved = true;
         state.role = 'client';
         for (const b of buffered) {
-          pushToRenderer('lan:remoteProject', { seq: b.seq, coderName: b.coderName, project: b.project });
+          pushToRenderer('lan:remoteProject', { seq: b.seq, coderName: b.coderName, project: b.project,quiet:!!b.quiet });
         }
         pushProgress({ phase: 'done', percent: project ? 100 : 100, message: project ? 'Project synced' : 'Up to date' });
         cancelReconnect();
@@ -640,6 +692,7 @@ function stopHost() {
   }
 
   function stopClient() {
+    cancelAnnouncementRequests();
     // User-initiated: cancel any reconnect buffer before closing, otherwise
     // the socket's 'close' handler would start a 10s reconnect loop.
     if (state.client) {
@@ -669,6 +722,14 @@ function stopHost() {
     return { ok: false, error: 'Not connected to a LAN session' };
   }
 
+  ipcMain.handle('lan:postAnnouncement',(_e,payload)=>requestAnnouncement({...payload,operation:'post'}));
+  ipcMain.handle('lan:deleteAnnouncement',(_e,id)=>requestAnnouncement({operation:'delete',id}));
+  ipcMain.handle('lan:setAnnouncementPermission',(_e,payload)=>{
+    if(state.role!=='host'||!state.host)return {ok:false,error:'Only the host can change announcement permissions.'};
+    const peer=[...state.host.clients.values()].find(c=>c.clientId===payload?.clientId);
+    if(!peer||typeof payload.allowed!=='boolean')return {ok:false,error:'This person is no longer connected.'};
+    peer.canAnnounce=payload.allowed;broadcastPresence();return {ok:true};
+  });
   ipcMain.handle('lan:updateName', (_e, raw) => {
     const name=String(raw || 'Coder').trim().slice(0,200) || 'Coder';
     if(state.role==='host' && state.host) { state.host.hostName=name;broadcastPresence(); }

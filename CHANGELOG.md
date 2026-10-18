@@ -4,6 +4,15 @@ All notable changes to **eQc - Easy Qual Coding** are documented in this file.
 
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 1.8.5 - 2026-10-18
+
+- Added LAN announcements beside Profile: host-controlled posting permission, project-saved or session-only storage, author/host deletion, 30-second dismissible notices and per-profile unread counts.
+
+- Added searchable single/multiple code selection for word clouds from coded passages, with shared text counted once and selections retained in settings/drafts. Fixed source links when an earlier document has no matching passages.
+
+- Fixed chord ribbon curvature, connected label leaders, wrapped label spacing and number placement. Crowded numbers stay on their ribbons or are hidden with an explanation.
+- Added direct line movement and endpoint editing across graph annotations, code relationships and topic links. Number labels support text editing and background colour/opacity controls; manual figure edits preserve calculated evidence.
+
 ## 1.8.4 - 2026-10-17
 
 - Excluded generated installer/report files from the development watcher to avoid reloads and Windows file-lock errors during packaging.

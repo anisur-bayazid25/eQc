@@ -241,6 +241,8 @@ Select at least two memos, open **Export or merge selected memos**, choose a new
 
 ## 8. Visualization
 
+Select a line in any visualization to move it; drag either endpoint to change its length and direction. The Inspector controls annotation line width, style, curve, arrowhead, colour and opacity; Link controls code relationships. Topic-to-code lines are editable too. Moving an attached line gives it a manual position; moving or resizing a Sankey ribbon makes that ribbon a free shape. Regenerate to restore automatic connections and proportional geometry. Double-click number labels to edit their displayed text, and use Label background in the Inspector for colour and opacity (0 makes it transparent). These edits change the figure only: calculated counts, supporting evidence and coding stay unchanged. Save a named draft to retain edits; generating a new figure replaces them.
+
 The first row focuses on **Code map → Co-occurrence network → Sankey diagram → Word cloud**. Mind map starts the next row.
 
 Choose a square type card, choose a preset and settings, then click **Generate visualization**. For a first figure, try Word Cloud: select your documents, Generate, then select a word to see its formatting and sources in the Inspector. Save a named draft before experimenting with a new design. Code map opens its Simple/Detailed preview designer. **Open current canvas** resumes your layout; **Open draft** loads a named version. Visiting this tab does not compile project data. The **▦ All visualization types** button returns to the library and unloads the renderer. Switching tabs also stops it automatically. **⚙ Settings** opens the current graph’s own settings; Back returns without replacing the canvas.
@@ -317,6 +319,8 @@ Select a node label and use **Node label placement** in the right Inspector: Ins
 
 ### Word cloud
 
+To make a cloud from particular codes, choose **Text scope → Coded passages only**, then search the **Codes** checklist and select one or several codes. Use **Clear codes** to start a focused selection or **Select all codes** for all coded text. Only passages assigned directly to selected codes are included; select subcodes separately. Overlapping ranges and repeated coder assignments are merged so shared text counts once. Document selection still applies, and the word limit controls the number of words, not codes. Code selections are retained in the working cloud and named drafts.
+
 Select documents, a word limit (up to 300), whole-document or merged-coded text, language and minimum occurrences. **Words longer than** counts Unicode base letters: English defaults to more than 3, Bengali to more than 2. Bengali vowel signs, virama and combining marks do not increase length. These are letter counts, not syllable counts. The same language/length controls appear in Analysis → Word frequencies.
 
 Below selected-item formatting, the right Inspector has **Word exclusions**, a stop-word text box, role-word exclusions and **Import a stop-word list** for text/CSV files. Edit comma/newline-separated words, then click **Apply Changes**. Typing does not regenerate. Applying preserves palette/settings and rebuilds word positions. Edited or deleted headings and added objects remain as you left them; save a named draft to keep an earlier layout. Unapplied exclusions are retained when changing tabs.
@@ -371,6 +375,16 @@ An eQc-window screenshot is previewed before sending. Capture it again, attach a
 Use **LAN → Host** to share a project on a trusted local network. Colleagues use **Join**, select the host or enter its address, and connect with the session details.
 
 Check each person's coder name. Project coding and research records are shared; personal profiles and time histories stay separate. For remote or offline teamwork, exchange project files and merge them. Export a backup before starting a team session.
+
+### Announcements
+
+Use the **📣 Announcements** button beside Profile to post and read team notices. New notices appear below it for **30 seconds** and can be dismissed; dismissing or timing out does not delete the notice. The highlighted badge counts unread announcements. Opening the announcement list marks its current notices as read on that local profile.
+
+The host can post immediately. In **LAN → Host a Session → participants**, enable **Allow announcements** for each person who may post. This permission is enforced by the host and can be revoked at any time; it resets when that person reconnects.
+
+Choose **Save with project** to keep an announcement in the project and native project backups, or **This LAN session only** to keep it until the host ends the session. Members joining later can read the current session notices. Session notices disappear locally on disconnect and are available again if you rejoin the same ongoing session. Saved notices remain available offline. Announcements allow up to 2,000 characters.
+
+The host can delete any announcement. A permitted member can delete their own announcements; other members can read and dismiss notices. Deletion removes the notice for everyone in the active session. Outside a session, deleting a saved notice changes only the local project copy.
 
 
 ## 11. Profile and time

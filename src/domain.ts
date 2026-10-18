@@ -65,6 +65,8 @@ export interface MapEdgeStyle {
   color?: string;      // overrides the default per-kind color if set
   width?: number;      // overrides the computed line width (1-8) if set
   label?: string;       // optional user-added text on the edge
+  lineStart?: {x:number;y:number}; lineEnd?: {x:number;y:number}; // optional manual line endpoints
+  labelFill?:string; labelFillOpacity?:number;
   labelDx?: number;       // label offset from the edge midpoint, viewBox px (drag-to-move)
   labelDy?: number;       // label offset from the edge midpoint, viewBox px
   labelFontSize?: number; // label size — defaults to 12 if unset
@@ -93,6 +95,7 @@ export interface MapAnnotation extends MapTextOrientation {
   fill?: string;
   shapeType?:string; cornerRadius?:number;
   flow?:{sourceId:string;targetId:string;sourceOffset:number;targetOffset:number;sourceShare:number;targetShare:number;circular?:boolean;lane?:number;value:number;unit:string;sourceLabel:string;targetLabel:string};
+  flowManual?:boolean; // manually positioned ribbon; retain original flow evidence
   gradientTo?:string; gradientKey?:string; flowNodeLabel?:boolean; flowLabelNodeId?:string; flowLabelPlacement?:'inside'|'outside-left'|'outside-right'|'above'|'below'|'free'; flowLabelDistance?:number; flowLabelOutsideSize?:{width:number;height:number};
   imageData?:string;
 
@@ -227,7 +230,9 @@ export interface ResearchQuery {
 export interface ActivityEntry { id: number; at: number; actor: string; summary: string }
 export interface ProjectSnapshot { id: number; at: number; label: string; automatic: boolean; sizeBytes: number }
 
+export interface Announcement {id:ID;text:string;retention:'project'|'session';createdAt:number;authorName:string;authorId:string;}
 export interface Project {
+  announcements?:Announcement[];
   icrComparison?: import('./lib/icrComparisons').IcrComparisonSettings;
   analysisPeriods?:AnalysisPeriod[];
   id: ID;

@@ -83,7 +83,7 @@ Word/Excel exports include readable memo sources, document names, code names, qu
 
 ## Visualization
 
-The square-card library offers Code map, Mind map, Hierarchy, Heat map, Word tree, Process, Journey, Pyramid, Venn, Honeycomb, Ecology, Histomap, Dendrogram, Sankey, Word cloud and Blank canvas. Code map has Simple and Detailed designs; starting from scratch is available only through the separate Blank canvas card. Select a type/preset, adjust sources or labels, then Generate. No project aggregation runs on a tab visit; leaving the tab or returning through All visualization types unloads the renderer. ⚙ opens settings for the current type, without replacing the canvas until Generate.
+The square-card library offers Code map, Co-occurrence network, Mind map, Hierarchy, Heat map, Word tree, Process, Journey, Pyramid, Venn, Honeycomb, Ecology, Histomap, Dendrogram, Sankey, Word cloud and Blank canvas. Code map has Simple and Detailed designs; starting from scratch is available only through the separate Blank canvas card. Select a type/preset, adjust sources or labels, then Generate. No project aggregation runs on a tab visit; leaving the tab or returning through All visualization types unloads the renderer. ⚙ opens settings for the current type, without replacing the canvas until Generate.
 
 Heat maps compare unique passage counts across documents (with coding-decision/presence and coder filters) or shared-document counts between codes. Word trees group up to four source words before/after a literal case-insensitive phrase within sentences, using full documents or merged coded ranges. Select results for document/code source links. Hierarchy/mind maps use the codebook. Interpretive diagrams use researcher-supplied groups, stages and ratings; Venn areas and journey spacing do not encode calculated magnitudes or time.
 
@@ -94,6 +94,8 @@ The first gallery row is Code map, Co-occurrence network, Sankey and Word cloud;
 The network, Heat map co-occurrence preset and Sankey co-occurrence preset share direct-text-code pair calculations. Overlap counts intersecting coding-range pairs, excluding touching boundaries; unique mode deduplicates identical code/document/ranges across pooled coders, while decision mode retains them. Shared-document mode counts each pair once per document. Explicit code/document limits and coder filters apply first; image regions are excluded. Networks/ribbons show each pair once; the symmetric matrix repeats it in both halves with zero diagonal. Chord widths allocate pair counts to both endpoints, and outer totals sum to twice displayed pair weight. Counts, settings and exclusions are described on the figure. Click links/cells/ribbons for source evidence. Save drafts, export figures or include saved drafts in HTML reports normally.
 
 Sankey offers two-stage, multi-stage, alluvial/parallel sets, hierarchical, circular and code co-occurrence presets. Supply positive weighted links or complete categorical paths for the original presets; alluvial requires complete paths. Project coding supplies classification summaries, not observed movement. Co-occurrence uses project coding only, with each unordered pair shown once in codebook order; ribbon counts, bar totals and percentages describe pair weight, not participants, direction or causation. Settings explain each input and provide labelled fictional examples where appropriate. Select a node label for inside/outside positioning and boundary distance in the Inspector.
+
+To make a cloud from particular codes, choose **Text scope → Coded passages only**, then search the **Codes** checklist and select one or several codes. Use **Clear codes** to start a focused selection or **Select all codes** for all coded text. Only passages assigned directly to selected codes are included; select subcodes separately. Overlapping ranges and repeated coder assignments are merged so shared text counts once. Document selection still applies, and the word limit controls the number of words, not codes. Code selections are retained in the working cloud and named drafts.
 
 Word clouds support standard/random shapes and PNG/SVG masks, overlays, spacing/density, fonts, rotations and up to 300 words. Word exclusions are below selected-item formatting in the right Inspector (open Import a stop-word list for file import): edit, then **Apply Changes** to rebuild positions while keeping settings/palette. A random shape repeats with its layout seed. Analysis word frequencies and clouds share language, stop-list and minimum-base-letter filtering (English >3, Bengali >2 by default; dependent signs do not count). Optional local JSON language profiles avoid bundled models. Shared text controls support rotation, vertical writing and reading direction; **Invert palette** reverses colour order.
 
@@ -115,6 +117,17 @@ Feedback in the toolbar, Help's reporting button or Ctrl/Cmd+Shift+B opens a dir
 
 Host/Join shares project work on a trusted local network. Confirm coder identities before teamwork. Personal profiles/time stay separate. Back up before a session; offline colleagues can exchange and merge project files.
 
+### Announcements
+
+Use the **📣 Announcements** button beside Profile to post and read team notices. New notices appear below it for **30 seconds** and can be dismissed; dismissing or timing out does not delete the notice. The highlighted badge counts unread announcements. Opening the announcement list marks its current notices as read on that local profile.
+
+The host can post immediately. In **LAN → Host a Session → participants**, enable **Allow announcements** for each person who may post. This permission is enforced by the host and can be revoked at any time; it resets when that person reconnects.
+
+Choose **Save with project** to keep an announcement in the project and native project backups, or **This LAN session only** to keep it until the host ends the session. Members joining later can read the current session notices. Session notices disappear locally on disconnect and are available again if you rejoin the same ongoing session. Saved notices remain available offline. Announcements allow up to 2,000 characters.
+
+The host can delete any announcement. A permitted member can delete their own announcements; other members can read and dismiss notices. Deletion removes the notice for everyone in the active session. Outside a session, deleting a saved notice changes only the local project copy.
+
+
 ## Profile and time
 
 The round avatar opens profiles and active app/coding time. Upload or Adjust photo opens a circular preview: drag, zoom, then Save picture. Reset and Cancel are available, and saved framing is retained in profile backups. New coding uses the current name; previous entries keep their authors. Time pauses outside active use, after five idle minutes or manually. Weeks run Sunday–Saturday. Export time to CSV or include profile history in JSON; repeated import avoids duplicate recorded sessions. Profile deletion removes its local details/time, not projects.
@@ -129,6 +142,8 @@ Choose a profile below and expand Active shortcut keys. Coding actions need a se
 
 
 ### Visualization editing and colour palettes
+
+Select a line in any visualization to move it; drag either endpoint to change its length and direction. The Inspector controls annotation line width, style, curve, arrowhead, colour and opacity; Link controls code relationships. Topic-to-code lines are editable too. Moving an attached line gives it a manual position; moving or resizing a Sankey ribbon makes that ribbon a free shape. Regenerate to restore automatic connections and proportional geometry. Double-click number labels to edit their displayed text, and use Label background in the Inspector for colour and opacity (0 makes it transparent). These edits change the figure only: calculated counts, supporting evidence and coding stay unchanged. Save a named draft to retain edits; generating a new figure replaces them.
 
 The Colours tool offers 17 built-in palettes, including Viridis, Magma, Plasma, Inferno, Cividis, ColorBrewer Set2, Tableau 10, muted palettes, grayscale and monochrome. Create/edit a custom palette from any preset, change or add swatches, and save a project palette by name. Scientific bases retain a sequential heat-map ramp. Individual text, fill, border and line colours remain editable through the expanded shared picker.
 

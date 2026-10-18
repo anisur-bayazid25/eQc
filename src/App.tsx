@@ -1,3 +1,4 @@
+import AnnouncementCenter from './components/AnnouncementCenter';
 import IcrWorkspace from './components/IcrWorkspace';
 import ManuscriptExportDialog from './components/ManuscriptExportDialog';
 import HtmlReportExportDialog from './components/HtmlReportExportDialog';
@@ -3008,6 +3009,7 @@ function openDocxCommentImport() {
               </button>
             ))}
           </nav>
+          <AnnouncementCenter project={project} session={lanSession} profileId={timeTracking.profileId} onDeleteSaved={id=>{const current=projectRef.current;if(current?.id===project.id)persist({...current,announcements:(current.announcements||[]).filter(a=>a.id!==id)});}}/>
           <button className="profile-avatar-button" title="Profile & time" aria-label="Profile & time" onClick={()=>{timeTracking.refresh();setTab('profile');}}>{timeTracking.profile.photo?<ProfilePhoto src={timeTracking.profile.photo} crop={timeTracking.profile.photoCrop}/>:<span>{timeTracking.profile.name.trim().split(/\s+/).filter(Boolean).slice(0,2).map(n=>n[0]).join('').toUpperCase()||'👤'}</span>}</button>
 
         </div>
@@ -4371,6 +4373,7 @@ function openDocxCommentImport() {
     onJoin={handleLanJoin}
     onDisconnect={handleLanDisconnect}
     onKickClient={handleLanKickClient}
+    onAnnouncementPermission={async(clientId,allowed)=>{try{const result=await window.qv.lan.setAnnouncementPermission({clientId,allowed});if(!result.ok)showToast(result.error||'Unable to change permission.');}catch{showToast('Restart eQc to enable announcement permissions.');}}}
     onClose={() => setLanModalOpen(false)}
   />
 )}

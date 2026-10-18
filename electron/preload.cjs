@@ -76,6 +76,9 @@ onUpdateProgress: (cb) => ipcRenderer.on('update:progress', (_e, pct) => cb(pct)
 
   // LAN collaboration (host discovery, WebSocket sessions, live sync)
   lan: {
+    postAnnouncement: payload => ipcRenderer.invoke('lan:postAnnouncement',payload),
+    deleteAnnouncement: id => ipcRenderer.invoke('lan:deleteAnnouncement',id),
+    setAnnouncementPermission: payload => ipcRenderer.invoke('lan:setAnnouncementPermission',payload),
     updateName: (name) => ipcRenderer.invoke('lan:updateName', name),
     startHost: (config) => ipcRenderer.invoke('lan:startHost', config),
     stopHost: () => ipcRenderer.invoke('lan:stopHost'),

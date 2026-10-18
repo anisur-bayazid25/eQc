@@ -11,9 +11,9 @@ export function saveMapDraft(project:Project,name:string,view:CodeMapView):Proje
 
 export function restoreMapDraft(project:Project,id:string):Project {
   const draft=project.mapDrafts?.find(d=>d.id===id);if(!draft)throw new Error('This map draft is no longer available.');
-  const saved=structuredClone(draft),ids=new Set(project.codes.map(c=>c.id)),nodes=new Map(saved.nodes.map(n=>[n.id,n]));
+  const saved=structuredClone(draft),ids=new Set(project.codes.map(c=>c.id)),nodes=new Map(saved.nodes.map(n=>[n.id,n])),endpointIds=new Set([...ids,...saved.annotations.map(a=>a.id)]);
   return {...project,codes:project.codes.map(code=>{const node=nodes.get(code.id);return node?{...code,mapPosition:node.mapPosition,mapShape:node.mapShape,mapAppearance:node.mapAppearance,mapLabel:node.mapLabel,mapGroupId:node.mapGroupId,mapLayer:node.mapLayer,mapScale:node.mapScale}:code;}),
-    mapAnnotations:saved.annotations,visualizationNotes:saved.notes||[],mapEdgeStyles:saved.edges.filter(e=>ids.has(e.fromCodeId)&&ids.has(e.toCodeId)),
+    mapAnnotations:saved.annotations,visualizationNotes:saved.notes||[],mapEdgeStyles:saved.edges.filter(e=>endpointIds.has(e.fromCodeId)&&endpointIds.has(e.toCodeId)),
     hiddenMapCodeIds:project.codes.filter(c=>!nodes.has(c.id)||saved.hiddenIds.includes(c.id)).map(c=>c.id),
     // Retain the complete design for backup compatibility; the view records the final resized canvas.
     mapDesign:saved.design?{...saved.design,width:saved.view.width,height:saved.view.height,rootIds:saved.design.rootIds.filter(id=>ids.has(id))}:undefined,

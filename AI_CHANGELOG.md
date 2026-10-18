@@ -1,5 +1,32 @@
 # AI Changelog — eQc desktop app
 
+## 2026-10-18 — Release v1.8.5
+
+- Updated package/lockfile/citation versions and release date, README, offline Help search and feature instructions, changelog, release notes and pre-release review for 1.8.5.
+- Passed 165 feature/schema checks and all 27 browser scripts. Fixed dense-cloud word selection by excluding packed cloud glyphs from broad text hit boxes; retained broad targets for numeric/other labels. Updated the process-edge selector and reran affected cloud/inspector checks. Built the Windows installer, inspected packaged 1.8.5 metadata and announcement handlers, and verified SQLite under the packaged Electron runtime before reusing the compatible native binary.
+- Refreshed the fictional demo exports/ZIP and updated the process-edge browser assertion to target the visible line separately from its new click target. Windows, macOS and Linux release builds remain configured in the tag workflow.
+
+## 2026-10-18 — Unreleased: LAN announcements
+
+- Added host-authoritative announcement actions and per-connection posting permission over IPC/WebSocket, with authenticated author IDs, acknowledgements/timeouts and server-side deletion checks. Ordinary snapshots cannot forge, remove or resurrect saved announcements.
+- Saved announcements persist in project JSON; temporary notices stay in host session memory and reach late joiners. Added a Profile-adjacent announcement centre, per-profile/project unread tracking, dismissible 30-second notices, composer, history and deletion, plus host participant permission controls.
+- Added LAN authorization, stale-snapshot, temporary lifecycle, request cancellation and real loopback WebSocket tests; browser coverage exercises expiry, dismissal, badges, permissions, storage and history. Registered checks in CI/browser runner and updated Help documentation.
+- Validation passed: 10 LAN/desktop/resource checks using the bundled Node runtime, announcements browser checks, existing profile-photo and keyboard browser checks, production build, and whitespace checks. Inspected announcement-centre and unread-toast screenshots.
+
+## 2026-10-18 — Unreleased: Word clouds from selected codes
+
+- Exposed searchable code selection in coded-passage mode, including single/multiple selection, select-all/clear and empty-selection validation. The word limit does not limit selected codes; descendants require explicit selection.
+- Filtered source text before merging overlapping ranges/coder duplicates, preserved whole-document mode, and kept word-source evidence scanning past documents without matching passages. Captions report selected-code scope.
+- Added source/counting and browser regressions for single/multiple codes, shared ranges, coder copies, document filtering, settings persistence and source links. Updated contextual Help, user guide and documentation.
+- Validation passed: 33 related feature checks, the dedicated code-selection browser test, existing Sankey/word-cloud browser checks, production build and whitespace checks. Added the new browser test to the standard runner.
+
+## 2026-10-17 — Unreleased: Chord layout and graph editing
+
+- Replaced pinched cubic chord boundaries with quadratic curves, attached continuous leaders to sector edges, spaced wrapped outer labels, and kept collision-aware number positions on their own ribbons.
+- Added shared line dragging/endpoint handles, persisted manual relationship positions, editable topic connections, and annotation line styling. Sankey ribbons can be moved/resized as free shapes.
+- Made number/text hit boxes selectable and exposed background colour/opacity for annotation and relationship labels. Visual label edits retain original pair metadata. Added calculation/geometry and real pointer interaction regressions.
+- Retained manual topic-link styles when restoring drafts, kept original flow metadata on manually resized ribbons, and excluded editing hit targets from SVG/report figures. Validation: 32 relevant feature tests, six browser suites (co-occurrence, map designs, editing, all 17 graph toolbars, Sankey/cloud and HTML report), production build and whitespace checks passed.
+
 ## 2026-10-17 — Release v1.8.4
 
 - Updated the package/lockfile versions, citation metadata, README, built-in Help sources, changelog and release notes for v1.8.4.

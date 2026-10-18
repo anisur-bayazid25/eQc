@@ -82,3 +82,32 @@ test('chord ribbons show each unordered pair once and conserve equal count width
  const labels=s.annotations.filter(a=>a.id.startsWith('suggested:chord:label:'));assert.equal(labels.reduce((sum,a)=>sum+Number(a.text.split(' · ').at(-1)),0),graph.pairs.reduce((sum,p)=>sum+2*p.value,0));
  assert.match(s.design.description,/sector totals sum to twice/);assert.ok(s.annotations.every(a=>a.x>=0&&a.y>=0&&a.x+(a.width||0)<=s.design.width&&a.y+(a.height||0)<=s.design.height));
 });
+
+
+test('uneven chord leaders touch sectors, wrapped labels do not overlap and count centres stay on their ribbons',()=>{
+ const {buildCooccurrenceChord}=require('../src/lib/cooccurrenceChord.ts');
+ const codes=Array.from({length:13},(_,i)=>({id:'c'+i,name:i%3?'A long descriptive code name about community experiences '+i:'Code '+i}));
+ const pairs=codes.slice(1).map((c,i)=>({a:'c0',b:c.id,value:i%4+1,docs:['d1'],ranges:[]}));pairs.push({a:'c2',b:'c5',value:2,docs:['d1'],ranges:[]});
+ const graph={codes,pairs,docs:data.docs,presence:new Map(),unit:'overlap',description:'Synthetic uneven relationships.',qualified:pairs.length,minimum:1};
+ const s=buildCooccurrenceChord({...data,codes},options,graph),sectors=s.annotations.filter(a=>a.shapeType==='chord-sector'),r=sectors[0].width/2,cx=sectors[0].x+r,cy=sectors[0].y+r;
+ for(const c of codes){const leaders=s.annotations.filter(a=>a.id.startsWith('suggested:chord:leader:'+c.id+':'));assert.equal(leaders.length,3);assert.ok(Math.abs(Math.hypot(leaders[0].x-cx,leaders[0].y-cy)-r)<1e-6);for(let i=1;i<leaders.length;i++){assert.equal(leaders[i].x,leaders[i-1].x2);assert.equal(leaders[i].y,leaders[i-1].y2);}}
+ const labels=s.annotations.filter(a=>a.id.startsWith('suggested:chord:label:'));
+ for(const a of labels)for(const b of labels)if(a!==b&&a.x===b.x)assert.ok(a.y+a.height<=b.y||b.y+b.height<=a.y);
+ const inside=(p,vertices)=>{let result=false;for(let i=0,j=vertices.length-1;i<vertices.length;j=i++){const a=vertices[i],b=vertices[j];if((a.y>p.y)!==(b.y>p.y)&&p.x<(b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x)result=!result;}return result;};
+ const counts=s.annotations.filter(a=>a.shapeType==='cooc-value');assert.ok(counts.length>=pairs.length-1);
+ for(const count of counts){const ribbon=s.annotations.find(a=>a.shapeType==='chord-ribbon'&&a.coocPair.codeIds.join(':')===count.coocPair.codeIds.join(':')),vertices=Array.from({length:ribbon.polygonPoints.length/2},(_,i)=>({x:ribbon.x+ribbon.width*ribbon.polygonPoints[i*2],y:ribbon.y+ribbon.height*ribbon.polygonPoints[i*2+1]}));assert.ok(inside({x:count.x+count.width/2,y:count.y+count.height/2},vertices),'Count remains on its own ribbon');}
+});
+
+test('line endpoint editing and whole-line movement preserve direction and stay within the canvas',()=>{
+ const {moveLine}=require('../src/components/useMapLineEditing.ts'),points={start:{x:100,y:80},end:{x:40,y:20}};
+ assert.deepEqual(moveLine(points,'end',-100,10,200,150),{start:points.start,end:{x:0,y:30}});
+ assert.deepEqual(moveLine(points,'line',200,200,200,150),{start:{x:200,y:150},end:{x:140,y:90}});
+ assert.deepEqual(points,{start:{x:100,y:80},end:{x:40,y:20}});
+ const styled={...data,mapEdgeStyles:[{id:'e',fromCodeId:'a',toCodeId:'b',kind:'custom',lineStart:points.start,lineEnd:points.end,labelFill:'#aabbcc',labelFillOpacity:.35}]};
+ assert.deepEqual(JSON.parse(JSON.stringify(styled)).mapEdgeStyles,styled.mapEdgeStyles);
+ const project={...styled,createdAt:1,folders:[],mapAnnotations:[{id:'hub',kind:'circle',x:10,y:10,width:100,height:100,color:'#2563eb',lineStyle:'solid'},{id:'count',kind:'text',text:'42',x:20,y:30,width:50,height:30,fill:'#e0f2fe',fillOpacity:.35}],mapDesign:{mode:'simple',hubId:'hub',rootIds:['a'],width:500,height:500}};
+ project.mapEdgeStyles.push({...project.mapEdgeStyles[0],id:'topic-edge',fromCodeId:'hub',toCodeId:'a',kind:'hierarchy'});
+ const saved=saveMapDraft(project,'Manual styling',{width:500,height:500}),restored=restoreMapDraft({...saved,mapEdgeStyles:[],mapAnnotations:[]},saved.mapDrafts[0].id);
+ assert.deepEqual(restored.mapEdgeStyles,project.mapEdgeStyles);assert.deepEqual(restored.mapAnnotations,project.mapAnnotations);assert.deepEqual(restored.codedSegments,project.codedSegments);
+
+});

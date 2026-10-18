@@ -43,7 +43,7 @@ export async function renderReportFigures(project:Project,ids:string[],includeNo
       const svg=host.querySelector<SVGSVGElement>('.map-viewport svg');
       if(!svg)throw Error('The saved graph could not be rendered.');
       const clone=svg.cloneNode(true) as SVGSVGElement;
-      clone.querySelectorAll('[data-map-editor],[data-map-edit-outline],[data-visualization-notes]').forEach(el=>el.remove());
+      clone.querySelectorAll('[data-map-editor],[data-map-edit-outline],[data-map-hit-target],[data-visualization-notes]').forEach(el=>el.remove());
       if(!draft.view.includeLegendInExport)clone.querySelectorAll('[data-map-legend]').forEach(el=>el.remove());
       for(const name of ['font-size','stroke','stroke-width','opacity'])clone.querySelectorAll('[data-export-'+name+']').forEach(el=>{el.setAttribute(name,el.getAttribute('data-export-'+name)!);el.removeAttribute('data-export-'+name);});
       const bounds=svg.viewBox.baseVal;

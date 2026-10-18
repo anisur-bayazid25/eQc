@@ -1,4 +1,19 @@
-# Pre-release review — v1.8.4 (17 October 2026)
+# Pre-release review — v1.8.5 (18 October 2026)
+
+## v1.8.5 release checks
+
+- 165 feature and REFI-QDA schema checks passed, including real loopback WebSocket announcement actions, permission/authorship enforcement, temporary lifecycle, stale-snapshot protection and code-scoped word-cloud calculations.
+- All 27 browser scripts passed, including announcements, selected-code clouds, all 17 graph families, editing/drafts, reports, keyboard navigation and profile persistence. Dense-cloud click-target regression fixed and affected cloud/inspector checks rerun.
+- Windows NSIS installer built successfully. Packaged metadata reports 1.8.5, the announcement host/preload handlers are included, and the packaged SQLite module passed an in-memory query under Electron 31.7.7 / ABI 125.
+- Package, lockfile and citation versions agree; citation release date is 18 October 2026. Offline Help, user guide, application reference, README, changelogs and release notes cover the latest features.
+- Refreshed and validated the fictional demo kit and its included report. No real participant data is included.
+- GitHub release configuration builds Windows x64, macOS Intel/Apple Silicon and Linux x64 AppImage/deb packages from the v1.8.5 tag. Linux desktop compatibility still needs broader validation.
+- Manual figure edits preserve calculation/source metadata. Regenerate older chord figures to apply new geometry. Announcement permissions reset when a member reconnects; session-only notices are not saved in project files.
+
+Local installer: `release/eQc-Setup-1.8.5.exe` (114,478,795 bytes).
+SHA-256: `7D59D99D8AE2F1CC4927621690C92A8B9B18FA35AD759601C30B1994E82BBECB`.
+
+## Previous release review — v1.8.4 (17 October 2026)
 
 ## v1.8.4 release checks
 

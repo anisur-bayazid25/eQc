@@ -20,3 +20,16 @@ test('cloud updates retain individual styles and remap connectors by word rather
 });
 
 test('invalid word-analysis locales give an actionable message before stop-word normalization',()=>{assert.throws(()=>wordFrequencies('water',{language:'!',minLetters:3,stopWords:'the,and'}),/valid language locale/);});
+
+
+test('word clouds use only selected direct codes and documents, merging shared ranges and coder duplicates',()=>{
+ const {cloudSource}=require('../src/lib/wordCloud.ts');
+ const p={...data,docs:[{id:'d0',content:'cocoa cocoa.'},{id:'d1',content:'apple apple. banana banana. cherry cherry.'}],codes:[{id:'a',name:'Fruit'},{id:'b',name:'Banana',parentId:'a'},{id:'c',name:'Other'}],codedSegments:[{codeId:'c',docId:'d0',start:0,end:12},{codeId:'a',docId:'d1',start:0,end:12,coder:'A'},{codeId:'a',docId:'d1',start:0,end:12,coder:'B'},{codeId:'b',docId:'d1',start:0,end:12},{codeId:'b',docId:'d1',start:13,end:27},{codeId:'c',docId:'d1',start:28,end:42}]};
+ const o={...options,docIds:['d0','d1'],textScope:'coded',codeIds:['a']},before=JSON.stringify(p);
+ assert.equal(cloudSource(p,o).trim(),'apple apple.');
+ assert.equal(cloudSource(p,{...o,codeIds:['a','b']}).trim(),'apple apple.\nbanana banana.');
+ assert.equal(cloudSource(p,{...o,codeIds:[]}).trim(),'');
+ assert.equal(cloudSource(p,{...o,docIds:['d0']}).trim(),'');
+ assert.equal(cloudSource(p,{...o,textScope:'documents'}),'cocoa cocoa.\napple apple. banana banana. cherry cherry.');
+ assert.equal(JSON.stringify(p),before);
+});

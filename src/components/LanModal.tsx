@@ -14,12 +14,13 @@ interface Props {
   onJoin: (host: LanHostInfo, password: string) => Promise<void>;
   onDisconnect: () => Promise<void>;
   onKickClient: (clientId: string) => void;
+  onAnnouncementPermission:(clientId:string,allowed:boolean)=>Promise<void>;
   onClose: () => void;
 }
 
 export default function LanModal({
   session, hosts, sync, joining, myName, initialTab,
-  onMyNameChange, onStartHost, onStopHost, onJoin, onDisconnect, onKickClient, onClose
+  onMyNameChange, onStartHost, onStopHost, onJoin, onDisconnect, onKickClient, onAnnouncementPermission, onClose
 }: Props) {
   const [tab, setTab] = useState<'host' | 'join'>(initialTab === 'join' ? 'join' : 'host');
   const [requirePassword, setRequirePassword] = useState(true);
@@ -102,6 +103,7 @@ export default function LanModal({
           </button>
         </div>
 
+        <p style={{fontSize:12,color:'#475569'}}>Use 📣 beside Profile for announcements. The host can allow individual participants to post. Notices can be saved with the project or kept for this session only.</p>
         {tab === 'host' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div>
@@ -148,6 +150,7 @@ export default function LanModal({
                   {session.coders.map((c, i) => (
                     <span key={i} style={{ display: 'inline-block', backgroundColor: '#bbf7d0', color: '#14532d', borderRadius: 10, padding: '2px 8px', margin: '2px 4px 0 0' }}>
                       {c.source === 'host' ? '🖥️' : '👤'} {c.coderName}
+                      {c.source === 'client' && c.clientId && <label style={{display:'block',fontSize:12}}><input type="checkbox" aria-label={'Allow announcements for '+c.coderName} checked={!!c.canAnnounce} onChange={e=>void onAnnouncementPermission(c.clientId!,e.target.checked)}/>Allow announcements</label>}
                       {c.source === 'client' && c.clientId && (
                         <button
                           title={`Disconnect ${c.coderName}`}

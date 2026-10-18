@@ -1732,9 +1732,9 @@
   ],
   "mapDrafts": [
     {
-      "id": "mapdraft_mvb4gziy_hjj0hda",
+      "id": "mapdraft_mvddfuq4_zyjbvqg",
       "name": "Histomap — uneven event phases (Amina)",
-      "updatedAt": 1792164501466,
+      "updatedAt": 1792300497484,
       "nodes": [
         {
           "id": "demo_code_hazard",
@@ -2746,6 +2746,7 @@
           "bold": false
         }
       ],
+      "notes": [],
       "edges": [],
       "hiddenIds": [
         "demo_code_hazard",
@@ -2780,7 +2781,7 @@
         "height": 1050,
         "maxLinks": 0,
         "rootIds": [],
-        "generatedAt": 1792164501465,
+        "generatedAt": 1792300497482,
         "description": "Band widths = share of displayed code assignments within each period. Identical code/document/range assignments across coders count once; multi-coded passages contribute to each displayed code. Direct codes only. 0 unassigned passages excluded.",
         "options": {
           "title": "Fictional climate recovery: coded evidence",
@@ -2851,9 +2852,9 @@
       }
     },
     {
-      "id": "mapdraft_mvb4gzj1_4wo9idh",
+      "id": "mapdraft_mvddfuq5_rjbqi9b",
       "name": "Dendrogram — four fictional interviews (Amina)",
-      "updatedAt": 1792164501469,
+      "updatedAt": 1792300497485,
       "nodes": [
         {
           "id": "demo_code_hazard",
@@ -3446,6 +3447,7 @@
           "bold": false
         }
       ],
+      "notes": [],
       "edges": [],
       "hiddenIds": [
         "demo_code_hazard",
@@ -3480,7 +3482,7 @@
         "height": 850,
         "maxLinks": 0,
         "rootIds": [],
-        "generatedAt": 1792164501466,
+        "generatedAt": 1792300497484,
         "description": "Average-linkage clustering of 4 documents using Jaccard distance on direct code presence. 4 documents; 24 codes; coder Amina. Empty items excluded: 0. Equal joining distances are ties, not statistical confidence.",
         "options": {
           "title": "Fictional interviews: similarity of coding",

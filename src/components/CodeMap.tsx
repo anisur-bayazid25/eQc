@@ -1,3 +1,4 @@
+import {useMapLineEditing,LinePoints} from './useMapLineEditing';
 import VisualizationNotes from './VisualizationNotes';
 import CloudStopWords from './CloudStopWords';
 import HeatmapDisplay from './HeatmapDisplay';
@@ -230,7 +231,7 @@ function CodeMap({
   useEffect(()=>{if(noteTarget)setShowNotes(true);},[noteTarget]);
   const isCodeMap=!mapDesign?.family||mapDesign.family==='code-map';
   const hasCodeTools=isCodeMap||['mind-map','hierarchy','manual'].includes(mapDesign?.family||'');
-  const annotations=useMemo(()=>sourceAnnotations.map(a=>a.flow?{...a,...flowGeometry(a.flow,sourceAnnotations,Number(mapDesign?.options?.sankeyCurvature)||.5)}:a.flowNodeLabel?{...a,...flowLabelGeometry(a,sourceAnnotations)}:a),[sourceAnnotations,mapDesign?.options?.sankeyCurvature]);
+  const annotations=useMemo(()=>sourceAnnotations.map(a=>a.flow&&!a.flowManual?{...a,...flowGeometry(a.flow,sourceAnnotations,Number(mapDesign?.options?.sankeyCurvature)||.5)}:a.flowNodeLabel?{...a,...flowLabelGeometry(a,sourceAnnotations)}:a),[sourceAnnotations,mapDesign?.options?.sankeyCurvature]);
   const basePalette=[...mapPalettes,...customMapPalettes].find(p=>p.id===mapDesign?.paletteId);
   const palette=basePalette?reversedPalette(basePalette,!!mapDesign?.paletteInverted):undefined;
   const mapColors=palette?{hierarchy:palette.colors[0],cooccurrence:palette.colors[1],custom:palette.colors[2]}:DEFAULT_COLORS;
@@ -608,6 +609,7 @@ function CodeMap({
   // subtrees drop out (and re-appear) with the nodes.
   const edges = useMemo<EdgeRef[]>(() => {
     const refs: EdgeRef[] = [];
+    if(mapDesign?.hubId)for(const id of mapDesign.rootIds)if(visibleIds.has(id))refs.push({key:`topic:${mapDesign.hubId}:${id}`,kind:'hierarchy',fromId:mapDesign.hubId,toId:id});
     for (const c of visibleCodes) {
       if (!c.parentId || !visibleIds.has(c.parentId)) continue;
       refs.push({ key: `hierarchy:${c.parentId}:${c.id}`, kind: 'hierarchy', fromId: c.parentId, toId: c.id });
@@ -653,6 +655,23 @@ function CodeMap({
     [edges, selectedKey]
   );
 
+  const lineEdit=useMapLineEditing(zoom,canvas.w,canvas.h,(key,points)=>{
+    if(key.startsWith('annotation:')){const id=key.slice(11);onUpdateAnnotations(annotations.map(a=>a.id===id?{...a,x:points.start.x,y:points.start.y,x2:points.end.x,y2:points.end.y,fromAnnotationId:undefined,toAnnotationId:undefined}:a));}
+    else {const edge=edges.find(e=>e.key===key);if(edge)commitStyle(edge,{...derivedEdgeDefaults(edge),lineStart:points.start,lineEnd:points.end});}
+  });
+  function edgePosition(id:string){const annotation=annotations.find(a=>a.id===id);if(annotation){const live=annoLiveOffset?.id===id?annoLiveOffset:null;return{x:(live?.x??annotation.x)+(annotation.width||0)/2,y:(live?.y??annotation.y)+(annotation.height||0)/2};}return positions.get(id);}
+  function edgeEndpoints(edge:EdgeRef):LinePoints|null{
+    const from=edgePosition(edge.fromId),to=edgePosition(edge.toId);if(!from||!to)return null;
+    const live=lineEdit.live?.key===edge.key?lineEdit.live:null,fromCode=codes.find(c=>c.id===edge.fromId),toCode=codes.find(c=>c.id===edge.toId);
+    return {start:live?.start||edge.style?.lineStart||ellipseEndpoint(from,to,annotations.find(a=>a.id===edge.fromId)?.width||fromCode?.mapAppearance?.width||radiusFor(edge.fromId,false)*2,annotations.find(a=>a.id===edge.fromId)?.height||fromCode?.mapAppearance?.height||radiusFor(edge.fromId,false)*2),end:live?.end||edge.style?.lineEnd||ellipseEndpoint(to,from,toCode?.mapAppearance?.width||radiusFor(edge.toId,false)*2,toCode?.mapAppearance?.height||radiusFor(edge.toId,false)*2)};
+  }
+  function annotationEndpoints(a:MapAnnotation):LinePoints{
+    if(lineEdit.live?.key==='annotation:'+a.id)return lineEdit.live;
+    const from=annotations.find(n=>n.id===a.fromAnnotationId),to=annotations.find(n=>n.id===a.toAnnotationId);
+    const endpoint=(node:MapAnnotation,other:MapAnnotation)=>{const center={x:node.x+(node.width||0)/2,y:node.y+(node.height||0)/2},target={x:other.x+(other.width||0)/2,y:other.y+(other.height||0)/2};if(node.shapeType==='network-text')return center;if(node.kind==='circle')return ellipseEndpoint(center,target,node.width||100,node.height||100);const dx=target.x-center.x,dy=target.y-center.y,ratio=Math.max(Math.abs(dx)/((node.width||100)/2),Math.abs(dy)/((node.height||100)/2));return ratio>1?{x:center.x+dx/ratio,y:center.y+dy/ratio}:center;};
+    return from&&to?{start:endpoint(from,to),end:endpoint(to,from)}:{start:{x:a.x,y:a.y},end:{x:a.x2??a.x,y:a.y2??a.y}};
+  }
+  function lineHandles(key:string,points:LinePoints){return <g data-map-edit-outline>{(['start','end'] as const).map(part=><circle key={part} data-map-line-handle={part} cx={points[part].x} cy={points[part].y} r={6/zoom} fill="white" stroke="#2563eb" strokeWidth={1.5/zoom} style={{cursor:'move'}} onMouseDown={event=>lineEdit.begin(event,key,points,part)} onClick={event=>event.stopPropagation()}/>)}</g>;}
   function edgePath(from: { x: number; y: number }, to: { x: number; y: number }, curved: boolean): string {
     if (!curved) {
       return `M ${from.x} ${from.y} L ${to.x} ${to.y}`;
@@ -722,9 +741,10 @@ function CodeMap({
     const isCooc = edge.kind === 'cooccurrence';
     return {
       lineStyle: 'solid',
-      curve: 'straight',
+      curve: edge.fromId===mapDesign?.hubId?'curved':'straight',
+      color:edge.fromId===mapDesign?.hubId?codes.find(c=>c.id===edge.toId)?.mapAppearance?.stroke||codes.find(c=>c.id===edge.toId)?.color:undefined,
       arrow: 'none',
-      width: isCooc ? weightFor(`${edge.fromId}::${edge.toId}`) : edge.kind === 'custom' ? 2.5 : 2
+      width: edge.fromId===mapDesign?.hubId?4:isCooc ? weightFor(`${edge.fromId}::${edge.toId}`) : edge.kind === 'custom' ? 2.5 : 2
     };
   }
 
@@ -936,7 +956,7 @@ function CodeMap({
     function onUp() {
       const patch = liveAnnoPatchRef.current;
       if (patch) {
-        onUpdateAnnotations(annotations.map(a => (a.id === active.id ? { ...a, ...patch } : a)));
+        onUpdateAnnotations(annotations.map(a => (a.id === active.id ? { ...a, ...patch, ...(active.orig.flow?{flowManual:true}:{}), ...(active.orig.flowNodeLabel?{flowLabelPlacement:'free' as const}:{}) } : a)));
       }
       liveAnnoPatchRef.current = null;
       setAnnoLiveOffset(null);
@@ -997,7 +1017,7 @@ function CodeMap({
   function textBox(kind:'code'|'annotation'|'edge',id:string){
     if(kind==='code'){const code=codes.find(c=>c.id===id),pos=positions.get(id);if(!code||!pos)return null;const width=code.mapAppearance?.width||180,height=code.mapAppearance?.height||80;return {x:pos.x-width/2,y:code.mapShape==='ellipse'?pos.y-height/2:pos.y+radiusFor(id,false)+2,width,height};}
     if(kind==='annotation'){const anno=annotations.find(a=>a.id===id);if(!anno)return null;return {x:anno.x,y:anno.width?anno.y:anno.y-(anno.fontSize||14),width:anno.width||250,height:anno.height||90};}
-    const edge=edges.find(e=>e.key===id);if(!edge)return null;const from=positions.get(edge.fromId),to=positions.get(edge.toId);if(!from||!to)return null;const width=edge.style?.labelWidth||250,height=edge.style?.labelHeight||70;return {x:(from.x+to.x)/2+(edge.style?.labelDx||0)-width/2,y:(from.y+to.y)/2-6+(edge.style?.labelDy||0)-height/2,width,height};
+    const edge=edges.find(e=>e.key===id);if(!edge)return null;const points=edgeEndpoints(edge);if(!points)return null;const from=points.start,to=points.end;const width=edge.style?.labelWidth||250,height=edge.style?.labelHeight||70;return {x:(from.x+to.x)/2+(edge.style?.labelDx||0)-width/2,y:(from.y+to.y)/2-6+(edge.style?.labelDy||0)-height/2,width,height};
   }
   useEffect(()=>{
     if(!resizeDrag)return;const drag=resizeDrag;
@@ -1007,8 +1027,8 @@ function CodeMap({
       const live={kind:drag.kind,id:drag.id,x:left,y:top,width:right-left,height:bottom-top};resizeLiveRef.current=live;setResizeLive(live);};
     const up=()=>{const box=resizeLiveRef.current;if(box){
       if(box.kind==='code'){const code=codes.find(c=>c.id===box.id);if(code){const appearance=code.mapAppearance||{fill:code.color,stroke:code.color,width:180,height:80,fontSize:16};onUpdateCode(box.id,{mapAppearance:{...appearance,width:box.width,height:box.height},mapPosition:{x:box.x+box.width/2,y:code.mapShape==='ellipse'?box.y+box.height/2:box.y-radiusFor(code.id,false)-2}});}}
-      else if(box.kind==='annotation')onUpdateAnnotations(annotations.map(a=>a.id===box.id?{...a,x:box.x,y:box.y,width:box.width,height:box.height}:a));
-      else {const edge=edges.find(e=>e.key===box.id);if(edge){const from=positions.get(edge.fromId),to=positions.get(edge.toId);if(from&&to)commitStyle(edge,{labelWidth:box.width,labelHeight:box.height,labelDx:box.x+box.width/2-(from.x+to.x)/2,labelDy:box.y+box.height/2-((from.y+to.y)/2-6)});}}
+      else if(box.kind==='annotation')onUpdateAnnotations(annotations.map(a=>a.id===box.id?{...a,x:box.x,y:box.y,width:box.width,height:box.height,...(a.flow?{flowManual:true}:{}),...(a.flowNodeLabel?{flowLabelPlacement:'free' as const}:{})}:a));
+      else {const edge=edges.find(e=>e.key===box.id);if(edge){const points=edgeEndpoints(edge);const from=points?.start,to=points?.end;if(from&&to)commitStyle(edge,{labelWidth:box.width,labelHeight:box.height,labelDx:box.x+box.width/2-(from.x+to.x)/2,labelDy:box.y+box.height/2-((from.y+to.y)/2-6)});}}
     }resizeLiveRef.current=null;setResizeLive(null);setResizeDrag(null);};
     window.addEventListener('mousemove',move);window.addEventListener('mouseup',up);return()=>{window.removeEventListener('mousemove',move);window.removeEventListener('mouseup',up);};
   },[resizeDrag]);
@@ -1081,7 +1101,7 @@ function CodeMap({
     const el = svgRef.current;
     if (!el) return { xml: null, width: canvas.w, height: canvas.h };
     const clone = el.cloneNode(true) as SVGSVGElement;
-    clone.querySelectorAll('[data-map-editor],[data-map-edit-outline],[data-visualization-notes]').forEach(el=>el.remove());
+    clone.querySelectorAll('[data-map-editor],[data-map-edit-outline],[data-map-hit-target],[data-visualization-notes]').forEach(el=>el.remove());
     const w = Math.max(1, Math.round(canvas.w * scale));
     const h = Math.max(1, Math.round(canvas.h * scale));
     clone.setAttribute('width', physical?publicationWidthMm+'mm':String(w));
@@ -1215,10 +1235,11 @@ function CodeMap({
             const center=(node:MapAnnotation)=>({x:node.x+(node.width||0)/2,y:node.y+(node.height||0)/2});
             const endpoint=(node:MapAnnotation,other:MapAnnotation)=>{const a=center(node),b=center(other);if(node.shapeType==='network-text')return a;if(node.kind==='circle')return ellipseEndpoint(a,b,node.width||100,node.height||100);const dx=b.x-a.x,dy=b.y-a.y,ratio=Math.max(Math.abs(dx)/((node.width||100)/2),Math.abs(dy)/((node.height||100)/2));return ratio>1?{x:a.x+dx/ratio,y:a.y+dy/ratio}:a;};
             const start=from&&to?endpoint(from,to):null,end=from&&to?endpoint(to,from):null;
-            const ax = start?.x ?? live?.x ?? a.x;
-            const ay = start?.y ?? live?.y ?? a.y;
-            const ax2 = end?.x ?? live?.x2 ?? a.x2;
-            const ay2 = end?.y ?? live?.y2 ?? a.y2;
+            const liveLine=lineEdit.live?.key==='annotation:'+a.id?lineEdit.live:null;
+            const ax = liveLine?.start.x ?? start?.x ?? live?.x ?? a.x;
+            const ay = liveLine?.start.y ?? start?.y ?? live?.y ?? a.y;
+            const ax2 = liveLine?.end.x ?? end?.x ?? live?.x2 ?? a.x2;
+            const ay2 = liveLine?.end.y ?? end?.y ?? live?.y2 ?? a.y2;
             const curved=a.shapeType==='network-link-curved',midX=(ax+(ax2??ax))/2,midY=(ay+(ay2??ay))/2;
             const curveX=midX-((ay2??ay)-ay)*.16,curveY=midY+((ax2??ax)-ax)*.16;
             const arrowPath=curved?`M ${ax} ${ay} Q ${curveX} ${curveY} ${ax2??ax} ${ay2??ay}`:`M ${ax} ${ay} L ${ax2??ax} ${ay2??ay}`;
@@ -1230,7 +1251,7 @@ function CodeMap({
               setSelectedLegend(null);setSelectedAnnoId(a.id);
             };
             const startMove = (ev: React.MouseEvent) => {
-              if (ev.button !== 0 || annotateMode || a.flow) return;
+              if (ev.button !== 0 || annotateMode) return;
               ev.stopPropagation();
               annoMovedRef.current = false;
               labelLiveOffsetRef.current = null;
@@ -1240,7 +1261,7 @@ function CodeMap({
               <g
                 key={"annotation:"+a.id} transform={selection.transformFor("annotation:"+a.id)} data-map-annotation={a.id} onDoubleClick={event=>{event.stopPropagation();setSelectedMapCodeId(null);setSelectedKey(null);setSelectedLegend(null);setSelectedAnnoId(a.id);beginInline('annotation',a.id);}}
                 stroke={a.shapeType==='network-text'?'white':undefined} strokeWidth={a.shapeType==='network-text'?5:undefined} paintOrder="stroke"
-                onMouseDown={startMove}
+                onMouseDown={event=>{if(a.kind==='arrow'){setSelectedAnnoId(a.id);setSelectedKey(null);setSelectedMapCodeId(null);lineEdit.begin(event,'annotation:'+a.id,{start:{x:ax,y:ay},end:{x:ax2??ax,y:ay2??ay}},'line');}else startMove(event);}}
                 onClick={select}
                 style={{ cursor: annoDragMove?.id === a.id ? 'grabbing' : 'grab' }}
               >
@@ -1266,17 +1287,17 @@ function CodeMap({
                 )}
                 {a.kind === 'arrow' && (
                   <>
-                  {a.coocPair&&<path d={arrowPath} fill="none" stroke="transparent" strokeWidth={Math.max(16,sw)} pointerEvents="stroke"/>}
+                  {<path d={arrowPath} fill="none" stroke="transparent" strokeWidth={Math.max(12/zoom,sw)} pointerEvents="stroke"/>}
                   <path
                     d={arrowPath}
-                    fill={a.kind==='arrow'?'none':a.fill||'none'} stroke={a.color} data-export-stroke-width={baseStroke} strokeWidth={sw} strokeDasharray={dash}
+                    fill={a.kind==='arrow'?'none':a.fill||'none'} stroke={a.color} opacity={a.fillOpacity??1} data-export-stroke-width={baseStroke} strokeWidth={sw} strokeDasharray={dash}
                     markerEnd={a.arrowHead===false?undefined:'url(#arrow-end)'}
                   />
                   </>
                 )}
-                {a.kind==='text'&&<>{(a.flowNodeLabel||a.shapeType==='cooc-value')&&a.flowLabelPlacement!=='inside'&&<rect x={ax-5} y={ay-3} width={(a.width||250)+10} height={(a.height||70)+6} fill="white" fillOpacity={.88} pointerEvents="none"/>}
+                {a.kind==='text'&&<>{!a.id.startsWith('suggested:cloud:word:')&&<rect data-map-hit-target x={ax} y={ay} width={a.width||250} height={a.height||70} fill="transparent" pointerEvents="all"/>}{(a.fill||((a.flowNodeLabel||a.shapeType==='cooc-value')&&a.flowLabelPlacement!=='inside'))&&<rect data-map-label-background x={ax-5} y={ay-3} width={(a.width||250)+10} height={(a.height||70)+6} fill={a.fill||'white'} fillOpacity={a.fillOpacity??(a.fill?1:.88)} pointerEvents="all"/>}
                   {(selected||!a.text)&&<rect x={ax-4} y={a.width?ay-4:ay-(a.fontSize||14)} width={a.width||250} height={a.height||60} fill="transparent" stroke={selected?'#2563eb':'#94a3b8'} strokeDasharray="5 3" data-map-edit-outline/>}
-                  {(a.flowNodeLabel||a.shapeType==='network-text'||a.shapeType==='cooc-value')?<MapLabel text={a.text||''} x={ax+(a.width||360)/2} y={ay+(a.height||70)/2} width={Math.abs(Math.sin((a.rotation||0)*Math.PI/180))>.7?(a.height||70):(a.width||360)} height={Math.abs(Math.sin((a.rotation||0)*Math.PI/180))>.7?(a.width||360):(a.height||70)} fontSize={a.fontSize||24} color={a.textColor||a.color} fontFamily={a.fontFamily} bold={a.bold!==false} italic={a.italic} underline={a.underline} rotation={a.rotation} writingMode={a.writingMode} textDirection={a.textDirection}/>: (()=>{const fitted=fitMapText(a.text||'',Math.max(20,(a.width||250)-8),Math.max(20,(a.height||90)-8),a.fontSize||14,a.fontFamily,a.bold!==false,a.italic);return <text transform={a.rotation?`rotate(${a.rotation} ${ax+(a.width||250)/2} ${ay+(a.height||90)/2})`:undefined} style={{writingMode:a.writingMode,direction:a.textDirection,unicodeBidi:'plaintext'}} x={ax} y={a.width?ay+fitted.fontSize:ay} fontFamily={a.fontFamily} fontSize={fitted.fontSize} fontWeight={a.bold===false?400:600} fontStyle={a.italic?'italic':undefined} textDecoration={a.underline?'underline':undefined} fill={a.textColor||a.color}>{fitted.lines.map((line,i)=><tspan key={i} x={ax} dy={i?fitted.fontSize*1.16:0}>{line}</tspan>)}</text>;})()}
+                  {(a.flowNodeLabel||a.shapeType==='network-text'||a.shapeType==='cooc-value')?<MapLabel text={a.text||''} x={ax+(a.width||360)/2} y={ay+(a.height||70)/2} width={Math.abs(Math.sin((a.rotation||0)*Math.PI/180))>.7?(a.height||70):(a.width||360)} height={Math.abs(Math.sin((a.rotation||0)*Math.PI/180))>.7?(a.width||360):(a.height||70)} fontSize={a.fontSize||24} color={a.textColor||a.color} fontFamily={a.fontFamily} bold={a.bold!==false} italic={a.italic} underline={a.underline} rotation={a.rotation} writingMode={a.writingMode} textDirection={a.textDirection}/>: (()=>{const fitted=fitMapText(a.text||'',Math.max(20,(a.width||250)-8),Math.max(20,(a.height||90)-8),a.fontSize||14,a.fontFamily,a.bold!==false,a.italic);const chordLabel=a.shapeType?.startsWith('chord-label-'),textX=a.shapeType==='chord-label-left'?ax+(a.width||250):ax,textY=chordLabel?ay+(a.height||90)/2-(fitted.lines.length-1)*fitted.fontSize*.58:undefined;return <text textAnchor={a.shapeType==='chord-label-left'?'end':undefined} dominantBaseline={chordLabel?'middle':undefined} transform={a.rotation?`rotate(${a.rotation} ${ax+(a.width||250)/2} ${ay+(a.height||90)/2})`:undefined} style={{writingMode:a.writingMode,direction:a.textDirection,unicodeBidi:'plaintext'}} x={textX} y={textY??(a.width?ay+fitted.fontSize:ay)} fontFamily={a.fontFamily} fontSize={fitted.fontSize} fontWeight={a.bold===false?400:600} fontStyle={a.italic?'italic':undefined} textDecoration={a.underline?'underline':undefined} fill={a.textColor||a.color}>{fitted.lines.map((line,i)=><tspan key={i} x={textX} dy={i?fitted.fontSize*1.16:0}>{line}</tspan>)}</text>;})()}
                 </>}
                 {a.text && a.labelInside && <MapLabel text={a.text} x={ax+(a.width||0)/2} y={ay+(a.height||0)*(a.polygonPoints?.length===6&&a.polygonPoints[0]===.5?.72:.5)} fontSize={a.fontSize||20} max={21} width={(a.width||250)*(a.polygonPoints?.[0]===.5?.5:.78)} height={(a.height||120)*(a.polygonPoints?.length===6&&a.polygonPoints[0]===.5?.35:.72)} color={a.textColor||a.color} fontFamily={a.fontFamily} bold={a.bold!==false} italic={a.italic} underline={a.underline} rotation={a.rotation} writingMode={a.writingMode} textDirection={a.textDirection}/>}
                 {a.text && !a.labelInside && a.kind !== 'text' && (
@@ -1564,7 +1585,7 @@ function CodeMap({
         >
           {drawMode ? 'Cancel draw' : 'Draw code connection'}
         </button>
-{selectedEdge && (<><label>Line colour<MapColorPicker label="Map relationship colour" value={selectedEdge.style?.color||mapColors[selectedEdge.kind]} onChange={color=>commitStyle(selectedEdge,{color})}/></label>
+{selectedEdge && (<>{(selectedEdge.style?.lineStart||selectedEdge.style?.lineEnd)&&<button onClick={()=>commitStyle(selectedEdge,{lineStart:undefined,lineEnd:undefined})}>Reset line position</button>}<label>Line colour<MapColorPicker label="Map relationship colour" value={selectedEdge.style?.color||derivedEdgeDefaults(selectedEdge).color||mapColors[selectedEdge.kind]} onChange={color=>commitStyle(selectedEdge,{color})}/></label>
         <div className="sort-row" style={{ gap: '8px', marginBottom: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
           <span style={{ fontSize: '12px', fontWeight: 600 }}>
             {selectedEdge.kind === 'custom'
@@ -1584,7 +1605,7 @@ function CodeMap({
           </select>
 
           <select
-            value={selectedEdge.style?.curve || 'straight'}
+            value={selectedEdge.style?.curve || derivedEdgeDefaults(selectedEdge).curve || 'straight'}
             onChange={e => commitStyle(selectedEdge, { curve: e.target.value as any })}
             style={{ fontSize: '12px', padding: '2px 4px' }}
           >
@@ -1609,7 +1630,7 @@ function CodeMap({
               min={MIN_EDGE_W}
               max={MAX_EDGE_W}
               step={0.5}
-              value={selectedEdge.style?.width ?? (selectedEdge.kind === 'cooccurrence' ? weightFor(`${selectedEdge.fromId}::${selectedEdge.toId}`) : selectedEdge.kind === 'custom' ? 2.5 : 2)}
+              value={selectedEdge.style?.width ?? (selectedEdge.fromId===mapDesign?.hubId?4:selectedEdge.kind === 'cooccurrence' ? weightFor(`${selectedEdge.fromId}::${selectedEdge.toId}`) : selectedEdge.kind === 'custom' ? 2.5 : 2)}
               onChange={e => commitStyle(selectedEdge, { width: Number(e.target.value) })}
               style={{ width: '70px', verticalAlign: 'middle' }}
               title="Line width — set manually to override the automatic co-occurrence weight scale"
@@ -1666,7 +1687,7 @@ function CodeMap({
         <ToolMenu label="Help">
           <strong>{visualizationTypes.find(t=>t.id===mapDesign?.family)?.name||'Code map'} help</strong>
           {visualizationHelp[mapDesign?.family||'code-map'].map((text,index)=><p key={index}>{text}</p>)}
-          <p>Double-click text to edit in place. Use Text for formatting, Draw for shapes and text boxes, and Arrange to align, group or resize selected objects.</p>
+          <p>Double-click text or a number label to edit it. The Inspector controls text and label background colour/opacity. Select a line and drag it to move it, or drag either endpoint to change its length and direction. Use Link for relationship styles, Draw for shapes and text boxes, and Arrange for alignment and grouping. Manual edits change the figure, not calculated counts or source coding.</p>
           <p>Fit shows the whole canvas and follows window resizing. Zoom in for detail; canvas size and export resolution are independent of screen zoom.</p>
         </ToolMenu>
         {drawMode && <span className="map-mode">Drawing edge</span>}
@@ -1681,7 +1702,10 @@ function CodeMap({
       <div className="map-format-strip">{textEditorOpen&&(()=>{const node=codes.find(c=>c.id===selectedMapCodeId);if(selectedLegend&&showLegend)return <MapTextEditor label={selectedLegend==='title'?'Legend title':'Legend entry'} style={{fontSize:14,...legendSettings,...legendSettings.styles?.[selectedLegend]}} onEdit={()=>setLegendEditRequest(n=>n+1)} onStyle={patch=>setLegendSettings(v=>selectedLegend==='title'?{...v,...patch}:{...v,styles:{...v.styles,[selectedLegend]:{...v.styles?.[selectedLegend],...patch}}})} onDelete={()=>{if(selectedLegend==='title')setShowLegend(false);else setLegendSettings(v=>({...v,hidden:[...(v.hidden||[]),selectedLegend]}));setSelectedLegend(null);}}/>;if(selectedAnno)return <MapTextEditor key={'annotation:'+selectedAnno.id} label="Annotation / topic text" text={selectedAnno.text||''} style={{...selectedAnno,fontSize:(cloudSizing?.id===selectedAnno.id?cloudSizing.size:selectedAnno.fontSize)||(selectedAnno.labelInside?20:14),textColor:selectedAnno.textColor||selectedAnno.color}} onEdit={()=>beginInline('annotation',selectedAnno.id)} onStyle={patch=>updateSelectedAnno(selectedAnno.kind==='text'&&patch.textColor?{...patch,color:patch.textColor}:patch)} onDelete={()=>{onUpdateAnnotations(annotations.filter(a=>a.id!==selectedAnno.id&&a.fromAnnotationId!==selectedAnno.id&&a.toAnnotationId!==selectedAnno.id));setSelectedAnnoId(null);}}/>;if(selectedEdge)return <MapTextEditor key={'edge:'+selectedEdge.key} label="Relationship label" text={selectedEdge.style?.label||''} style={{fontFamily:selectedEdge.style?.labelFontFamily,fontSize:selectedEdge.style?.labelFontSize||12,rotation:selectedEdge.style?.labelRotation,writingMode:selectedEdge.style?.labelWritingMode,textDirection:selectedEdge.style?.labelTextDirection,textColor:selectedEdge.style?.labelColor||'#334155',bold:selectedEdge.style?.labelBold,italic:selectedEdge.style?.labelItalic,underline:selectedEdge.style?.labelUnderline}} onEdit={()=>beginInline('edge',selectedEdge.key)} onStyle={patch=>commitStyle(selectedEdge,{...(patch.rotation!==undefined?{labelRotation:patch.rotation}:{}),...(patch.writingMode!==undefined?{labelWritingMode:patch.writingMode}:{}),...(patch.textDirection!==undefined?{labelTextDirection:patch.textDirection}:{}),...(patch.fontFamily!==undefined?{labelFontFamily:patch.fontFamily}:{}),...(patch.fontSize!==undefined?{labelFontSize:patch.fontSize}:{}),...(patch.textColor!==undefined?{labelColor:patch.textColor}:{}),...(patch.bold!==undefined?{labelBold:patch.bold}:{}),...(patch.italic!==undefined?{labelItalic:patch.italic}:{}),...(patch.underline!==undefined?{labelUnderline:patch.underline}:{})})}/>;if(node){const appearance=node.mapAppearance||{fill:node.color,stroke:node.color,width:180,height:80,fontSize:16};return <MapTextEditor key={'code:'+node.id} label={'Code label — '+node.name} text={node.mapLabel??node.name} style={appearance} onEdit={()=>beginInline('code',node.id)} onStyle={patch=>onUpdateCode(node.id,{mapAppearance:{...appearance,...patch}})} onRename={()=>beginInline('rename',node.id)}/>;}return <p className="map-text-hint">Double-click a label to edit it in place. Select an item for formatting.</p>;})()}
       </div>
       <div className="visualization-detail-strip">{selectedAnno?.flowNodeLabel&&<section aria-label="Sankey label placement"><strong>Node label placement</strong><label>Position<select aria-label="Sankey label position" value={selectedAnno.flowLabelPlacement||'free'} onChange={e=>updateSelectedAnno({flowLabelPlacement:e.target.value as MapAnnotation['flowLabelPlacement'],...(e.target.value==='inside'?{flowLabelDistance:2}:{})})}><option value="free">Free position</option><option value="inside">Inside bar</option><option value="outside-right">Outside right</option><option value="outside-left">Outside left</option><option value="above">Above bar</option><option value="below">Below bar</option></select></label><label>{selectedAnno.flowLabelPlacement==='inside'?'Inner padding':'Distance from boundary'}<input aria-label="Sankey label boundary distance" type="number" min={0} max={300} value={selectedAnno.flowLabelDistance??14} onChange={e=>updateSelectedAnno({flowLabelDistance:Math.max(0,Math.min(300,Number(e.target.value)||0))})}/></label><small>Anchored labels follow their bar. Text fits the available box; use Free position for manual placement.</small></section>}
-      {selectedAnno&&selectedAnno.kind!=='text'&&<div className="visualization-source-links">{selectedAnno.kind!=='arrow'&&<MapColorPicker label="Shape fill" value={selectedAnno.fill||'#ffffff'} onChange={fill=>updateSelectedAnno({fill})}/>}<MapColorPicker label="Shape border" value={selectedAnno.color} onChange={color=>updateSelectedAnno({color})}/><label>Opacity <input aria-label="Shape opacity" type="range" min={.1} max={1} step={.05} value={selectedAnno.fillOpacity??1} onChange={e=>updateSelectedAnno({fillOpacity:Number(e.target.value)})}/></label></div>}
+      {selectedAnno&&selectedAnno.kind!=='text'&&<div className="visualization-source-links">{selectedAnno.kind!=='arrow'&&<MapColorPicker label="Shape fill" value={selectedAnno.fill||'#ffffff'} onChange={fill=>updateSelectedAnno({fill})}/>}<MapColorPicker label={selectedAnno.kind==='arrow'?'Line colour':'Shape border'} value={selectedAnno.color} onChange={color=>updateSelectedAnno({color})}/><label>Opacity <input aria-label="Shape opacity" type="range" min={.1} max={1} step={.05} value={selectedAnno.fillOpacity??1} onChange={e=>updateSelectedAnno({fillOpacity:Number(e.target.value)})}/></label></div>}
+      {selectedAnno?.kind==='arrow'&&<section className="visualization-source-links" aria-label="Line appearance"><label>Line width <input aria-label="Graph line width" type="number" min={.5} max={30} step={.5} value={selectedAnno.strokeWidth??2} onChange={e=>updateSelectedAnno({strokeWidth:Math.max(.5,Math.min(30,Number(e.target.value)||2))})}/></label><label>Line style <select aria-label="Graph line style" value={selectedAnno.lineStyle} onChange={e=>updateSelectedAnno({lineStyle:e.target.value as MapAnnotation['lineStyle']})}><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></label><label>Curve <select aria-label="Graph line curve" value={selectedAnno.shapeType==='network-link-curved'?'curved':'straight'} onChange={e=>updateSelectedAnno({shapeType:e.target.value==='curved'?'network-link-curved':'line'})}><option value="straight">Straight</option><option value="curved">Curved</option></select></label><label><input type="checkbox" aria-label="Graph line arrowhead" checked={selectedAnno.arrowHead!==false} onChange={e=>updateSelectedAnno({arrowHead:e.target.checked})}/>Arrowhead</label><small>Drag the line to move it, or drag either endpoint to change its length and direction.</small></section>}
+      {selectedAnno?.kind==='text'&&<section className="visualization-source-links" aria-label="Label background"><strong>Label background</strong><MapColorPicker label="Label background colour" value={selectedAnno.fill||'#ffffff'} onChange={fill=>updateSelectedAnno({fill,fillOpacity:selectedAnno.fillOpacity??((selectedAnno.flowNodeLabel||selectedAnno.shapeType==='cooc-value')?.88:1)})}/><label>Opacity <input aria-label="Label background opacity" type="range" min={0} max={1} step={.05} value={selectedAnno.fillOpacity??(selectedAnno.fill?1:(selectedAnno.flowNodeLabel||selectedAnno.shapeType==='cooc-value')?.88:0)} onChange={e=>updateSelectedAnno({fill:selectedAnno.fill||'#ffffff',fillOpacity:Number(e.target.value)})}/></label></section>}
+      {selectedEdge&&<section className="visualization-source-links" aria-label="Relationship label background"><strong>Label background</strong><MapColorPicker label="Relationship label background colour" value={selectedEdge.style?.labelFill||'#ffffff'} onChange={labelFill=>commitStyle(selectedEdge,{labelFill})}/><label>Opacity <input aria-label="Relationship label background opacity" type="range" min={0} max={1} step={.05} value={selectedEdge.style?.labelFillOpacity??(selectedEdge.style?.labelFill?1:0)} onChange={e=>commitStyle(selectedEdge,{labelFill:selectedEdge.style?.labelFill||'#ffffff',labelFillOpacity:Number(e.target.value)})}/></label></section>}
       {selectedAnno?.coocPair&&<CooccurrenceEvidence annotation={selectedAnno} docs={docs} onOpenDocument={onOpenDocument}/>}
       {selectedAnno&&(selectedAnno.sourceDocIds?.length||selectedAnno.sourceCodeIds?.length)?<div className="visualization-source-links map-inspector-evidence"><strong>Sources:</strong>{selectedAnno.sourceDocIds?.map(id=>{const doc=docs.find(d=>d.id===id);return doc?<button key={id} onClick={()=>onOpenDocument?.(id)}>{doc.name}</button>:null;})}{selectedAnno.sourceCodeIds?.map(id=>{const code=codes.find(c=>c.id===id);return code?<button key={'code:'+id} onClick={()=>onOpenCode?.(id)}>{code.name}</button>:null;})}</div>:null}
       </div>
@@ -1793,20 +1817,15 @@ function CodeMap({
               code nodes. */}
           {annoPreview&&(()=>{const shape=drawingShapes.find(s=>s.id===annoDrag?.shape)||drawingShapes[0],a=drawingAnnotation(shape,annoPreview,'preview',mapColors.custom);return <g pointerEvents="none" opacity={.6}>{a.kind==='arrow'?<path d={`M ${a.x} ${a.y} L ${a.x2} ${a.y2}`} fill="none" stroke={a.color} strokeWidth={2} markerEnd={a.arrowHead?'url(#arrow-end)':undefined}/>:a.kind==='circle'?<ellipse cx={a.x+(a.width||0)/2} cy={a.y+(a.height||0)/2} rx={(a.width||0)/2} ry={(a.height||0)/2} fill={a.fill} stroke={a.color}/>:a.polygonPoints?<polygon points={Array.from({length:a.polygonPoints.length/2},(_,i)=>`${a.x+a.polygonPoints![i*2]*(a.width||0)},${a.y+a.polygonPoints![i*2+1]*(a.height||0)}`).join(' ')} fill={a.fill} stroke={a.color}/>:<rect x={a.x} y={a.y} width={a.width} height={a.height} rx={a.cornerRadius?Math.min(a.width||0,a.height||0)*a.cornerRadius:undefined} fill={a.fill||'none'} stroke={a.color}/>}</g>;})()}
 
-          {mapDesign?.hubId&&(()=>{const hub=annotations.find(a=>a.id===mapDesign.hubId);if(!hub)return null;const live=annoLiveOffset?.id===hub.id?annoLiveOffset:null;const center={x:(live?.x??hub.x)+(hub.width||0)/2,y:(live?.y??hub.y)+(hub.height||0)/2};return mapDesign.rootIds.filter(id=>visibleIds.has(id)).map(id=>{const pos=positions.get(id),code=codes.find(c=>c.id===id);if(!pos||!code)return null;const a=ellipseEndpoint(center,pos,hub.width||320,hub.height||210),b=ellipseEndpoint(pos,center,code.mapAppearance?.width||180,code.mapAppearance?.height||80);return <path key={id} data-topic-link={id} d={edgePath(a,b,true)} fill="none" stroke={code.mapAppearance?.stroke||code.color} strokeWidth={4} opacity={.8} pointerEvents="none"/>;});})()}
+
           {/* Edges */}
           {edges.map(e => {
-            const from = positions.get(e.fromId);
-            const to = positions.get(e.toId);
-            if (!from || !to) return null;
+            const endpoints=edgeEndpoints(e);if(!endpoints)return null;const a=endpoints.start,b=endpoints.end;
             const liveEdge=resizeLive?.kind==='edge'&&resizeLive.id===e.key?resizeLive:null;
-            const style=liveEdge?{...e.style,labelWidth:liveEdge.width,labelHeight:liveEdge.height,labelDx:liveEdge.x+liveEdge.width/2-(from.x+to.x)/2,labelDy:liveEdge.y+liveEdge.height/2-((from.y+to.y)/2-6)}:e.style;
+            const style=liveEdge?{...e.style,labelWidth:liveEdge.width,labelHeight:liveEdge.height,labelDx:liveEdge.x+liveEdge.width/2-(a.x+b.x)/2,labelDy:liveEdge.y+liveEdge.height/2-((a.y+b.y)/2-6)}:e.style;
             const isSelected = selectedKey === e.key;
-            const color = style?.color || mapColors[e.kind];
-            const fromCode=codes.find(c=>c.id===e.fromId),toCode=codes.find(c=>c.id===e.toId);
-            const a=ellipseEndpoint(from,to,fromCode?.mapAppearance?.width||radiusFor(e.fromId,false)*2,fromCode?.mapAppearance?.height||radiusFor(e.fromId,false)*2);
-            const b=ellipseEndpoint(to,from,toCode?.mapAppearance?.width||radiusFor(e.toId,false)*2,toCode?.mapAppearance?.height||radiusFor(e.toId,false)*2);
-            const d = edgePath(a, b, (style?.curve || 'straight') === 'curved');
+            const color = style?.color || (e.fromId===mapDesign?.hubId?(codes.find(c=>c.id===e.toId)?.mapAppearance?.stroke||codes.find(c=>c.id===e.toId)?.color):undefined) || mapColors[e.kind];
+            const d = edgePath(a, b, (style?.curve || (e.fromId===mapDesign?.hubId?'curved':'straight')) === 'curved');
             const dash =
               (style?.lineStyle || 'solid') === 'dashed' ? '8 5'
                 : (style?.lineStyle || 'solid') === 'dotted' ? '2 5' : undefined;
@@ -1819,17 +1838,17 @@ function CodeMap({
             const isCooc = e.kind === 'cooccurrence';
             const width = style?.width != null
               ? style.width
-              : isCooc ? weightFor(pairKey) : e.kind === 'custom' ? 2.5 : 2;
+              : e.fromId===mapDesign?.hubId?4:isCooc ? weightFor(pairKey) : e.kind === 'custom' ? 2.5 : 2;
             const opacity = isSelected ? 1 : (isCooc && style?.width == null ? opacityFor(pairKey) : 0.9);
             // While a label drag is in flight the live local offset wins over the
             // persisted one, so the label tracks the pointer without writing.
             const liveLabel = labelLiveOffset?.key === e.key ? labelLiveOffset : null;
             const labelPos = {
-              x: (from.x + to.x) / 2 + (liveLabel ? liveLabel.dx : (style?.labelDx || 0)),
-              y: (from.y + to.y) / 2 - 6 + (liveLabel ? liveLabel.dy : (style?.labelDy || 0))
+              x: (a.x + b.x) / 2 + (liveLabel ? liveLabel.dx : (style?.labelDx || 0)),
+              y: (a.y + b.y) / 2 - 6 + (liveLabel ? liveLabel.dy : (style?.labelDy || 0))
             };
             return (
-              <g key={e.key} onDoubleClick={event=>{event.stopPropagation();setSelectedLegend(null);setSelectedKey(e.key);beginInline('edge',e.key);}} data-map-edge={e.key} mask={e.kind==='cooccurrence'&&annotations.some(a=>a.id===mapDesign?.hubId)?'url(#map-topic-mask)':undefined}>
+              <g key={e.key} onDoubleClick={event=>{event.stopPropagation();setSelectedLegend(null);setSelectedKey(e.key);beginInline('edge',e.key);}} data-map-edge={e.key} data-topic-link={e.fromId===mapDesign?.hubId?e.toId:undefined} mask={e.kind==='cooccurrence'&&annotations.some(a=>a.id===mapDesign?.hubId)?'url(#map-topic-mask)':undefined}>
                 {isCooc && (
                   <title>{(sharedDocs.get(pairKey) || 1)} shared document{(sharedDocs.get(pairKey) || 1) === 1 ? '' : 's'}</title>
                 )}
@@ -1837,9 +1856,10 @@ function CodeMap({
                   d={d}
                   fill="none"
                   stroke="transparent"
-                  strokeWidth={16}
+                  strokeWidth={12/zoom}
                   pointerEvents="stroke"
-                  style={{ cursor: 'pointer' }}
+                  style={{ cursor: 'move' }}
+                  onMouseDown={event=>{setSelectedKey(e.key);setSelectedAnnoId(null);setSelectedMapCodeId(null);lineEdit.begin(event,e.key,endpoints,'line');}}
                   onClick={ev => { ev.stopPropagation(); setSelectedLegend(null);setSelectedKey(e.key); setSelectedAnnoId(null); }}
                 />
                 <path
@@ -1863,7 +1883,7 @@ function CodeMap({
                         startX: ev.clientX, startY: ev.clientY,
                         origDx: style?.labelDx || 0, origDy: style?.labelDy || 0
                       });
-                    }}><MapLabel text={style.label} x={labelPos.x} y={labelPos.y} fontSize={style.labelFontSize||12} width={style.labelWidth||250} height={style.labelHeight||70} color={style.labelColor||'#334155'} fontFamily={style.labelFontFamily} bold={style.labelBold!==false} italic={style.labelItalic} underline={style.labelUnderline} rotation={style.labelRotation} writingMode={style.labelWritingMode} textDirection={style.labelTextDirection}/></g>
+                    }}>{style.labelFill&&<rect x={labelPos.x-(style.labelWidth||250)/2} y={labelPos.y-(style.labelHeight||70)/2} width={style.labelWidth||250} height={style.labelHeight||70} fill={style.labelFill} fillOpacity={style.labelFillOpacity??1}/>}<MapLabel text={style.label} x={labelPos.x} y={labelPos.y} fontSize={style.labelFontSize||12} width={style.labelWidth||250} height={style.labelHeight||70} color={style.labelColor||'#334155'} fontFamily={style.labelFontFamily} bold={style.labelBold!==false} italic={style.labelItalic} underline={style.labelUnderline} rotation={style.labelRotation} writingMode={style.labelWritingMode} textDirection={style.labelTextDirection}/></g>
                 )}
               </g>
             );
@@ -1874,13 +1894,14 @@ function CodeMap({
           {showLegend&&<MapLegend entries={legendEntries} settings={legendSettings} position={legendPos} zoom={zoom} selected={selectedLegend} editRequest={legendEditRequest} onSelect={key=>{setSelectedLegend(key);setSelectedAnnoId(null);setSelectedKey(null);setSelectedMapCodeId(null);setTextEditorOpen(true);}} onSettings={setLegendSettings} onPosition={setLegendPos}/> }
           {showNotes&&onVisualizationNotes&&<VisualizationNotes notes={visualizationNotes} onChange={onVisualizationNotes} width={canvas.w} height={canvas.h}/>}
           {selection.overlay}
-          {selection.keys.length<2&&!selectedAnno?.flow&&!inlineEdit&&(()=>{const kind=selectedAnno?'annotation':selectedEdge?'edge':selectedMapCodeId?'code':null,id=selectedAnno?.id||selectedEdge?.key||selectedMapCodeId;if(!kind||!id)return null;const box=resizeLive?.id===id?resizeLive:textBox(kind,id);if(!box)return null;const size=8/zoom;return <g data-map-edit-outline><rect x={box.x} y={box.y} width={box.width} height={box.height} fill="none" stroke="#2563eb" strokeWidth={1/zoom} strokeDasharray={4/zoom+' '+3/zoom} pointerEvents="none"/>{[['nw',0,0],['n',.5,0],['ne',1,0],['e',1,.5],['se',1,1],['s',.5,1],['sw',0,1],['w',0,.5]].map(([handle,px,py])=><rect key={handle} data-map-resize={handle} x={box.x+Number(px)*box.width-size/2} y={box.y+Number(py)*box.height-size/2} width={size} height={size} fill="white" stroke="#2563eb" strokeWidth={1/zoom} style={{cursor:handle+'-resize'}} onMouseDown={event=>{event.preventDefault();event.stopPropagation();resizeLiveRef.current=null;setResizeDrag({kind,id,handle:String(handle),startX:event.clientX,startY:event.clientY,box});}} onClick={event=>event.stopPropagation()}/>)}</g>;})()}
+          {selection.keys.length<2&&!inlineEdit&&(selectedAnno?.kind==='arrow'?lineHandles('annotation:'+selectedAnno.id,annotationEndpoints(selectedAnno)):selectedEdge?lineHandles(selectedEdge.key,edgeEndpoints(selectedEdge)!):null)}
+          {selection.keys.length<2&&selectedAnno?.kind!=='arrow'&&(!selectedEdge||!!selectedEdge.style?.label)&&!inlineEdit&&(()=>{const kind=selectedAnno?'annotation':selectedEdge?'edge':selectedMapCodeId?'code':null,id=selectedAnno?.id||selectedEdge?.key||selectedMapCodeId;if(!kind||!id)return null;const box=resizeLive?.id===id?resizeLive:textBox(kind,id);if(!box)return null;const size=8/zoom;return <g data-map-edit-outline><rect x={box.x} y={box.y} width={box.width} height={box.height} fill="none" stroke="#2563eb" strokeWidth={1/zoom} strokeDasharray={4/zoom+' '+3/zoom} pointerEvents="none"/>{[['nw',0,0],['n',.5,0],['ne',1,0],['e',1,.5],['se',1,1],['s',.5,1],['sw',0,1],['w',0,.5]].map(([handle,px,py])=><rect key={handle} data-map-resize={handle} x={box.x+Number(px)*box.width-size/2} y={box.y+Number(py)*box.height-size/2} width={size} height={size} fill="white" stroke="#2563eb" strokeWidth={1/zoom} style={{cursor:handle+'-resize'}} onMouseDown={event=>{event.preventDefault();event.stopPropagation();resizeLiveRef.current=null;setResizeDrag({kind,id,handle:String(handle),startX:event.clientX,startY:event.clientY,box});}} onClick={event=>event.stopPropagation()}/>)}</g>;})()}
           {inlineEdit&&(()=>{
             const code=codes.find(c=>c.id===inlineEdit.id),anno=annotations.find(a=>a.id===inlineEdit.id),edge=edges.find(e=>e.key===inlineEdit.id);
             let x=0,y=0,width=250,height=90,style:React.CSSProperties={},align:'left'|'center'='left';
             if(inlineEdit.kind==='code'||inlineEdit.kind==='rename'){if(!code)return null;const pos=positions.get(code.id);if(!pos)return null;const a=code.mapAppearance;const ellipse=code.mapShape==='ellipse';width=a?.width||200;height=ellipse?a?.height||90:80;x=pos.x-width/2;y=ellipse?pos.y-height/2:pos.y+radiusFor(code.id,false)+2;align='center';style={fontFamily:a?.fontFamily,fontSize:a?.fontSize||16,color:a?.textColor||'#253047',fontWeight:a?.bold===false?400:600,fontStyle:a?.italic?'italic':undefined,textDecoration:a?.underline?'underline':undefined};}
             else if(inlineEdit.kind==='annotation'){if(!anno)return null;const inside=anno.labelInside;const font=anno.fontSize||(inside?20:14);width=anno.width||250;height=anno.height||90;x=anno.x;y=anno.width?anno.y:anno.y-font;if(inside)align='center';else if(anno.kind!=='text'){align='center';y=anno.kind==='arrow'?(anno.y+(anno.y2??anno.y))/2-6-height/2:anno.y-6-height/2;if(anno.kind==='arrow')x=(anno.x+(anno.x2??anno.x))/2-width/2;}style={fontFamily:anno.fontFamily,fontSize:font,color:anno.textColor||anno.color,fontWeight:anno.bold===false?400:600,fontStyle:anno.italic?'italic':undefined,textDecoration:anno.underline?'underline':undefined};}
-            else {if(!edge)return null;const from=positions.get(edge.fromId),to=positions.get(edge.toId);if(!from||!to)return null;x=(from.x+to.x)/2+(edge.style?.labelDx||0)-125;y=(from.y+to.y)/2+(edge.style?.labelDy||0)-30;align='center';style={fontFamily:edge.style?.labelFontFamily,fontSize:edge.style?.labelFontSize||12,color:edge.style?.labelColor||'#334155',fontWeight:edge.style?.labelBold===false?400:600,fontStyle:edge.style?.labelItalic?'italic':undefined,textDecoration:edge.style?.labelUnderline?'underline':undefined};}
+            else {if(!edge)return null;const points=edgeEndpoints(edge);if(!points)return null;const from=points.start,to=points.end;x=(from.x+to.x)/2+(edge.style?.labelDx||0)-125;y=(from.y+to.y)/2+(edge.style?.labelDy||0)-30;align='center';style={fontFamily:edge.style?.labelFontFamily,fontSize:edge.style?.labelFontSize||12,color:edge.style?.labelColor||'#334155',fontWeight:edge.style?.labelBold===false?400:600,fontStyle:edge.style?.labelItalic?'italic':undefined,textDecoration:edge.style?.labelUnderline?'underline':undefined};}
             return <foreignObject data-map-editor x={x} y={y} width={width} height={Math.max(50,height)} onMouseDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()} onDoubleClick={e=>e.stopPropagation()}><textarea autoFocus aria-label="Edit map text in place" value={inlineEdit.value} placeholder="Type here…" style={{...style,textAlign:align,width:'100%',height:'100%',boxSizing:'border-box',resize:'none',padding:8,lineHeight:1.16,background:'rgba(255,255,255,.96)',border:'2px solid #2563eb',borderRadius:4}} onChange={event=>{const next={...inlineEdit,value:event.target.value};inlineEditRef.current=next;setInlineEdit(next);}} onBlur={()=>endInline(true)} onKeyDown={event=>{event.stopPropagation();if(event.key==='Escape'){event.preventDefault();endInline(false);}else if((event.ctrlKey||event.metaKey)&&(event.key==='Enter'||event.key.toLowerCase()==='s')){event.preventDefault();endInline(true);}}}/></foreignObject>;
           })()}
         </svg>

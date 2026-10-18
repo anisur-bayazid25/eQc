@@ -21,6 +21,7 @@ repository-code: "https://github.com/anisur-bayazid25/eQc"
 url: "https://github.com/anisur-bayazid25/eQc"
 license: MIT
 version: 1.8.6
+doi: "10.5281/zenodo.23451327"
 date-released: "2026-10-18"
 keywords:
   - qualitative research

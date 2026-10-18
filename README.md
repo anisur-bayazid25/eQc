@@ -6,9 +6,14 @@
 
 **Version 1.8.6** · A local desktop app for qualitative research.
 
-[![ORCID](https://img.shields.io/badge/ORCID-0000--0001--9015--4422-green?style=flat-square&logo=orcid&labelColor=A6CE39)](https://orcid.org/0000-0001-9015-4422) [![DOI](https://img.shields.io/badge/DOI-see%20releases-blue?style=flat-square)](https://github.com/anisur-bayazid25/eQc/releases/latest) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![ORCID](https://img.shields.io/badge/ORCID-0000--0001--9015--4422-green?style=flat-square&logo=orcid&labelColor=A6CE39)](https://orcid.org/0000-0001-9015-4422) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23451326.svg)](https://doi.org/10.5281/zenodo.23451326) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 If you use eQc in published work, please cite it using the **Cite this repository** link on the GitHub page (APA and BibTeX), or the metadata in [`CITATION.cff`](CITATION.cff).
+
+<!-- zenodo-citation:start -->
+Archived release **v1.8.6**: [10.5281/zenodo.23451327](https://doi.org/10.5281/zenodo.23451327). Use this version DOI when citing this release.
+The [all-versions DOI](https://doi.org/10.5281/zenodo.23451326) above opens the latest archived release.
+<!-- zenodo-citation:end -->
 
 Import interviews, field notes, documents and images; code passages and regions; organise your codebook; write memos; and explore your analysis. No account or cloud upload is required.
 

@@ -1,3 +1,6 @@
+import {comparisonTableHeaders,comparisonTableRows} from './icrTable';
+import {icrFingerprint} from './icrRuns';
+import {statisticName} from './icrStatistics';
 import { Project, childCodes } from '../domain';
 import {comparisonCoefficient,computeComparison} from './icrComparisons';
 import { collectIcrCoders, computePairwiseIcr, computeFleissIcr, computeBinaryAlpha, computeCuAlpha, buildCodingUnits, formatIcrValue, IcrScope } from './icr';
@@ -12,6 +15,7 @@ function esc(s: string): string {
 // user last generated and the KWIC search they last ran. Passed straight into
 // the report so it mirrors exactly what is on screen.
 export interface ReportExtras {
+  icrRunId?:string;
   draftFigures?: Array<{ id: string; name: string; family: string; updatedAt: number; svg?: string; error?: string; notes?: Array<{title:string;text:string}> }>;
   imageExcerpts?: Array<{ regionId: string; base64: string }>;
   icr?: { coders: string[]; scope: IcrScope; coderA: string; coderB: string };
@@ -160,24 +164,24 @@ export function buildReportHtml(project: Project, extras?: ReportExtras): string
       <p class="scope-note">Comparison coders: ${esc(names.join(', '))}. ${settings.method==='training'?'Uses the loaded fixed-excerpt test, independently of project document and code selections.':`Direct codes (${comparisonCodes.length}): ${esc(comparisonCodes.map(code=>code.name).join('; ') || 'None')}. Text documents: ${scope.docIds.filter(id=>project.docs.some(doc=>doc.id===id)).length}. Images excluded.`}</p>
       ${settings.method==='domains'?`<p>Semantic domains: ${settings.domains.map(domain=>esc(domain.name)+': '+esc(project.codes.filter(code=>domain.codeIds.includes(code.id)&&settings.codeIds.includes(code.id)).map(code=>code.name).join(', '))).join('; ')}.</p>`:''}
       ${comparison.warnings.map(warning=>`<p class="scope-note">${esc(warning)}</p>`).join('')}
-      ${table(['Comparison / statistic','Items','Agreement (%)','Coefficient κ / α / r','Holsti'],comparison.rows.map(row=>[row.label,row.items,row.agreement===null?'—':row.agreement.toFixed(1),comparisonCoefficient(row),row.holsti===undefined?'—':formatIcrValue(row.holsti)]))}`;
+      ${table(comparisonTableHeaders,comparisonTableRows(comparison.rows))}`;
   }catch(error){comparisonHtml='<p>Additional ICR comparison unavailable: '+esc(error instanceof Error?error.message:String(error))+'</p>';}
   else comparisonHtml='<p>No additional comparison has been saved. Calculate a comparison in Analysis → ICR to include its results, settings and scope here.</p>';
-  const icrHtml = `
+  let icrHtml = `
     <h2>Inter-Coder Reliability (ICR)</h2>
     <p>Coders: ${esc(icrCoders.join(', ') || 'None')}. Documents: ${esc(project.docs.filter(d => scope.docIds.includes(d.id)).map(d => d.name).join(', ') || 'None')}.${(project.images||[]).length ? ` Images: ${scope.includeImages ? (project.images||[]).length+' included' : 'excluded from ICR'}.` : ''}</p>
     <p>${inventory.unattributed ? `${inventory.unattributed.segments + inventory.unattributed.regions} unattributed project items excluded; unattributed items are not treated as a coder. ` : ''}Undefined coefficients are shown as —.</p>
     <p>Occurrence metrics use one source × code item (present/absent). Holsti is an uncorrected ratio; κ and α are chance-corrected. Text-unit nominal alpha uses the dominant code on overlapping passage groups, with uncoded ratings included; it is not semantic-domain Cu-alpha.</p>
     <p class="scope-note">An absent code is treated as a negative decision. Confirm that every selected coder reviewed the selected sources; missing coding cannot establish whether a source was reviewed.</p>
     <h3>All selected coder pairs</h3>
-    ${pairs.length ? table(['Coder A','Coder B','Source × code items','Agreement (%)',"Cohen’s κ",'Holsti'],pairs.map(result=>[result.coderA,result.coderB,result.items,result.percent.toFixed(1),formatIcrValue(result.kappa),formatIcrValue(result.holsti)])) : '<p>Requires at least two attributed coders in scope.</p>'}
+    ${pairs.length ? table(['Coder A','Coder B','Source × code items','Agreement (%)',statisticName('cohen'),statisticName('holsti')],pairs.map(result=>[result.coderA,result.coderB,result.items,result.percent.toFixed(1),formatIcrValue(result.kappa),formatIcrValue(result.holsti)])) : '<p>Requires at least two attributed coders in scope.</p>'}
     <h3>Pairwise agreement, Cohen's κ and Holsti index</h3>
     ${pair ? `<p>${esc(pair.coderA)} vs ${esc(pair.coderB)}: ${pair.items} items (${pair.sources} sources × ${pair.codes} codes), ${pair.percent.toFixed(1)}% agreement; Cohen's κ = ${formatIcrValue(pair.kappa)}; Holsti = ${formatIcrValue(pair.holsti)}.</p>
       ${table(['Contingency', 'Both coded', 'A only', 'B only', 'Neither'], [['Overall', pair.contingency.bothYes, pair.contingency.aOnly, pair.contingency.bOnly, pair.contingency.bothNo]])}
-      ${table(['Code', 'Both coded', 'A only', 'B only', 'Neither', '% agreement', "Cohen's κ", 'Holsti'], pair.perCode.map(r => [r.codeName, r.bothYes, r.aOnly, r.bOnly, r.bothNo, r.percent.toFixed(1), formatIcrValue(r.kappa), formatIcrValue(r.holsti)]))}` : '<p>Select two different attributed coders for pairwise reliability.</p>'}
-    <h3>Fleiss’ κ</h3>
+      ${table(['Code', 'Both coded', 'A only', 'B only', 'Neither', '% agreement', statisticName('cohen'), statisticName('holsti')], pair.perCode.map(r => [r.codeName, r.bothYes, r.aOnly, r.bOnly, r.bothNo, r.percent.toFixed(1), formatIcrValue(r.kappa), formatIcrValue(r.holsti)]))}` : '<p>Select two different attributed coders for pairwise reliability.</p>'}
+    <h3>${statisticName('fleiss')}</h3>
     ${fleiss ? `<p>${fleiss.items} items; ${fleiss.percentFull.toFixed(1)}% full agreement; κ = ${formatIcrValue(fleiss.kappa)}.</p>${table(['Code', 'Items', 'Full agreements', '% full agreement', 'κ'], fleiss.perCode.map(r => [r.codeName, r.items, r.fullAgreement, r.percentFull.toFixed(1), formatIcrValue(r.kappa)]))}` : '<p>Requires at least three attributed coders in scope.</p>'}
-    <h3>Nominal alpha binary (source × code)</h3>
+    <h3>${statisticName('binary')} (source × code)</h3>
     ${binary ? `<p>${binary.items} items; α = ${formatIcrValue(binary.alpha)}.</p>${table(['Code', 'Items', 'α'], binary.perCode.map(r => [r.codeName, r.items, formatIcrValue(r.alpha)]))}` : '<p>Requires at least two attributed coders in scope.</p>'}
     <h3>Text-unit nominal alpha (dominant code)</h3>
     ${cu ? `<p>${cu.units} text units; ${cu.fullAgreement} full agreements (${cu.percentFull.toFixed(1)}%); α = ${formatIcrValue(cu.alpha)}.</p>` : '<p>Requires at least two attributed coders and one document in scope.</p>'}
@@ -193,6 +197,9 @@ export function buildReportHtml(project: Project, extras?: ReportExtras): string
     <p>Agreement means that the coders who actually coded a passage assigned the same single code. Consensus covers text only and includes both statuses regardless of the current review filter. This is the current coding state, rather than an adjudication history.</p>
     ${reviewUnits.length ? table(['Document', 'Start', 'End', 'Quote', 'Status', 'Coder assignments'], reviewUnits.map(u => [u.docName, u.start, u.end, u.text, u.agreed ? 'Agreement' : 'Disagreement', u.perCoder.filter(c => c.segmentIds.length).map(c => `${c.coder}: ${c.codeIds.map(id => codesById.get(id)?.name || 'Unknown code').join(', ')}`).join('\n')])) : '<p>No jointly coded text passages in scope.</p>'}
   `;
+  const consensusSection=icrHtml.slice(icrHtml.indexOf('<h2>Consensus Summary</h2>'));
+  if(extras?.icrRunId){const run=project.icrRuns?.find(r=>r.id===extras.icrRunId);if(!run)throw Error('The selected ICR run is unavailable.');icrHtml=`<h2>Intercoder agreement — saved run</h2><h3>${esc(run.name)}</h3><p>${esc(new Date(run.createdAt).toISOString())}. ${run.fingerprint===icrFingerprint(project)?'Current coding matches.':'Historical snapshot; later coding changes are not included.'}</p><p>${esc(run.result.text)}</p>${table(comparisonTableHeaders,comparisonTableRows(run.result.rows))}<p>Coders: ${esc(run.coders.join(', '))}. Scope and settings: ${esc(JSON.stringify({scope:run.scope,settings:run.settings,reviewed:run.reviewed}))}</p>${run.result.warnings.map(w=>`<p>${esc(w)}</p>`).join('')}${consensusSection}`;}
+
 
   const figuresHtml = extras?.draftFigures?.length ? `<h2>Saved visualization drafts</h2><p class="scope-note">Saved draft canvases captured at export. Figures remain available offline. Regenerate a draft in eQc to update its analysis after coding changes.</p>${extras.draftFigures.map((figure,index)=>`<figure class="report-figure">${figure.svg?`<img alt="${esc(figure.name)}" src="data:image/svg+xml;charset=utf-8,${esc(encodeURIComponent(figure.svg))}" />`:`<p>Figure unavailable: ${esc(figure.error || 'Could not render this draft')}.</p>`}<figcaption><strong>Figure ${index+1}. ${esc(figure.name)}</strong> · ${esc(figure.family)} · Saved ${esc(new Date(figure.updatedAt).toLocaleString())}</figcaption>${figure.notes?.length?`<details><summary>Visualization notes (${figure.notes.length})</summary>${figure.notes.map(note=>`<p class="visualization-note"><strong>${esc(note.title)}</strong><br/>${esc(note.text)}</p>`).join('')}</details>`:''}</figure>`).join('')}` : '';
 

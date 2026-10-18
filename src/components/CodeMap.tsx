@@ -25,6 +25,9 @@ import React, { useEffect, useMemo, useRef, useState, useId } from 'react';
 import { VisualizationNote, AnalysisPeriod, Code, SourceDoc, VisualizationKind, CodedSegment, ID, MapAnnotation, MapDesign, CodeMapDraft, CodeMapView, MapLegendSettings, MapEdgeStyle, childCodes, descendantCodeIds, uid } from '../domain';
 
 interface Props {
+  onResearchRequestHandled?:()=>void;
+  researchProject?:import('../domain').Project;
+  researchRequest?:{scope:import('../lib/researchScope').ResearchScopeSelection;family:VisualizationKind;nonce:number}|null;
   active?: boolean;
   visualizationNotes?:VisualizationNote[];
   onVisualizationNotes?:(notes:VisualizationNote[])=>void;
@@ -221,7 +224,7 @@ function relaxLayout(layout: Map<ID, { x: number; y: number }>, codes: Code[], v
 function CodeMap({
   active = true,
   visualizationNotes=[],onVisualizationNotes,noteTarget,
-  projectId, projectName, mapView, drafts, customMapPalettes=[], onSavePalette, onObjectCommand, onApplyPalette, onRememberView, onSaveDraft, onRestoreDraft, onDeleteDraft, onLibrary, onConfigure, mapDesign, onApplySuggestion, onResizeCanvas, onOpenDocument, docs=[], onOpenCode, onOpenCodeMemo, codes, codedSegments, mapEdgeStyles, annotations:sourceAnnotations, hiddenMapCodeIds,
+  researchProject, projectId, projectName, mapView, drafts, customMapPalettes=[], onSavePalette, onObjectCommand, onApplyPalette, onRememberView, onSaveDraft, onRestoreDraft, onDeleteDraft, onLibrary, onConfigure, mapDesign, onApplySuggestion, onResizeCanvas, onOpenDocument, docs=[], onOpenCode, onOpenCodeMemo, codes, codedSegments, mapEdgeStyles, annotations:sourceAnnotations, hiddenMapCodeIds,
   onUpdateCode, onUpdateCodesBatch, onUpdateEdgeStyle, onAddEdgeStyle, onDeleteEdgeStyle,
   onUpdateAnnotations, onUpdateHiddenMapCodes,
   onShowToast
@@ -1071,7 +1074,7 @@ function CodeMap({
       cloudReflowTimer.current=setTimeout(async()=>{try{
         const styles={...cloudOptions.cloudWordStyles};for(const [i,w] of cloudOptions.cloudWords!.entries()){const a=sourceAnnotations.find(a=>a.id==='suggested:cloud:word:'+i);if(a)styles[w.word]={...styles[w.word],fontFamily:a.fontFamily,bold:a.bold,italic:a.italic,rotation:a.rotation,text:a.text};}
         styles[word]={...styles[word],fontSize:patch.fontSize};
-        const {prepareWordCloud,buildWordCloud,preserveCloudDecorations}=await import('../lib/wordCloud'),data={id:projectId,name:projectName||'Word cloud',codes,docs,codedSegments};
+        const {prepareWordCloud,buildWordCloud,preserveCloudDecorations}=await import('../lib/wordCloud'),data={...researchProject,id:projectId,name:projectName||'Word cloud',codes,docs,codedSegments};
         const ready=await prepareWordCloud(data,{...cloudOptions,cloudWordStyles:styles});if(version!==cloudReflowVersion.current)return;
         const current=cloudContext.current;if(current.active===false||current.projectId!==projectId||current.mapDesign!==mapDesign||current.sourceAnnotations!==sourceAnnotations||current.docs!==docs||current.codes!==codes||current.codedSegments!==codedSegments){onShowToast?.('The canvas changed while refitting. Change the font size again to use your latest edits.');return;}
         const result=buildWordCloud(data,ready),oldWords=new Map(cloudOptions.cloudWords!.map((w,i)=>[w.word,sourceAnnotations.find(a=>a.id==='suggested:cloud:word:'+i)]));
@@ -1926,11 +1929,12 @@ export default function DeferredCodeMap(props: Props) {
 
   useEffect(()=>{setEnabledProject(null);setFamily(null);workingView.current=undefined;},[props.projectId]);
   useEffect(()=>{if(props.noteTarget){workingView.current=undefined;setEnabledProject(props.projectId);setFamily(null);}},[props.noteTarget]);
+  useEffect(()=>{if(props.researchRequest){setFamily(props.researchRequest.family);setEnabledProject(null);}},[props.researchRequest]);
   if(props.active===false)return null;
-  const data={id:props.projectId,name:props.projectName||'Research themes',codes:props.codes,analysisPeriods:props.analysisPeriods,docs:props.docs||[],codedSegments:props.codedSegments};
-  const apply=(suggestion:MapSuggestion)=>{workingView.current=undefined;props.onApplySuggestion?.(suggestion);setFamily(null);setEnabledProject(props.projectId);};
+  const data={...props.researchProject,id:props.projectId,name:props.projectName||'Research themes',codes:props.codes,analysisPeriods:props.analysisPeriods,docs:props.docs||[],codedSegments:props.codedSegments};
+  const apply=(suggestion:MapSuggestion)=>{props.onResearchRequestHandled?.();workingView.current=undefined;props.onApplySuggestion?.(suggestion);setFamily(null);setEnabledProject(props.projectId);};
   if(enabledProject!==props.projectId){
-    if(family&&family!=='code-map')return <VisualizationSetup key={family+props.projectId} family={family} data={data} previous={props.mapDesign} onApply={apply} onBack={()=>setFamily(null)}/>;
+    if(family&&family!=='code-map')return <VisualizationSetup key={family+props.projectId} family={family} initialScope={props.researchRequest?.family===family?props.researchRequest.scope:undefined} data={data} previous={props.mapDesign} onApply={apply} onBack={()=>setFamily(null)}/>;
     return <section className="visualization-library" aria-label="Visualization library">
       <header><div><h2>Visualization</h2><p>Choose a type, choose a preset, then generate. Nothing is compiled until you ask.</p></div><button onClick={()=>setEnabledProject(props.projectId)}>Open current canvas</button></header>
       <div className="visualization-grid">{visualizationTypes.map(type=><button key={type.id} className="visualization-card" onClick={()=>setFamily(type.id)} aria-label={'Create '+type.name}><VisualizationIcon type={type.icon}/><strong>{type.name}</strong><span>{type.description}</span></button>)}</div>
@@ -1939,7 +1943,7 @@ export default function DeferredCodeMap(props: Props) {
     </section>;
   }
   return <>
-    {family&&family!=='code-map'&&<VisualizationSetup key={family+props.projectId} family={family} data={data} previous={props.mapDesign} onApply={apply} onBack={()=>setFamily(null)} returnToCanvas/>}
+    {family&&family!=='code-map'&&<VisualizationSetup key={family+props.projectId} family={family} initialScope={props.researchRequest?.family===family?props.researchRequest.scope:undefined} data={data} previous={props.mapDesign} onApply={apply} onBack={()=>setFamily(null)} returnToCanvas/>}
     <div style={{display:family?'none':'flex',flex:1,minHeight:0,flexDirection:'column'}}><CachedCodeMap {...props} onApplySuggestion={apply} mapView={workingView.current||props.mapView} onRestoreDraft={id=>{workingView.current=undefined;props.onRestoreDraft?.(id);}} onRememberView={view=>{workingView.current=view;props.onRememberView?.(view);}} active={!family} onConfigure={()=>setFamily(props.mapDesign?.family||'code-map')} onLibrary={()=>{setEnabledProject(null);setFamily(null);}} /></div>
   </>;
 }

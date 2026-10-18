@@ -35,6 +35,8 @@ export async function buildManuscriptOutline(project:Project,options:ManuscriptO
   await walk(null,0);
   const codeName=(id:string)=>project.codes.find(c=>c.id===id)?.name||'Unavailable code';
   if(options.framework){const cells=(project.frameworkCells||[]).filter(f=>f.text.trim());if(cells.length){results.push({name:'Framework synthesis memos',depth:1});for(const cell of cells)results.push({name:codeName(cell.codeId),depth:2,summary:cell.text});}}
+  if(options.framework&&(project.caseFrameworkCells||[]).some(c=>c.text.trim()))results.push({name:'Case framework synthesis memos',depth:1});
+  if(options.framework)for(const cell of project.caseFrameworkCells||[])if(cell.text.trim())results.push({name:codeName(cell.codeId),depth:2,summary:cell.text});
   if(options.cooccurrence){const notes=(project.relationNotes||[]).filter(n=>n.note.trim());if(notes.length){results.push({name:'Code co-occurrence memos',depth:1});for(const note of notes)results.push({name:codeName(note.codeAId)+' × '+codeName(note.codeBId),depth:2,summary:note.note});}}
   if(options.projectMemos)for(const memo of (project.memos||[]).filter(m=>m.kind==='analytic'&&!attached.has(m.id)&&m.text.trim()))results.push({name:memo.title,depth:1,summary:memo.text});
   if(results.length)outline.push({name:'Results',depth:0},...results);

@@ -16,11 +16,13 @@ import { Project, CodedSegment, UNATTRIBUTED_CODER, normalizeCoderName } from '.
 // - Cohen's kappa for a pair of coders (chance-corrected).
 // - Fleiss' kappa for 3+ coders (chance-corrected, same binary
 //   present/absent categories).
-// - Krippendorff's c-Alpha-binary: nominal alpha per code
+// - Krippendorff's nominal binary alpha per code
 //   over present/absent ratings.
-// - Krippendorff's Cu-Alpha: nominal alpha over *which*
+// - Dominant-code diagnostic: nominal alpha over *which*
 //   code was assigned to each jointly-considered quote (overlap units coded
-//   by at least one coder; "uncoded" is an explicit category).
+//   by at least one coder; "uncoded" is an explicit category). This is not
+//   the published semantic-domain Cu-alpha coefficient; the function name is
+//   retained only for compatibility with older callers.
 //
 // Everything here is pure (no React, no persistence) so it can be unit
 // tested and reused by exports.

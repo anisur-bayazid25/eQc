@@ -174,7 +174,25 @@ For ICR, select the same sources and coders being compared, then choose Coder A 
 
 The ICR workspace has one **Comparison method** selector. Open Scope to change coders or documents, select the method and click **Calculate agreement** or **Calculate ICR comparison**. Summary cards show the main figures. Open Pairwise comparison, Results by code, Detailed results or Overlapping-passage diagnostic only when needed. Tables have search and 20-row pages; CSV/Word exports contain all rows, not just the current page or search. Changing inputs clears the displayed calculation. **ICR help** opens the calculation reference below in the top Help tab.
 
+### Connected research workflows
+
+**Case tables:** Export cases CSV creates a matching import template with stable Case IDs, one attribute per column, attribute types, and explicit source/passage links. Import previews additions, updates and unmatched sources before applying changes. Choose update matching IDs/unique names or add separate cases. Duplicate identities, ambiguous names and invalid typed values are rejected. Cases can link text, images or selected FGD passages. This case-table format differs from the long research-records CSV.
+
+**Research selections:** In Excerpt review, run a query, optionally check individual entries, choose a graph and click Use results in graph. Visualization settings also offer cases, source/code groups, saved queries and attribute filters under Research scope. The scope retains exact coding entries and never expands a selected passage to all coding in its document. Scoped word clouds use coded text. An empty or image-only selection cannot generate a text graph. Existing results CSV/Word exports retain the selected entries and their source information.
+
+**Reviewed sources:** In ICR, select a source and mark each coder who independently reviewed it. Missing review confirmations stay visible; an absent code alone cannot establish that a source was reviewed.
+
+**Disagreements and resolutions:** Inspect disagreements provides coder selectors, distinguishes source-level presence differences from boundary/region differences, and opens the actual passages or image sources. A resolution is saved as a linked methodological memo without modifying the original coding. Fixed-excerpt CSV units are separate from project-source coding.
+
+**Saved ICR runs:** Name and save a run to preserve its results, coders, source/code scope, settings and review confirmations. Later source/coding changes mark it historical; graph movement and memo edits do not. CSV/Word exports are available inside Saved run statistics. HTML report and manuscript export let you choose a historical run explicitly. The methodology paragraph and copy-paragraph option remain in manuscript export only. Imported conflicting settings are kept as selectable setups; loading settings does not change coding.
+
+**Case framework:** Analysis → Framework → Case × theme framework provides summaries for cases that span sources or selected passages. Choose participant attribute columns, click a case/theme cell, inspect supporting excerpts and linked memos, then save the summary. CSV/Word exports include case identifiers and selected attributes. Summaries also appear in Memo-Book and analytical HTML reports; the manuscript's optional framework section includes summary text without adding operational notes.
+
+**Exchange:** The project export dialog shows a preservation inventory. QDPX uses structured cases, typed variables and source/code sets, plus an eQc appendix for saved queries, graph drafts, ICR runs and other app-specific records. Another application may display appendix information as notes instead of recreating eQc tools. Import reports list research-object counts and unresolved/unsupported references. Merge previews changes, keeps the working canvas, remaps research links and preserves conflicting ICR settings separately. Local recovery history stays on its original computer.
+
 ### ICR calculations and reporting
+
+Contingency and detailed comparison tables include disagreement, both-coded, neither-coded and coded-only agreement percentages where the comparison supplies binary contingency counts. Coded-only agreement is intersection divided by the union of positive coding decisions; it differs from the positive-decision Holsti index. Missing or inapplicable values remain distinct from zero.
 
 **Choose the unit before choosing a coefficient.** A source × code item asks whether a code was used anywhere in a source. A character × code item asks whether a particular text position was coded. A sentence or paragraph is treated as present when any coding overlaps it. These are different questions and can give different results for the same project. Text offsets use UTF-16 character positions. Sentences use Unicode sentence segmentation; paragraphs are non-empty newline-delimited units. Character intervals with identical coding are weighted by length rather than expanded into separate rows.
 
@@ -377,6 +395,8 @@ Use **LAN → Host** to share a project on a trusted local network. Colleagues u
 Check each person's coder name. Project coding and research records are shared; personal profiles and time histories stay separate. For remote or offline teamwork, exchange project files and merge them. Export a backup before starting a team session.
 
 ### Announcements
+
+Routine LAN project updates appear as small, unboxed text at the right of the **Saved** ribbon, below Announcements and Profile. Messages appear one at a time for four seconds and fade away; rapid updates keep only the latest few waiting messages. These activity messages clear when you leave the shared project or session. Important errors still use the usual notification.
 
 Use the **📣 Announcements** button beside Profile to post and read team notices. New notices appear below it for **30 seconds** and can be dismissed; dismissing or timing out does not delete the notice. The highlighted badge counts unread announcements. Opening the announcement list marks its current notices as read on that local profile.
 

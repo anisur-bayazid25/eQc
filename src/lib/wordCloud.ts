@@ -1,3 +1,5 @@
+import type {Project} from '../domain';
+import {projectInResearchScope} from './researchScope';
 import {wordFrequencies,languageDefaults} from './wordAnalysis';
 import {drawingShapes} from './mapShapes';
 import type {VisualizationData,VisualizationOptions} from './visualizations';
@@ -26,6 +28,7 @@ export function preserveCloudWordAppearance(suggestion:MapSuggestion,previous:Vi
  return {...suggestion,annotations:suggestion.annotations.map(a=>{const i=Number(a.id.replace('suggested:cloud:word:','')),prior=next[i]?old.get(next[i].word):undefined;return prior?{...a,color:prior.color,textColor:prior.textColor,underline:prior.underline,groupId:prior.groupId,layer:prior.layer}:a;})};
 }
 export function cloudSource(data:VisualizationData,o:VisualizationOptions):string {
+ if(o.researchScope){data=projectInResearchScope({...data,createdAt:0,folders:[]} as Project,o.researchScope);o={...o,textScope:'coded'};}
  return data.docs.filter(d=>o.docIds.includes(d.id)).slice(0,o.docLimit||24).map(doc=>{if(o.textScope!=='coded')return doc.content||'';const ranges=data.codedSegments.filter(s=>s.docId===doc.id&&o.codeIds.includes(s.codeId)).map(s=>[s.start,s.end]).filter(([a,b])=>Number.isFinite(a)&&b>a).sort((a,b)=>a[0]-b[0]),merged:number[][]=[];for(const range of ranges){const last=merged[merged.length-1];if(last&&range[0]<=last[1])last[1]=Math.max(last[1],range[1]);else merged.push([...range]);}return merged.map(([a,b])=>doc.content.slice(a,b)).join('\n');}).join('\n');
 }
 const loadImage=(url:string)=>new Promise<HTMLImageElement>((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=()=>reject(new Error('Unable to read this mask image.'));image.src=url;});

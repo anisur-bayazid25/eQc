@@ -17,6 +17,8 @@ export function researchRows(project: Project): string[][] {
       if (doc) rows.push(['Case link', c.name, doc.name, '', c.name, link.start === undefined ? 'Whole source' : sourceLineRange(doc.content, link.start, link.end!), link.start === undefined ? '' : doc.content.slice(link.start, link.end), '', '']);
     }
   }
+  for(const cell of project.caseFrameworkCells||[])rows.push(['Case framework summary',names([cell.codeId],project.codes),'',names([cell.codeId],project.codes),names([cell.caseId],project.cases||[]),'',cell.text,'',String(cell.updatedAt)]);
+  for(const run of project.icrRuns||[])rows.push(['ICR run',run.name,'','','','',run.result.text,String(run.createdAt),'']);
   for (const g of project.groups || []) rows.push(['Group', g.name, g.kind === 'documents' ? names(g.memberIds, [...project.docs, ...(project.images || [])]) : '', g.kind === 'codes' ? names(g.memberIds, project.codes) : '', '', '', g.kind, '', '']);
   for (const a of project.annotations || []) {
     const doc = project.docs.find(d => d.id === a.docId);

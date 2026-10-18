@@ -14,6 +14,26 @@ const server=spawn(process.execPath,[path.resolve('node_modules/vite/bin/vite.js
  const out=path.resolve('release/announcements-qa');fs.mkdirSync(out,{recursive:true});await page.goto('http://127.0.0.1:5245');const button=page.getByRole('button',{name:/^Announcements/});await button.waitFor();await page.clock.install();await page.clock.pauseAt(new Date(Date.now()+1000));assert.match(await button.getAttribute('aria-label'),/1 unread/);assert.equal(await page.locator('[data-announcement-toast]').count(),0);
  await button.click();const panel=page.getByRole('dialog',{name:'Announcements',exact:true});assert.match(await panel.innerText(),/Saved before session/);assert.equal(await page.locator('.announcement-badge').count(),0);await page.getByRole('button',{name:'Delete announcement saved-old',exact:true}).click();assert.equal(await page.evaluate(()=>window.__qaProject.announcements.length),0);await page.getByRole('button',{name:'Close announcements',exact:true}).click();
  await page.evaluate(()=>window.__emitSession({role:'host',projectId:window.__qaProject.id,myName:'Host',sessionId:'lan-1',selfClientId:'host',canAnnounce:true,coders:[{source:'host',coderName:'Host'},{source:'client',coderName:'Member',clientId:'c1',canAnnounce:false}],announcements:[]}));
+ await page.getByRole('button',{name:/LAN.*Hosting/}).waitFor();
+ await page.evaluate(()=>window.__onRemote({project:{...window.__qaProject,updatedAt:Date.now()},seq:++window.__seq,coderName:'Member',quiet:false}));
+ const activity=page.locator('.header-bottom-row .lan-activity');await activity.getByText('Member · updated the project',{exact:true}).waitFor();
+ assert.equal(await page.getByText('[Member] updated the project',{exact:true}).count(),0);
+ const activityStyle=await activity.evaluate(el=>({background:getComputedStyle(el).backgroundColor,border:getComputedStyle(el).borderWidth,position:getComputedStyle(el).position,font:getComputedStyle(el).fontSize}));
+ assert.equal(activityStyle.background,'rgba(0, 0, 0, 0)');assert.equal(activityStyle.border,'0px');assert.equal(activityStyle.position,'static');assert.equal(activityStyle.font,'12px');
+ const ribbonBox=await page.locator('.header-bottom-row').boundingBox(),activityBox=await activity.boundingBox();assert.ok(activityBox.y>=ribbonBox.y&&activityBox.y+activityBox.height<=ribbonBox.y+ribbonBox.height+1);
+ await page.evaluate(()=>window.__onRemote({project:{...window.__qaProject,updatedAt:Date.now()},seq:++window.__seq,coderName:'Another member',quiet:false}));
+ assert.equal(await activity.innerText(),'Member · updated the project');await page.screenshot({path:path.join(out,'quiet-lan-activity.png')});
+ await page.clock.fastForward(4100);await activity.getByText('Another member · updated the project',{exact:true}).waitFor();await page.clock.fastForward(4100);await page.waitForFunction(()=>document.querySelector('.lan-activity')?.textContent==='');
+ await page.evaluate(()=>window.__onRemote({project:{...window.__qaProject,updatedAt:Date.now()},seq:++window.__seq,coderName:'Quiet member',quiet:true}));assert.equal(await activity.innerText(),'');
+ await page.evaluate(()=>window.__onRemote({project:{...window.__qaProject},seq:++window.__seq,coderName:'Previous session',quiet:false}));await activity.getByText('Previous session · updated the project',{exact:true}).waitFor();
+ await page.evaluate(()=>window.__emitSession({...window.__session,sessionId:'lan-2'}));await page.waitForFunction(()=>document.querySelector('.lan-activity')?.textContent==='',{},{timeout:2000});
+ // Joining a new session and receiving its first update in one event batch must
+ // neither reuse an old queued message nor lose the new one during cleanup.
+ await page.evaluate(()=>{window.__emitSession({...window.__session,sessionId:'lan-3'});window.__onRemote({project:{...window.__qaProject},seq:++window.__seq,coderName:'New session',quiet:false});});
+ await activity.getByText('New session · updated the project',{exact:true}).waitFor();
+ await page.evaluate(()=>{for(let i=0;i<12;i++)window.__onRemote({project:{...window.__qaProject},seq:++window.__seq,coderName:'Burst '+i,quiet:false});});
+ for(const expected of ['Burst 8','Burst 9','Burst 10','Burst 11']){await page.clock.fastForward(4100);await activity.getByText(expected+' · updated the project',{exact:true}).waitFor();}
+ await page.clock.fastForward(4100);await page.waitForFunction(()=>document.querySelector('.lan-activity')?.textContent==='');
  await page.evaluate(()=>window.__addAnnouncement('Temporary heads-up'));await page.locator('[data-announcement-toast]').waitFor();assert.match(await button.getAttribute('aria-label'),/1 unread/);
  await page.screenshot({path:path.join(out,'toast-unread.png')});await page.clock.fastForward(29000);assert.equal(await page.locator('[data-announcement-toast]').count(),1);await page.clock.fastForward(2000);assert.equal(await page.locator('[data-announcement-toast]').count(),0);assert.match(await button.getAttribute('aria-label'),/1 unread/);
  await page.evaluate(()=>window.__addAnnouncement('Dismiss me'));await page.getByRole('button',{name:/^Dismiss announcement /}).click();assert.equal(await page.locator('[data-announcement-toast]').count(),0);await button.click();assert.match(await panel.innerText(),/Temporary heads-up/);assert.equal(await page.locator('.announcement-badge').count(),0);

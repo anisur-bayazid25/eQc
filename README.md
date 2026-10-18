@@ -4,7 +4,7 @@
 
 # eQc — Easy Qual Coding
 
-**Version 1.8.5** · A local desktop app for qualitative research.
+**Version 1.8.6** · A local desktop app for qualitative research.
 
 [![ORCID](https://img.shields.io/badge/ORCID-0000--0001--9015--4422-green?style=flat-square&logo=orcid&labelColor=A6CE39)](https://orcid.org/0000-0001-9015-4422) [![DOI](https://img.shields.io/badge/DOI-see%20releases-blue?style=flat-square)](https://github.com/anisur-bayazid25/eQc/releases/latest) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -44,7 +44,15 @@ Normal coding, analysis and Help work offline. Installation downloads and update
 
 **Project and backup storage:** embedded images use base64, which adds roughly 33% to their binary size. HEIC-to-PNG conversion, retained original documents and PDF page images can add more. Photo-heavy projects can exceed 1 GB each; full JSON backups containing that media require additional space for every saved copy. The 1 GB installation allowance does not include project data or backups.
 
-## What's new in 1.8.5
+## What's new in 1.8.6
+
+- **Connected research tools:** use cases, groups, attributes, saved queries or selected passages to scope graphs and coded-text word clouds.
+- **Clearer intercoder agreement:** consistent statistic names, source review confirmations, disagreement evidence, resolution memos and preserved named runs for manuscript/HTML reports. Research controls follow the Comparison setup layout.
+- **Case exchange and framework analysis:** preview typed case CSV imports, retain stable identities and passage links, and write case × theme summaries with supporting evidence and participant attributes.
+- **Safer project exchange:** structured QDPX cases, variables and sets, preservation inventories, import reports and merge previews. App-specific research records and graph drafts travel in the eQc appendix.
+- **Quieter collaboration:** routine LAN changes appear as brief text beside Saved. Release citation metadata and the README synchronize automatically after Zenodo archives the release.
+
+## Previous release: 1.8.5
 
 - **LAN announcements:** a button beside Profile shows unread counts and opens team notices. Hosts control each member's posting permission. Save notices with the project or keep them for the current session; pop-up notices close after 30 seconds or can be dismissed. Hosts can delete any notice, and permitted members can delete their own.
 - **Word clouds from selected codes:** choose coded passages, then search/select one or multiple codes. Shared ranges and repeated coder assignments count once, with matching source evidence.

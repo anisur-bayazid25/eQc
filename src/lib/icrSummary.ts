@@ -1,3 +1,4 @@
+import {statisticName} from './icrStatistics';
 import {Project} from '../domain';
 import {collectIcrCoders,computeBinaryAlpha,computeFleissIcr,computePairwiseIcr,formatIcrValue,IcrScope,icrCoderName} from './icr';
 import {computeComparison} from './icrComparisons';
@@ -25,9 +26,9 @@ export function buildIcrSummary(project:Project,coderNames?:string[],requestedSc
   const imageCount=scope.includeImages?(project.images||[]).length:0;
   const sourcesText=[docIds.length?`${docIds.length} text document${docIds.length===1?'':'s'}`:'',imageCount?`${imageCount} image source${imageCount===1?'':'s'}`:''].filter(Boolean).join(' and ');
   let text=`Intercoder agreement was calculated in eQc for ${coders.length} attributed coders across ${sourcesText}, using ${project.codes.length} direct codes. Each of the ${binary.items} comparison items was a source × code pair, rated present if a coder applied that code at least once and absent otherwise; repeated applications did not increase the rating. Krippendorff’s nominal α across these binary ratings was ${binary.alpha===null?'undefined':formatIcrValue(binary.alpha)}.`;
-  if(fleiss)text+=` Fleiss’ κ was ${fleiss.kappa===null?'undefined':formatIcrValue(fleiss.kappa)}, with ${fleiss.percentFull.toFixed(1)}% full agreement across all ${coders.length} coders.`;
-  if(pairs.length===1){const pair=pairs[0];text+=` Observed agreement was ${pair.percent.toFixed(1)}%; Cohen’s κ was ${pair.kappa===null?'undefined':formatIcrValue(pair.kappa)} and the positive-decision Holsti index was ${pair.holsti===null?'undefined':formatIcrValue(pair.holsti)}.`;}
-  else text+=` Across all ${pairs.length} coder pairs, observed agreement ranged from ${range(pairs.map(p=>p.percent),1)}%, Cohen’s κ from ${range(pairs.map(p=>p.kappa))}, and the positive-decision Holsti index from ${range(pairs.map(p=>p.holsti))}. Ranges exclude undefined coefficients (${pairs.filter(p=>p.kappa===null).length} undefined κ; ${pairs.filter(p=>p.holsti===null).length} undefined Holsti).`;
+  if(fleiss)text+=` ${statisticName('fleiss')} was ${fleiss.kappa===null?'undefined':formatIcrValue(fleiss.kappa)}, with ${fleiss.percentFull.toFixed(1)}% full agreement across all ${coders.length} coders.`;
+  if(pairs.length===1){const pair=pairs[0];text+=` Observed agreement was ${pair.percent.toFixed(1)}%; ${statisticName('cohen')} was ${pair.kappa===null?'undefined':formatIcrValue(pair.kappa)} and the positive-decision Holsti index was ${pair.holsti===null?'undefined':formatIcrValue(pair.holsti)}.`;}
+  else text+=` Across all ${pairs.length} coder pairs, observed agreement ranged from ${range(pairs.map(p=>p.percent),1)}%, ${statisticName('cohen')} from ${range(pairs.map(p=>p.kappa))}, and the positive-decision Holsti index from ${range(pairs.map(p=>p.holsti))}. Ranges exclude undefined coefficients (${pairs.filter(p=>p.kappa===null).length} undefined κ; ${pairs.filter(p=>p.holsti===null).length} undefined Holsti).`;
   text+=' Observed agreement includes joint absences; Holsti excludes them. These are source-level coding-presence statistics, not passage-boundary agreement.';
   if(inventory.unattributed){text+=' Unattributed coding entries were excluded.';warnings.push('Unattributed entries are excluded; coder identities come from the coding records.');}
   const entries=[...project.codedSegments.map(s=>({coder:s.coder,source:s.docId})),...(project.codedRegions||[]).map(r=>({coder:r.coder,source:r.imageId}))];

@@ -1,3 +1,4 @@
+import CaseFrameworkPanel from './components/CaseFrameworkPanel';
 import AnnouncementCenter from './components/AnnouncementCenter';
 import IcrWorkspace from './components/IcrWorkspace';
 import ManuscriptExportDialog from './components/ManuscriptExportDialog';
@@ -13,6 +14,7 @@ const WordLanguageControls=deferPanel(()=>import('./components/WordLanguageContr
 import ReaderFontPicker from './components/ReaderFontPicker';
 const ProfilePanel=deferPanel(()=>import('./components/ProfilePanel'),'profile');
 import { useTimeTracking } from './lib/useTimeTracking';
+import { lanActivityScope, useLanActivity } from './lib/useLanActivity';
 import type { LocalProfile } from './lib/timeTracking';
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import {
@@ -410,7 +412,9 @@ export default function App() {
   const [editingNoteFor, setEditingNoteFor] = useState<ID | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
   const [projectModalOpen, setProjectModalOpen] = useState(false);
+  const [researchGraphRequest,setResearchGraphRequest]=useState<{scope:import('./lib/researchScope').ResearchScopeSelection;family:import('./domain').VisualizationKind;nonce:number}|null>(null);
   const [manuscriptOpen,setManuscriptOpen]=useState(false);
+  useEffect(()=>setResearchGraphRequest(null),[project?.id]);
   const [htmlReportExtras,setHtmlReportExtras]=useState<ReportExtras|null>(null);
   const [feedbackOpen,setFeedbackOpen]=useState(false);
   const [feedbackCapture,setFeedbackCapture]=useState<{nonce:number;screenshot?:import('./lib/feedback').FeedbackScreenshot}|null>(null);
@@ -637,6 +641,8 @@ useEffect(() => {
   const sessionProjectId = isLanActive ? lanSessionRef.current?.projectId : null;
   // True only while the OPEN project is exactly the session's locked project.
   const isLanSyncedView = isLanActive && !!project && project.id === sessionProjectId;
+  const { activity: lanActivity, showActivity: showLanActivity } = useLanActivity(
+    isLanSyncedView && sessionProjectId ? lanActivityScope(sessionProjectId, lanSessionRef.current?.sessionId) : null);
   // LAN clients may freely manage their OTHER local projects, but the
   // session's shared project stays locked (no rename/delete, it belongs to
   // the host's live state).
@@ -668,7 +674,8 @@ useEffect(() => {
       window.qv.saveProject(r.project).catch(() => {});
       localStorage.setItem(seqKey, String(r.seq));
       lastLanSeqRef.current = Math.max(lastLanSeqRef.current, r.seq);
-      if (!r.quiet) showToast(`[${r.coderName}] ${describeLanDiff(prev, r.project)}`);
+      if (!r.quiet && sessionId) showLanActivity(`${r.coderName} · ${describeLanDiff(prev, r.project)}`,
+        lanActivityScope(sessionId, lanSessionRef.current?.sessionId));
     } else {
       // Multitasking on a DIFFERENT local project: never yank the user's
       // screen away. The LAN updates for the shared project are written
@@ -678,7 +685,7 @@ useEffect(() => {
       localStorage.setItem(seqKey, String(r.seq));
       lastLanSeqRef.current = Math.max(lastLanSeqRef.current, r.seq);
     }
-  }, [showToast]);
+  }, [showLanActivity]);
 
   useEffect(() => {
     window.qv.lan.onHostsUpdated(h => setLanHosts(h));
@@ -1486,7 +1493,7 @@ function openProjectSettings() {
         const summary = await importQdpx(imported, data.payload);
         if (!summary.docsCreated && !summary.imagesCreated && summary.sourcesSkipped.length) throw new Error('Source files could not be imported. Choose the original QDPX file, or keep project.qde beside its sources folder. ' + summary.sourcesSkipped.join('; '));
         message = `Imported ${summary.codesCreated} codes, ${summary.docsCreated} documents and ${summary.imagesCreated} images.`;
-        if (summary.sourcesSkipped.length || summary.segmentsSkipped) omissions = ['Some items could not be imported:', ...summary.sourcesSkipped, summary.segmentsSkipped ? summary.segmentsSkipped + ' coding entries skipped.' : ''].filter(Boolean).join('\n');
+        if (summary.sourcesSkipped.length || summary.segmentsSkipped || summary.researchWarnings?.length) omissions = ['Import notes:',...(summary.researchWarnings||[]), ...summary.sourcesSkipped, summary.segmentsSkipped ? summary.segmentsSkipped + ' coding entries skipped.' : ''].filter(Boolean).join('\n');
       } else {
         const backup = data as Project & { researchProfile?: unknown };
         const { researchProfile, ...researchProject } = backup;
@@ -1499,7 +1506,7 @@ function openProjectSettings() {
       setPast([]); setFuture([]); setSelectedDocId(null); setSelectedImageId(null);
       setProject(imported); setTab('workspace');
       showToast(message);
-      if (omissions) setImportReport({ title:'Import report', message:message+'\n\n'+omissions });
+      setImportReport({ title:'Import report', message:message+'\nCases: '+(imported.cases?.length||0)+'; groups: '+(imported.groups?.length||0)+'; memos: '+(imported.memos?.length||0)+'; saved queries: '+(imported.queries?.length||0)+'; saved ICR runs: '+(imported.icrRuns?.length||0)+'; graph drafts: '+(imported.mapDrafts?.length||0)+'.'+(omissions?'\n\n'+omissions:'') });
     } catch (error) { setImportReport({ title:'Import could not be completed', message:error instanceof Error ? error.message : String(error) }); }
   }
 
@@ -1522,7 +1529,7 @@ function openProjectSettings() {
       totalNotes += summary.relationNotesAdded;
       totalEdges += summary.edgeStylesAdded;
     }
-    persist(next);
+    const base=project;
     // Only mention the carried analysis when there is some, so a plain
     // code+excerpt merge keeps its short, readable toast.
     const carried = [
@@ -1532,11 +1539,12 @@ function openProjectSettings() {
       totalNotes ? `${totalNotes} relationship note(s)` : '',
       totalEdges ? `${totalEdges} map edge style(s)` : ''
     ].filter(Boolean);
-    showToast(
+    const message = (
       `Merged ${sources.length} file(s): +${totalDocs} new docs, ${totalMerged} matched onto existing docs, ` +
       `+${totalCodes} codes, +${totalSegs} coded passages.` +
       (carried.length ? ` Also carried: ${carried.join(', ')}.` : '')
     );
+    setConfirmDialog({confirmText:'Apply merge',message:message+'\n\nResearch records and graph drafts are remapped and retained separately. The destination working canvas stays in place. Conflicting ICR settings become selectable imported setups. Case records with different attributes remain separate. Local recovery history is not merged.',onConfirm:()=>{if(projectRef.current!==base){showToast('The project changed while previewing. Open Merge again to refresh the preview.');return;}persist(next);showToast(message);}});
   }
 
   // =================================================================
@@ -2281,7 +2289,7 @@ async function handleExportManuscriptSkeleton() {
     if(kind==='region' && region) {setTab('workspace');setSelectedDocId(null);setSelectedImageId(region.imageId);return;}
     if(kind==='document'||kind==='image') {setTab('workspace');setSelectedDocId(kind==='document'?id:null);setSelectedImageId(kind==='image'?id:null);return;}
     if(kind==='code') {setCodebookSelectedCodeId(id);setTab('codebook');return;}
-    if(kind==='framework'||kind==='relationship') {setMemoSourceTarget({kind,id,nonce:Date.now()});setTab('analysis');return;}
+    if(kind==='framework'||kind==='case-framework'||kind==='relationship') {setMemoSourceTarget({kind,id,nonce:Date.now()});setTab('analysis');return;}
     if(kind==='case') {setMemoSourceTarget({kind,id,nonce:Date.now()});setResearchSection('cases');setResearchOpen(true);return;}
     if(kind==='visualization'||kind==='visualization-draft'){if(kind==='visualization-draft'){const draftId=id.split('::')[0];persist(restoreMapDraft(project,draftId));}setVisualizationNoteTarget({id,nonce:Date.now()});setTab('codemap');return;}
     if(kind==='map'||kind==='edge') {setTab('codemap');return;}
@@ -2441,7 +2449,7 @@ function handleRunAutoCode() {
       const draft: Project = structuredClone(project);
       const summary = await importQdpx(draft, payload);
       persist(draft);
-      if (summary.sourcesSkipped.length || summary.segmentsSkipped) setImportReport({ title:'Import report', message:[summary.codesCreated+' codes, '+summary.docsCreated+' documents and '+summary.imagesCreated+' images added.', 'Some items could not be imported:', ...summary.sourcesSkipped, summary.segmentsSkipped ? summary.segmentsSkipped+' coding entries skipped.' : ''].filter(Boolean).join('\n') });
+      if (summary.sourcesSkipped.length || summary.segmentsSkipped || summary.researchWarnings?.length) setImportReport({ title:'Import report', message:[summary.codesCreated+' codes, '+summary.docsCreated+' documents and '+summary.imagesCreated+' images added.', 'Import notes:', ...(summary.researchWarnings||[]), ...summary.sourcesSkipped, summary.segmentsSkipped ? summary.segmentsSkipped+' coding entries skipped.' : ''].filter(Boolean).join('\n') });
       showToast(
         `Imported ${payload.fileName}: +${summary.codesCreated} codes, +${summary.docsCreated} docs, ` +
         `+${summary.imagesCreated} images, +${summary.segmentsCreated} coded passages, ${summary.memosImported} memos` +
@@ -2552,7 +2560,7 @@ function openDocxCommentImport() {
     if (project) setHtmlReportExtras(extras||{});
   }
 
-  async function exportHtmlReport(draftIds:string[],includeNotes:boolean,onProgress:(message:string)=>void) {
+  async function exportHtmlReport(draftIds:string[],includeNotes:boolean,onProgress:(message:string)=>void,icrRunId?:string) {
     if (!project) return false;
     const draftFigures=draftIds.length?await (await import('./lib/reportFigures')).renderReportFigures(project,draftIds,includeNotes,onProgress):[];
     onProgress('Preparing report tables and image excerpts…');
@@ -2561,7 +2569,7 @@ function openDocxCommentImport() {
       const image = project.images?.find(i => i.id === region.imageId);
       if (image) imageExcerpts.push({ regionId: region.id, base64: (await cropRegionToPng(image.dataUrl, region)).base64 });
     }
-    const html = buildReportHtml(project, { ...htmlReportExtras, imageExcerpts, draftFigures });
+    const html = buildReportHtml(project, { ...htmlReportExtras, imageExcerpts, draftFigures, icrRunId });
     const path = await window.qv.exportReport(project, html);
     if (path) showToast(`Report exported to ${path}`);
     return !!path;
@@ -2729,7 +2737,7 @@ function openDocxCommentImport() {
   return (
     <div className="app-shell">
       {feedbackDialog}
-      {researchOpen && <ResearchWorkspace initialCaseId={memoSourceTarget?.kind==='case'?memoSourceTarget.id:undefined} project={project} section={researchSection} onSection={setResearchSection} onClose={() => setResearchOpen(false)} onChange={persist} actor={activeCoderName} selection={pendingSelection && selectedDoc ? { docId: selectedDoc.id, start: pendingSelection.start, end: pendingSelection.end } : null}
+      {researchOpen && <ResearchWorkspace onUseResults={(scope,family)=>{setResearchGraphRequest({scope,family,nonce:Date.now()});setTab('codemap');}} initialCaseId={memoSourceTarget?.kind==='case'?memoSourceTarget.id:undefined} project={project} section={researchSection} onSection={setResearchSection} onClose={() => setResearchOpen(false)} onChange={persist} actor={activeCoderName} selection={pendingSelection && selectedDoc ? { docId: selectedDoc.id, start: pendingSelection.start, end: pendingSelection.end } : null}
         onNavigate={id => {
           const seg = project.codedSegments.find(s => s.id === id);
           if (seg) { goToExcerpt(seg); return; }
@@ -3077,6 +3085,9 @@ function openDocxCommentImport() {
             {saveStatus === 'saved' && '✓ Saved'}
             {saveStatus === 'error' && '⚠ Save failed'}
             {saveStatus === 'idle' && ''}
+          </span>
+          <span className="lan-activity" role={lanActivity?'status':undefined} aria-live="polite" aria-atomic="true" title={lanActivity?.text}>
+            {lanActivity && <span key={lanActivity.id}>{lanActivity.text}</span>}
           </span>
         </div>
         
@@ -4220,7 +4231,7 @@ function openDocxCommentImport() {
 {tab === 'memos' && <ResearchWorkspace memoTarget={memoTarget} onMemoTargetHandled={()=>setMemoTarget(null)} memoRequest={memoRequest} onMemoRequestHandled={()=>setMemoRequest(null)} embedded project={project} section="notes" onSection={()=>{}} onClose={()=>setTab('workspace')} onChange={persist} onNavigate={()=>{}} onAdjust={()=>{}} onMemoSource={openMemoSource} onManuscript={handleExportManuscriptSkeleton} actor={activeCoderName}/>}
 
 {tab === 'analysis' && (
-  <AnalysisTab onIcrHelp={()=>{setHelpRequest({anchor:'icr-calculations-and-reporting',nonce:Date.now()});setTab('help');}} onIcrSettings={settings=>persist({...project,icrComparison:settings})} sourceTarget={memoSourceTarget} project={project} onExportReport={handleExportReport} onSaveCell={updateFrameworkCell} onSaveRelationNote={updateRelationNote} onDeleteSegments={deleteSegmentsByIds} showToast={showToast} />
+  <AnalysisTab onProjectChange={persist} onOpenIcrExcerpt={id=>{const seg=project.codedSegments.find(s=>s.id===id);if(seg){goToExcerpt(seg);return;}const region=project.codedRegions?.find(r=>r.id===id);if(region){setTab('workspace');setSelectedDocId(null);setSelectedImageId(region.imageId);}}} onIcrHelp={()=>{setHelpRequest({anchor:'icr-calculations-and-reporting',nonce:Date.now()});setTab('help');}} onIcrSettings={settings=>persist({...project,icrComparison:settings})} sourceTarget={memoSourceTarget} project={project} onExportReport={handleExportReport} onSaveCell={updateFrameworkCell} onSaveRelationNote={updateRelationNote} onDeleteSegments={deleteSegmentsByIds} showToast={showToast} />
 )}
 
 <div
@@ -4259,6 +4270,9 @@ function openDocxCommentImport() {
       onOpenCodeMemo={id=>{setMemoTarget({id:'note:code:'+id,nonce:Date.now()});setTab('memos');}}
       codes={project.codes}
       codedSegments={project.codedSegments}
+      researchProject={project}
+      researchRequest={researchGraphRequest}
+      onResearchRequestHandled={()=>setResearchGraphRequest(null)}
       mapEdgeStyles={project.mapEdgeStyles || []}
       annotations={project.mapAnnotations || []}
       hiddenMapCodeIds={project.hiddenMapCodeIds || []}
@@ -4429,11 +4443,11 @@ function AnalysisExportButtons({
   );
 }
 
-function AnalysisTab({ onIcrHelp,onIcrSettings, sourceTarget, project, onExportReport, onSaveCell, onSaveRelationNote, onDeleteSegments, showToast }: { onIcrHelp:()=>void;onIcrSettings:(settings:import('./lib/icrComparisons').IcrComparisonSettings)=>void; sourceTarget?: {kind:string;id:string;nonce:number} | null; project: Project; onExportReport: (extras?: ReportExtras) => void; onSaveCell: (docId: ID, codeId: ID, text: string) => void; onSaveRelationNote: (codeAId: ID, codeBId: ID, note: string) => void; onDeleteSegments: (ids: ID[]) => void; showToast: (msg: string) => void }) {
+function AnalysisTab({ onProjectChange,onOpenIcrExcerpt,onIcrHelp,onIcrSettings, sourceTarget, project, onExportReport, onSaveCell, onSaveRelationNote, onDeleteSegments, showToast }: { onProjectChange:(p:Project)=>void;onOpenIcrExcerpt:(id:string)=>void;onIcrHelp:()=>void;onIcrSettings:(settings:import('./lib/icrComparisons').IcrComparisonSettings)=>void; sourceTarget?: {kind:string;id:string;nonce:number} | null; project: Project; onExportReport: (extras?: ReportExtras) => void; onSaveCell: (docId: ID, codeId: ID, text: string) => void; onSaveRelationNote: (codeAId: ID, codeBId: ID, note: string) => void; onDeleteSegments: (ids: ID[]) => void; showToast: (msg: string) => void }) {
   const [subTab, setSubTab] = useState<'frequency' | 'docMatrix' | 'coMatrix' | 'framework' | 'words' | 'kwic' | 'icr' | 'consensus'>('frequency');
   const codesByIdLocal = useMemo(() => new Map(project.codes.map(c => [c.id, c])), [project.codes]);
 
-  useEffect(()=>{if(sourceTarget?.kind==='documentMatrix')setSubTab('docMatrix');if(sourceTarget?.kind==='cooccurrence')setSubTab('coMatrix');if(sourceTarget?.kind==='framework')setSubTab('framework');if(sourceTarget?.kind==='relationship')setSubTab('coMatrix');},[sourceTarget]);
+  useEffect(()=>{if(sourceTarget?.kind==='documentMatrix')setSubTab('docMatrix');if(sourceTarget?.kind==='cooccurrence')setSubTab('coMatrix');if(sourceTarget?.kind==='framework'||sourceTarget?.kind==='case-framework')setSubTab('framework');if(sourceTarget?.kind==='relationship')setSubTab('coMatrix');},[sourceTarget]);
   useEffect(()=>{if(!sourceTarget)return;const element=document.getElementById('analysis-memo-'+sourceTarget.id);element?.scrollIntoView({block:'center'});element?.querySelector('textarea')?.focus();},[sourceTarget,subTab]);
 
   // The text the user is typing (`inputValue`, drives only the input field)
@@ -4926,7 +4940,7 @@ function AnalysisTab({ onIcrHelp,onIcrSettings, sourceTarget, project, onExportR
       )}
 
       {subTab === 'framework' && (
-        <section>
+        <section><CaseFrameworkPanel focusTarget={sourceTarget?.kind==='case-framework'?sourceTarget:undefined} project={project} onChange={onProjectChange} onOpen={onOpenIcrExcerpt} onMessage={showToast}/>
           <div className="sort-row">
             <span className="section-hint">One short summary per theme, per case. Click a cell to write or edit — saves when you click away.</span>
             <label>Sort themes</label>
@@ -5090,7 +5104,7 @@ function AnalysisTab({ onIcrHelp,onIcrSettings, sourceTarget, project, onExportR
         </section>
       )}
 
-      {subTab === 'icr' && <IcrWorkspace project={project} coders={icrSelCoders} scope={icrScope} scopePicker={renderIcrScopePicker()} pair={icrPair} fleiss={icrFleiss} binary={icrBinary} cu={icrCu} coderA={icrEffA} coderB={icrEffB} onCoderA={setIcrCoderA} onCoderB={setIcrCoderB} onSettings={onIcrSettings} onHelp={onIcrHelp} onMessage={showToast}/>}
+      {subTab === 'icr' && <IcrWorkspace onProjectChange={onProjectChange} onOpen={onOpenIcrExcerpt} project={project} coders={icrSelCoders} scope={icrScope} scopePicker={renderIcrScopePicker()} pair={icrPair} fleiss={icrFleiss} binary={icrBinary} cu={icrCu} coderA={icrEffA} coderB={icrEffB} onCoderA={setIcrCoderA} onCoderB={setIcrCoderB} onSettings={onIcrSettings} onHelp={onIcrHelp} onMessage={showToast}/>}
 
       {subTab === 'consensus' && (
         <section>

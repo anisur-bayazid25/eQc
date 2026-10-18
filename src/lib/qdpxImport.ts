@@ -1,3 +1,4 @@
+import {importStructuredResearch} from './qdpxResearch';
 import { Project, Code, SourceDoc, CodedSegment, ImageSource, CodedRegion, ID, uid, colorForNewCode } from '../domain';
 import { qdaToUtf16Range } from './qdpxOffsets';
 import { hashSourceText } from './sourceOriginal';
@@ -17,6 +18,7 @@ export interface QdpxImportSummary {
   segmentsCreated: number;
   segmentsSkipped: number;
   memosImported: number;
+  researchWarnings?:string[];
   sourcesSkipped: string[]; // human-readable: "name (VideoSource)" / "name (TextSource, content not found)"
 }
 
@@ -519,6 +521,7 @@ async function importSources(
       summary.docsCreated++;
     }
     guidMap.set(guid, doc_.id);
+    const representationGuid=textSource.getAttribute('guid');if(representationGuid)guidMap.set(representationGuid,doc_.id);
     const format = kind === 'PDFSource' ? 'pdf' : 'docx';
     const richPath = (srcEl.getAttribute(kind === 'PDFSource' ? 'path' : 'richTextPath') || '').replace(/^internal:\/\//i, '').replace(/^\/+/, '');
     const richEntry = richPath && richPath.toLowerCase().endsWith(`.${format}`) ? Object.keys(payload.sourceBytes || {}).find(k => k.endsWith(richPath) || k === richPath) : undefined;
@@ -572,15 +575,17 @@ export async function importQdpx(project: Project, payload: QdpxParsePayload): P
   importCodebook(project, doc, guidMap, noteMap, summary);
   await importSources(project, doc, payload, guidMap, noteMap, summary);
 
+  summary.researchWarnings=[];
   const archive = Array.from(doc.getElementsByTagNameNS('*','Note')).find(n=>n.getAttribute('name')==='eQc research archive (JSON, version 1)');
+  if(!archive)importStructuredResearch(project,doc,guidMap,summary.researchWarnings);
   if(archive) {
     const text=noteMap.get(archive.getAttribute('guid')||'');
     if(text) {
       const data=JSON.parse(text);
       if(data.format!=='eQc-research'||data.version!==1||!data.records||!data.references)throw new Error('Unsupported research archive.');
       const refs=new Map<string,string>(Object.entries(data.references).flatMap(([id,guid])=>guidMap.has(String(guid))?[[id,guidMap.get(String(guid))!]]:[]));
-      for(const key of ['cases','groups','annotations','memos','queries','codedSegments','codedRegions'])if(data.records[key]!==undefined&&!Array.isArray(data.records[key]))throw new Error('Invalid research archive collection.');
-      mergeResearch(project,{...data.records,docs:[],codes:[],folders:[],codedSegments:data.records.codedSegments||[]} as Project,refs,refs,refs,refs);
+      for(const key of ['cases','groups','annotations','memos','queries','codedSegments','codedRegions','icrRuns','reviewedSources','icrSetups','caseFrameworkCells','icrResolutions','mapDrafts','visualizationNotes','frameworkCells','relationNotes'])if(data.records[key]!==undefined&&!Array.isArray(data.records[key]))throw new Error('Invalid research archive collection.');
+      mergeResearch(project,{...data.records,docs:[],codes:[],folders:[],codedSegments:data.records.codedSegments||[]} as Project,refs,refs,refs,refs,true);
     }
   }
 

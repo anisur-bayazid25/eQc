@@ -1,7 +1,8 @@
+import {mergeResearchExtras} from './researchExtrasMerge';
 import { Project, uid } from '../domain';
 
 /** Import independent research records, remapping every reference and deduplicating repeat merges. */
-export function mergeResearch(target: Project, source: Project, docs: Map<string,string>, codes: Map<string,string>, images: Map<string,string>, excerpts:Map<string,string>=new Map()) {
+export function mergeResearch(target: Project, source: Project, docs: Map<string,string>, codes: Map<string,string>, images: Map<string,string>, excerpts:Map<string,string>=new Map(),includeSourceSummaries=false) {
   const mapped = (ids:string[],map:Map<string,string>) => Array.from(new Set(ids.flatMap(id=>map.has(id)?[map.get(id)!]:[])));
   const sourceMap = new Map([...docs,...images]);
   const caseMap = new Map<string,string>(), groupMap = new Map<string,string>(), excerptMap = new Map(excerpts);
@@ -17,7 +18,7 @@ export function mergeResearch(target: Project, source: Project, docs: Map<string
   for(const c of source.cases||[]) {
     target.cases ||= [];
     const links=c.links.flatMap(l=>sourceMap.has(l.docId)?[{...l,docId:sourceMap.get(l.docId)!}]:[]);
-    const existing=target.cases.find(t=>t.name===c.name&&t.kind===c.kind&&JSON.stringify(t.attributes)===JSON.stringify(c.attributes)&&t.notes===c.notes);
+    const existing=target.cases.find(t=>t.name===c.name&&t.kind===c.kind&&JSON.stringify(t.attributes)===JSON.stringify(c.attributes)&&JSON.stringify(t.attributeTypes||{})===JSON.stringify(c.attributeTypes||{})&&t.notes===c.notes);
     if(existing) { existing.links=unique([...existing.links,...links]);caseMap.set(c.id,existing.id); }
     else {const id=uid('case');target.cases.push({...c,id,attributes:{...c.attributes},links});caseMap.set(c.id,id);}
   }
@@ -32,9 +33,10 @@ export function mergeResearch(target: Project, source: Project, docs: Map<string
     target.annotations ||= [];const value={...a,docId:docs.get(a.docId)!};
     if(!target.annotations.some(t=>t.docId===value.docId&&t.start===a.start&&t.end===a.end&&t.note===a.note&&t.author===a.author))target.annotations.push({...value,id:uid('annotation')});
   }
+  const memoMap=new Map<string,string>();
   for(const m of source.memos||[]) {
     target.memos ||= [];const value={...m,docIds:mapped(m.docIds,sourceMap),codeIds:mapped(m.codeIds,codes),caseIds:mapped(m.caseIds,caseMap),segmentIds:mapped(m.segmentIds,excerptMap)};
-    if(!target.memos.some(t=>JSON.stringify({...t,id:undefined})===JSON.stringify({...value,id:undefined})))target.memos.push({...value,id:uid('memo')});
+    let match=target.memos.find(t=>JSON.stringify({...t,id:undefined})===JSON.stringify({...value,id:undefined}));if(!match){match={...value,id:uid('memo')};target.memos.push(match);}memoMap.set(m.id,match.id);
   }
   for(const q of source.queries||[]) {
     target.queries ||= [];const value={...q,codeIds:mapped(q.codeIds,codes),excludeCodeIds:mapped(q.excludeCodeIds,codes),codeGroupIds:mapped(q.codeGroupIds,groupMap),docIds:mapped(q.docIds,sourceMap),documentGroupIds:mapped(q.documentGroupIds,groupMap),caseIds:mapped(q.caseIds,caseMap)};
@@ -43,4 +45,5 @@ export function mergeResearch(target: Project, source: Project, docs: Map<string
     if (references.some(([ids,map])=>ids.some(id=>!map.has(id)))) value.needsScopeReview=true;
     if(!target.queries.some(t=>JSON.stringify({...t,id:undefined})===JSON.stringify({...value,id:undefined})))target.queries.push({...value,id:uid('query')});
   }
+  mergeResearchExtras(target,source,new Map([...sourceMap,...codes,...caseMap,...groupMap,...excerptMap,...memoMap]),includeSourceSummaries);
 }

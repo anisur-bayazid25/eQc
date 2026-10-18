@@ -1,3 +1,4 @@
+import {icrFingerprint} from '../lib/icrRuns';
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {Project,normalizeCoderName} from '../domain';
 import {collectIcrCoders} from '../lib/icr';
@@ -7,6 +8,7 @@ import {cropRegionToPng} from '../lib/imageCrop';
 import IcrSummaryPanel from './IcrSummaryPanel';
 
 export default function ManuscriptExportDialog({project,onClose,onMessage}:{project:Project;onClose:()=>void;onMessage:(message:string)=>void}) {
+  const [runId,setRunId]=useState('');
   const [framework,setFramework]=useState(true),[cooccurrence,setCooccurrence]=useState(true),[projectMemos,setProjectMemos]=useState(true);
   const [icrMethod,setIcrMethod]=useState<'source'|'comparison'>(project.icrComparison?'comparison':'source');
   const available=useMemo(()=>icrMethod==='comparison'&&project.icrComparison?.method==='training'?Array.from(new Set(project.icrComparison.training.map(row=>normalizeCoderName(row.coder)))):collectIcrCoders(project).attributed.map(c=>c.name),[project,icrMethod]);
@@ -14,7 +16,8 @@ export default function ManuscriptExportDialog({project,onClose,onMessage}:{proj
   const [includeIcr,setIncludeIcr]=useState(available.length>=2),[busy,setBusy]=useState(false),[error,setError]=useState('');
   useEffect(()=>setCoders(available),[available]);
   const scope=useMemo(()=>({docIds,includeImages}),[docIds,includeImages]);
-  const summary=useMemo(()=>buildReportingIcrSummary(project,coders,scope,icrMethod),[project,coders,scope,icrMethod]);
+  const run=project.icrRuns?.find(r=>r.id===runId);
+  const summary=useMemo(()=>run?{available:true,text:run.result.text,coders:run.coders,scope:run.scope,warnings:run.result.warnings}:buildReportingIcrSummary(project,coders,scope,icrMethod),[project,coders,scope,icrMethod,run]);
   const dialog=useRef<HTMLDivElement>(null);
   useEffect(()=>{const previous=document.activeElement as HTMLElement;dialog.current?.focus();return()=>previous?.focus();},[]);
   const toggle=(list:string[],id:string)=>list.includes(id)?list.filter(value=>value!==id):[...list,id];
@@ -28,13 +31,13 @@ export default function ManuscriptExportDialog({project,onClose,onMessage}:{proj
       <p className="section-hint">Framework memos retain their code heading without source names. Linked analytic project memos appear once under a code; other analytic project memos appear after the code sections. Saved memo text is kept as written.</p>
     </fieldset>
     <fieldset><legend>Methodology before results</legend>
-      <label><input type="checkbox" checked={includeIcr} disabled={available.length<2&&!includeIcr} onChange={event=>setIncludeIcr(event.target.checked)}/>Include ICR paragraph</label>
-      {available.length<2&&<p>ICR is unavailable: fewer than two attributed coders.</p>}
-      {includeIcr&&<><label>Statistics to report<select aria-label="Manuscript ICR method" value={icrMethod} onChange={event=>setIcrMethod(event.target.value as 'source'|'comparison')}><option value="source">Source-level code presence</option><option value="comparison" disabled={!project.icrComparison}>Saved additional comparison</option></select></label><details><summary>ICR scope — {coders.length} coders, {docIds.length} text documents{includeImages?`, ${(project.images||[]).length} images`:''}</summary>
+      <label><input type="checkbox" checked={includeIcr} disabled={available.length<2&&!includeIcr&&!project.icrRuns?.length} onChange={event=>setIncludeIcr(event.target.checked)}/>Include ICR paragraph</label>
+      {available.length<2&&!project.icrRuns?.length&&<p>ICR is unavailable: fewer than two attributed coders.</p>}
+      {includeIcr&&<><label>ICR results source<select aria-label="Manuscript saved ICR run" value={runId} onChange={e=>setRunId(e.target.value)}><option value="">Calculate from current project</option>{project.icrRuns?.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>{run?<><p>{run.fingerprint===icrFingerprint(project)?'Current coding matches the saved run.':'Historical ICR run — later coding changes are not included.'}</p><p>{run.result.text}</p><button onClick={()=>navigator.clipboard.writeText(run.result.text).then(()=>onMessage('Saved ICR paragraph copied.')).catch(()=>onMessage('Clipboard unavailable. Select and copy the saved paragraph.'))}>Copy saved ICR paragraph</button></>:null}{!run&&<><label>Statistics to report<select aria-label="Manuscript ICR method" disabled={!!run} value={icrMethod} onChange={event=>setIcrMethod(event.target.value as 'source'|'comparison')}><option value="source">Source-level code presence</option><option value="comparison" disabled={!project.icrComparison}>Saved additional comparison</option></select></label><details><summary>ICR scope — {coders.length} coders, {docIds.length} text documents{includeImages?`, ${(project.images||[]).length} images`:''}</summary>
         <strong>Coders</strong>{available.map(coder=><label key={coder}><input type="checkbox" checked={coders.includes(coder)} onChange={()=>setCoders(toggle(coders,coder))}/>{coder}</label>)}
         <strong>Text documents</strong>{project.docs.map(doc=><label key={doc.id}><input type="checkbox" checked={docIds.includes(doc.id)} onChange={()=>setDocIds(toggle(docIds,doc.id))}/>{doc.name}</label>)}
         <label><input type="checkbox" checked={includeImages} onChange={event=>setIncludeImages(event.target.checked)}/>Include image sources</label>
-      </details><IcrSummaryPanel project={project} coders={coders} scope={scope} method={icrMethod} onMessage={onMessage}/></>}
+      </details></>}{!run&&<IcrSummaryPanel project={project} coders={coders} scope={scope} method={icrMethod} onMessage={onMessage}/>}</>}
     </fieldset>
     {error&&<p role="alert">{error}</p>}
     <button className="primary-btn" disabled={busy||includeIcr&&!summary.available} onClick={async()=>{setBusy(true);setError('');try{

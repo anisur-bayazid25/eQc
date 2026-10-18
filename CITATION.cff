@@ -17,14 +17,10 @@ authors:
     orcid: "https://orcid.org/0000-0001-9015-4422"
     email: anisur.rahman.bayazid@gmail.com
     affiliation: "BRAC James P Grant School of Public Health, BRAC University"
-affiliations:
-  - name: "BRAC James P Grant School of Public Health, BRAC University"
-    city: Dhaka
-    country: BD
 repository-code: "https://github.com/anisur-bayazid25/eQc"
 url: "https://github.com/anisur-bayazid25/eQc"
 license: MIT
-version: 1.8.5
+version: 1.8.6
 date-released: "2026-10-18"
 keywords:
   - qualitative research

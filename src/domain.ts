@@ -209,6 +209,7 @@ export interface FrameworkCell {
 export interface ResearchCase {
   id: ID; name: string; kind: 'person' | 'organisation' | 'place' | 'other';
   attributes: Record<string, string>;
+  attributeTypes?: Record<string, 'text' | 'number' | 'boolean' | 'date'>;
   links: Array<{ docId: ID; start?: number; end?: number }>;
   notes?: string;
 }
@@ -232,6 +233,11 @@ export interface ProjectSnapshot { id: number; at: number; label: string; automa
 
 export interface Announcement {id:ID;text:string;retention:'project'|'session';createdAt:number;authorName:string;authorId:string;}
 export interface Project {
+  icrRuns?: import('./lib/icrRuns').IcrRun[];
+  icrSetups?: Array<{id:ID;name:string;settings:import('./lib/icrComparisons').IcrComparisonSettings}>;
+  reviewedSources?: Array<{sourceId:ID;coder:string;reviewedAt:number}>;
+  icrResolutions?: Array<{id:ID;sourceId:ID;codeId:ID;coderA:string;coderB:string;decision:string;memoId:ID;createdAt:number}>;
+  caseFrameworkCells?: Array<{id:ID;caseId:ID;codeId:ID;text:string;updatedAt:number}>;
   announcements?:Announcement[];
   icrComparison?: import('./lib/icrComparisons').IcrComparisonSettings;
   analysisPeriods?:AnalysisPeriod[];

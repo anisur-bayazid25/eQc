@@ -4,6 +4,18 @@ All notable changes to **eQc - Easy Qual Coding** are documented in this file.
 
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 1.8.6 - 2026-10-18
+
+- Connected case/group/attribute/query selections and exact retrieved coding entries to graph generation; scoped word clouds use coded text.
+- Added previewed case CSV import and matching export with stable identities, typed attributes and text/image/passage links.
+- Standardized ICR statistic identifiers/names across results and exports, with disagreement and coded-only agreement details. Added review confirmations, disagreement evidence and linked methodological resolution memos.
+- Added preserved named ICR runs, selectable in manuscript and HTML reports; later coding changes leave historical values intact. Conflicting imported comparison setups remain separately selectable.
+- Added case × theme framework summaries with participant attributes, evidence navigation, Memo-Book integration and CSV/Word/HTML/manuscript export connections.
+- Added structured REFI-QDA cases, variables and sets, an eQc research appendix, preservation inventories, research import reports and merge previews; retained graph drafts and remapped research links on merge.
+- Aligned the ICR research cards and form controls with Comparison setup, including responsive coder checklists and collapsed saved-statistics tables.
+- Moved routine LAN updates to a quiet ribbon feed; fixed session-switch cleanup and bounded queued messages.
+- Prepared automatic Zenodo citation/README synchronization for future releases, starting with v1.8.6.
+
 ## 1.8.5 - 2026-10-18
 
 - Added LAN announcements beside Profile: host-controlled posting permission, project-saved or session-only storage, author/host deletion, 30-second dismissible notices and per-profile unread counts.

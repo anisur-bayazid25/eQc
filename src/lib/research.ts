@@ -114,6 +114,8 @@ export function resizeExcerpt(project: Project, id: ID, start: number, end: numb
 export function cleanResearchLinks(project: Project): Project {
   const docs = new Set(project.docs.map(d => d.id)), codes = new Set(project.codes.map(c => c.id)), images = new Set(project.images?.map(i => i.id)), segments = new Set([...project.codedSegments,...(project.codedRegions||[])].map(s => s.id)), cases = new Set(project.cases?.map(c => c.id));
   return { ...project,
+    caseFrameworkCells:project.caseFrameworkCells?.filter(c=>cases.has(c.caseId)&&codes.has(c.codeId)),
+    reviewedSources:project.reviewedSources?.filter(r=>docs.has(r.sourceId)||images.has(r.sourceId)),
     frameworkCells: project.frameworkCells?.filter(cell => docs.has(cell.docId) && codes.has(cell.codeId)),
     cases: project.cases?.map(c => ({ ...c, links: c.links.filter(l => docs.has(l.docId) || images.has(l.docId)) })),
     groups: project.groups?.map(g => ({ ...g, memberIds: g.memberIds.filter(id => g.kind === 'codes' ? codes.has(id) : docs.has(id) || images.has(id)) })),

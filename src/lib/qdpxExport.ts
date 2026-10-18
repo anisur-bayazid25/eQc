@@ -1,3 +1,4 @@
+import {caseSelections,structuredResearchXml} from './qdpxResearch';
 import { Project } from '../domain';
 import { utf16ToQdaRange } from './qdpxOffsets';
 import { hashSourceText } from './sourceOriginal';
@@ -161,7 +162,8 @@ function buildTextSource(
   creator: string,
   richOriginal: string | undefined,
   bytes: Record<string, string>,
-  sourceGuids: Map<string,string>
+  sourceGuids: Map<string,string>,
+  caseXml: Map<string,string> = new Map()
 ): string {
   const guid = uuid(); sourceGuids.set(doc.id,guid);
   const fileName = `${guid}.txt`;
@@ -193,7 +195,7 @@ function buildTextSource(
 
   return (
     `<TextSource guid="${guid}" name="${esc(doc.name)}" plainTextPath="internal://${fileName}"${richOriginal ? ` richTextPath="internal://${guid}.docx"` : ''} creatingUser="${creator}">` +
-    `${docMemo ? `<Description>${esc(docMemo)}</Description>` : ''}${selections}` +
+    `${docMemo ? `<Description>${esc(docMemo)}</Description>` : ''}${selections}${caseXml.get(doc.id)||''}` +
     `</TextSource>`
   );
 }
@@ -257,12 +259,13 @@ export async function buildQdpxExport(project: Project): Promise<QdpxExportPaylo
 
   const codebook = buildCodebook(project, codeGuids, memos);
   const sourceGuids = new Map<string,string>();
+  const caseXml=caseSelections(project,uuid);
   const textParts: string[] = [];
   for (const doc of project.docs) {
     const original = doc.original;
     const originalMatches = original && original.textHash === await hashSourceText(doc.content);
     const rich = originalMatches && original.format === 'docx' ? original.base64 : undefined;
-    const text = buildTextSource(project, doc, codeGuids, files, users.guids, users.creator, rich, bytes, sourceGuids);
+    const text = buildTextSource(project, doc, codeGuids, files, users.guids, users.creator, rich, bytes, sourceGuids, caseXml.bySource);
     if (originalMatches && original.format === 'pdf') {
       const guid = uuid();
       sourceGuids.set(doc.id,guid);
@@ -283,27 +286,28 @@ export async function buildQdpxExport(project: Project): Promise<QdpxExportPaylo
     .map(img => buildPictureSource(project, img, codeGuids, sizes[img.id], bytes, users.guids, users.creator, sourceGuids))
     .join('');
 
-  if ([project.cases,project.groups,project.annotations,project.memos,project.queries].some(items=>items?.length)) {
+  if ([project.cases,project.groups,project.annotations,project.memos,project.queries,project.icrRuns,project.mapDrafts,project.frameworkCells,project.caseFrameworkCells,project.visualizationNotes,project.reviewedSources].some(items=>items?.length)||project.icrComparison) {
     // Standard Notes provide readable records; the labelled appendix retains app-specific semantics.
     const rows=researchRows(project);
-    for(const row of rows.slice(1).filter(r=>['Case','Attribute','Case link','Group','Annotation','Saved query'].includes(r[0])||r[0].startsWith('Memo:')))
+    for(const row of rows.slice(1).filter(r=>['Case','Attribute','Case link','Group','Annotation','Saved query','ICR run','Case framework summary','Framework memo','Relationship memo'].includes(r[0])||r[0].startsWith('Memo:')))
       memos.push({guid:uuid(),name:'eQc research record — '+row[0]+' — '+row[1],text:row.map((v,i)=>v?rows[0][i]+': '+v:'').filter(Boolean).join('\n')});
     const references=Object.fromEntries([...codeGuids,...sourceGuids]);
-    const records={cases:project.cases,groups:project.groups,annotations:project.annotations,memos:project.memos,queries:project.queries,
+    const records={name:project.name,icrComparison:project.icrComparison,icrSetups:project.icrSetups,icrRuns:project.icrRuns,reviewedSources:project.reviewedSources,icrResolutions:project.icrResolutions,caseFrameworkCells:project.caseFrameworkCells,mapDrafts:project.mapDrafts,visualizationNotes:project.visualizationNotes,frameworkCells:project.frameworkCells,relationNotes:project.relationNotes,cases:project.cases,groups:project.groups,annotations:project.annotations,memos:project.memos,queries:project.queries,
       codedSegments:project.codedSegments.map(s=>({id:s.id,docId:s.docId,codeId:s.codeId,start:s.start,end:s.end,coder:s.coder})),
       codedRegions:(project.codedRegions||[]).map(r=>({id:r.id,imageId:r.imageId,codeId:r.codeId,x:r.x,y:r.y,width:r.width,height:r.height,coder:r.coder}))};
     memos.push({guid:uuid(),name:'eQc research archive (JSON, version 1)',text:JSON.stringify({format:'eQc-research',version:1,references,records})});
   }
 
+  const structured=structuredResearchXml(project,sourceGuids,codeGuids,caseXml,uuid);
   const nowIso = new Date().toISOString();
   const qdeXml =
     `<?xml version="1.0" encoding="UTF-8"?>\n` +
     `<Project xmlns="${NS}" xmlns:xsi="${XSI}" xsi:schemaLocation="${NS} http://schema.qdasoftware.org/versions/Project/v1.0/Project.xsd" ` +
     `name="${esc(project.name)}" origin="eQc; code descriptions=definitions" creatingUserGUID="${users.creator}" creationDateTime="${nowIso}">` +
     users.xml +
-    codebook +
+    codebook + structured.variables + structured.cases +
     (textSources || pictureSources ? `<Sources>${textSources}${pictureSources}</Sources>` : '') +
-    buildNotesXml(memos, files, users.creator, nowIso) +
+    buildNotesXml(memos, files, users.creator, nowIso) + structured.sets +
     `</Project>`;
 
   return {

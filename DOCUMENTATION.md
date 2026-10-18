@@ -73,6 +73,16 @@ ICR uses selected sources/coders and includes source × code presence measures. 
 
 ICR uses one method selector with contextual inputs and an explicit Calculate action. Summary cards lead; pairwise/code tables and diagnostics are collapsed. Detailed tables support search, 20-row pages and complete CSV/Word exports. ICR help opens the Help tab at the formulas, comparison-unit rules and worked examples. Additional comparisons provide character/sentence/paragraph units, presence with RK correction, exact frequency equality, segment overlap with Brennan–Prediger corrections, semantic domains with exclusive-code validation and imported fixed-test decisions with per-code Pearson correlation. Calculate saves settings/test rows in the project. The paragraph preview and copy button are available only in manuscript skeleton export options and produce prose only. Native comparison units and aggregation are explicit; the exploratory global Cu-style coefficient has not been validated as equivalent to published global Cu-alpha and is excluded from manuscript reporting.
 
+### Research connections and preserved ICR runs
+
+ICR uses standard statistic names: Cohen’s kappa (κ), Fleiss’ kappa (κ), Krippendorff’s alpha (α), Holsti index, Brennan–Prediger kappa, Rädiker–Kuckartz kappa (RK), and Pearson’s correlation coefficient (r). Binary/source, character, sentence, paragraph and semantic-domain units remain distinct. Pearson r measures correlation. The exploratory global domain-set alpha is not validated as published Cu-alpha and remains excluded from manuscript statistics.
+
+Reviewed sources records independent review confirmations. Inspect disagreements opens original coding and records linked methodological resolution memos. Save a named ICR run before consensus or later edits; it preserves its calculation results and scope. Historical runs can be selected explicitly in HTML and manuscript exports. Imported settings can be loaded separately without overwriting independent coding. Saved statistics are collapsible, searchable and exportable.
+
+Case × theme framework summaries provide participant attribute columns, evidence navigation and CSV/Word export alongside the existing document framework. Case summaries are included in Memo-Book and research reports. Excerpt review can send selected entries directly to a graph; visualization scopes reuse cases, groups, attribute filters and saved queries. Scoped word clouds use selected coded text rather than whole documents.
+
+Case CSV export matches its previewed importer, with stable IDs, typed attribute columns and source/passage links. QDPX exchanges structured cases, variables and sets. Additional research records and graph drafts are retained in an eQc appendix and readable notes; other apps may not reconstruct those objects. The export inventory, import report and merge preview explain retained objects, unresolved links and destination-setting conflicts. Preserve a native JSON backup for full eQc recovery.
+
 ## Memo-Book
 
 Gather notes from projects, documents/images, codes, quotes/regions, annotations, cases, framework/co-occurrence and map annotations. Filter/search, select cards or all matches, and read selected notes together. Lists use 50-card pages; selection/export covers all pages.

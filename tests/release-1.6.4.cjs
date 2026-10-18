@@ -69,7 +69,7 @@ test('HTML includes every analysis, scope, ICR values, consensus and escaped ima
   const p = fixture(); const scope = { docIds: ['d'], includeImages: true };
   const html = buildReportHtml(p, { icr: { coders: ['Ann', 'Bob', 'Carol'], scope, coderA: 'Ann', coderB: 'Bob' },
     wordFrequencies: [{ word: 'quote', count: 2 }], kwicKeyword: 'missing', kwicResults: [], imageExcerpts: [{ regionId: 'r', base64: 'aGVsbG8=' }] });
-  for (const label of ['Coding Frequency', 'Code x Document Matrix', 'Code Co-occurrence Matrix', 'Framework Matrix', 'Word Frequencies', 'KWIC', 'Inter-Coder Reliability', 'Fleiss', 'Nominal alpha binary (source × code)', 'Text-unit nominal alpha (dominant code)', 'Consensus Summary', 'Image Coding']) assert.ok(html.includes(label), label);
+  for (const label of ['Coding Frequency', 'Code x Document Matrix', 'Code Co-occurrence Matrix', 'Framework Matrix', 'Word Frequencies', 'KWIC', 'Inter-Coder Reliability', 'Fleiss', 'Krippendorff’s alpha (α), nominal binary (source × code)', 'Text-unit nominal alpha (dominant code)', 'Consensus Summary', 'Image Coding']) assert.ok(html.includes(label), label);
   assert.ok(html.includes(computePairwiseIcr(p, 'Ann', 'Bob', scope).percent.toFixed(1) + '% agreement'));
   assert.match(html, /1 review passages: 0 agreements, 1 disagreements/); assert.match(html, /1 single-coder passages excluded/);
   assert.match(html, /Interview &lt;one&gt;/); assert.match(html, /Photo &lt;one&gt;/); assert.match(html, /data:image\/png;base64,aGVsbG8=/);

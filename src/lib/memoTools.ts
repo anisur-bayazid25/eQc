@@ -1,7 +1,7 @@
 import { Project, ResearchMemo, uid } from '../domain';
 
 export interface MemoRecord extends ResearchMemo { origin: { kind: string; id: string }; }
-export const memoCategories: Record<string, string> = {standalone:'Project memos', document:'Document memos', image:'Document memos', code:'Code memos', framework:'Framework matrix memos', relationship:'Code co-occurrence memos', excerpt:'Quote notes', region:'Quote notes', annotation:'Annotations', case:'Case memos', map:'Visualization labels', edge:'Visualization labels', visualization:'Visualization notes','visualization-draft':'Visualization notes'};
+export const memoCategories: Record<string, string> = {standalone:'Project memos', document:'Document memos', image:'Document memos', code:'Code memos', framework:'Framework matrix memos','case-framework':'Framework matrix memos', relationship:'Code co-occurrence memos', excerpt:'Quote notes', region:'Quote notes', annotation:'Annotations', case:'Case memos', map:'Visualization labels', edge:'Visualization labels', visualization:'Visualization notes','visualization-draft':'Visualization notes'};
 export function memoCategory(memo: MemoRecord) { return memoCategories[memo.origin.kind] || 'Other notes'; }
 export function listMemoRecords(project: Project): MemoRecord[] {
   const records: MemoRecord[] = (project.memos || []).map(m => ({ ...m, origin:{kind:'standalone',id:m.id} }));
@@ -19,6 +19,7 @@ export function listMemoRecords(project: Project): MemoRecord[] {
   project.images?.forEach(i => add('image',i.id,'Image memo — '+i.name,i.notes,[i.id]));
   project.codedRegions?.forEach(r => add('region',r.id,'Region memo — '+source(r.imageId)+' / '+code(r.codeId),r.note,[r.imageId],[r.codeId],[],[r.id],r.createdAt));
   project.frameworkCells?.forEach(f => add('framework',f.id,'Framework memo — '+source(f.docId)+' / '+code(f.codeId),f.text,[f.docId],[f.codeId],[],[],0,f.updatedAt));
+  project.caseFrameworkCells?.forEach(f=>add('case-framework',f.id,'Case framework memo — '+(project.cases?.find(c=>c.id===f.caseId)?.name||'Unavailable case')+' / '+code(f.codeId),f.text,project.cases?.find(c=>c.id===f.caseId)?.links.map(l=>l.docId)||[],[f.codeId],[f.caseId],[],0,f.updatedAt));
   project.relationNotes?.forEach(r => add('relationship',r.id,'Relationship memo — '+code(r.codeAId)+' / '+code(r.codeBId),r.note,[],[r.codeAId,r.codeBId],[],[],0,r.updatedAt));
   project.cases?.forEach(c => add('case',c.id,'Case memo — '+c.name,c.notes,c.links.map(l => l.docId),[],[c.id]));
   project.annotations?.forEach(a => add('annotation',a.id,'Passage annotation — '+source(a.docId),a.note,[a.docId],[],[],[],a.createdAt));
@@ -40,6 +41,7 @@ export function updateMemoText(project: Project, record: MemoRecord, text: strin
   if (kind === 'excerpt') return {...project,codedSegments:project.codedSegments.map(s => s.id === id ? {...s,note:text} : s)};
   if (kind === 'image') return {...project,images:project.images?.map(i => i.id === id ? {...i,notes:text} : i)};
   if (kind === 'region') return {...project,codedRegions:project.codedRegions?.map(r => r.id === id ? {...r,note:text} : r)};
+  if(kind==='case-framework')return {...project,caseFrameworkCells:project.caseFrameworkCells?.map(f=>f.id===id?{...f,text,updatedAt:now}:f)};
   if (kind === 'framework') return {...project,frameworkCells:project.frameworkCells?.map(f => f.id === id ? {...f,text,updatedAt:now} : f)};
   if (kind === 'relationship') return {...project,relationNotes:project.relationNotes?.map(r => r.id === id ? {...r,note:text,updatedAt:now} : r)};
   if (kind === 'case') return {...project,cases:project.cases?.map(c => c.id === id ? {...c,notes:text} : c)};

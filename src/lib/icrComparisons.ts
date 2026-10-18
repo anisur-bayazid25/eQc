@@ -1,3 +1,4 @@
+import {IcrStatistic,statisticName} from './icrStatistics';
 import {Project,normalizeCoderName} from '../domain';
 import {cohenKappa,holstiIndex,IcrContingency,IcrScope,formatIcrValue} from './icr';
 
@@ -6,10 +7,10 @@ export interface IcrTrainingRow {unit:string;coder:string;code:string;present:bo
 export interface IcrDomain {name:string;codeIds:string[];}
 export interface IcrComparisonSettings {method:ComparisonMethod;codeIds:string[];overlap:number;domains:IcrDomain[];training:IcrTrainingRow[];jointAbsences?:boolean;trainingCoders?:string[];}
 export interface WeightedRatings {ratings:Array<string|null>;weight:number;}
-export interface ComparisonRow {label:string;items:number;agreement:number|null;kappa:number|null;holsti?:number|null;coefficientNotApplicable?:boolean;}
+export interface ComparisonRow {contingency?:IcrContingency;statistic:IcrStatistic;role:'total'|'code'|'source'|'mean'|'binary'|'global'|'domain';label:string;items:number;agreement:number|null;kappa:number|null;holsti?:number|null;coefficientNotApplicable?:boolean;}
 export const comparisonCoefficient=(row:ComparisonRow)=>row.coefficientNotApplicable?'—':row.kappa===null?'Undefined':formatIcrValue(row.kappa);
 export interface ComparisonResult {title:string;description:string;rows:ComparisonRow[];text:string;warnings:string[];}
-export const comparisonMethods:Record<ComparisonMethod,string>={presence:'Code presence and RK correction',characters:'Characters',sentences:'Sentences',paragraphs:'Paragraphs',segments:'Segment overlap',frequency:'Code frequency by document',domains:'Semantic domains',training:'Fixed-excerpt test and ratings'};
+export const comparisonMethods:Record<ComparisonMethod,string>={presence:'Code presence and Rädiker–Kuckartz correction',characters:'Characters',sentences:'Sentences',paragraphs:'Paragraphs',segments:'Segment overlap',frequency:'Code frequency by document',domains:'Semantic domains',training:'Fixed-excerpt test and ratings'};
 const emptyTable=():IcrContingency=>({bothYes:0,aOnly:0,bOnly:0,bothNo:0,n:0});
 function add(table:IcrContingency,a:boolean,b:boolean,weight=1){table.n+=weight;table[a?(b?'bothYes':'aOnly'):(b?'bOnly':'bothNo')]+=weight;}
 const agreement=(t:IcrContingency)=>t.n?100*(t.bothYes+t.bothNo)/t.n:null;
@@ -60,15 +61,15 @@ export function computeComparison(project:Project,coderNames:string[],scope:IcrS
         else{const aSegments=segments.filter(s=>s.codeId===code.id&&normalizeCoderName(s.coder)===a),bSegments=segments.filter(s=>s.codeId===code.id&&normalizeCoderName(s.coder)===b);
           for(const [left,right] of [[aSegments,bSegments],[bSegments,aSegments]])for(const s of left){cn++;if(right.some(t=>s.docId===t.docId&&Math.max(0,Math.min(s.end,t.end)-Math.max(s.start,t.start))>0&&(Math.min(s.end,t.end)-Math.max(s.start,t.start))/(Math.max(s.end,t.end)-Math.min(s.start,t.start))>=tolerance))cm++;}
         }
-        matches+=cm;total+=cn;rows.push({label:`${a} / ${b} — ${code.name}`,items:cn,agreement:cn?100*cm/cn:null,kappa:null,coefficientNotApplicable:true});
+        matches+=cm;total+=cn;rows.push({statistic:'percent',role:'code',label:`${a} / ${b} — ${code.name}`,items:cn,agreement:cn?100*cm/cn:null,kappa:null,coefficientNotApplicable:true});
       }
       const po=total?matches/total:null,activeCodes=new Set(segments.filter(s=>[a,b].includes(normalizeCoderName(s.coder))).map(s=>s.codeId)).size;
-      rows.unshift({label:`${a} / ${b} — total`,items:total,agreement:po===null?null:po*100,kappa:settings.method==='segments'?brennanPrediger(po,activeCodes):null,coefficientNotApplicable:settings.method!=='segments'});
-      if(settings.method==='presence'&&settings.jointAbsences!==false){const chance=0.5**codes.length;rows[0].label+=' — RK κ (chance = 0.5^'+codes.length+')';rows[0].kappa=po===null?null:(po-chance)/(1-chance);rows[0].coefficientNotApplicable=false;}
-      if(settings.method==='segments')rows.push({label:`${a} / ${b} — Brennan–Prediger binary correction (chance = 0.5)`,items:total,agreement:po===null?null:po*100,kappa:brennanPrediger(po,2)});
+      rows.unshift({statistic:settings.method==='segments'?'brennan':'percent',role:'total',label:`${a} / ${b} — total`,items:total,agreement:po===null?null:po*100,kappa:settings.method==='segments'?brennanPrediger(po,activeCodes):null,coefficientNotApplicable:settings.method!=='segments'});
+      if(settings.method==='presence'&&settings.jointAbsences!==false){const chance=0.5**codes.length;rows[0].label+=' — RK κ (chance = 0.5^'+codes.length+')';rows[0].kappa=po===null?null:(po-chance)/(1-chance);rows[0].coefficientNotApplicable=false;rows[0].statistic='rk';}
+      if(settings.method==='segments')rows.push({statistic:'brennan',role:'binary',label:`${a} / ${b} — Brennan–Prediger binary correction (chance = 0.5)`,items:total,agreement:po===null?null:po*100,kappa:brennanPrediger(po,2)});
     }
     const description=settings.method==='segments'?`Each coder’s segment is checked against the other coder’s segments with the same code in the same document. A match requires intersection / outer span ≥ ${settings.overlap}%. Both directions are counted; a matching pair contributes two checks. Jointly uncoded text is excluded. Brennan–Prediger κ uses chance = 1 / number of active codes; the binary correction uses chance = 0.5.`:settings.method==='presence'?`Each document × direct-code item compares whether the code was applied at least once. Joint absences are ${settings.jointAbsences===false?'excluded; RK correction is not reported':'included; Rädiker–Kuckartz (RK) κ uses chance = 0.5 raised to the number of selected codes'}.`:`Each document × direct-code item agrees only when both coders applied the code the same number of times. Equal zero counts are ${settings.jointAbsences===false?'excluded':'included'}. No chance-corrected coefficient is reported for frequency equality.`;
-    return finish(comparisonMethods[settings.method],description,rows,warnings,coders,docs.length,codes.length);
+    return finish(settings.method,comparisonMethods[settings.method],description,rows,warnings,coders,docs.length,codes.length);
   }
   if(!docs.length||!codes.length)throw Error('Select text documents and codes.');
   const items:WeightedRatings[]=[],perDoc=new Map<string,WeightedRatings[]>(),perCode=new Map<string,WeightedRatings[]>();
@@ -100,29 +101,29 @@ export function computeComparison(project:Project,coderNames:string[],scope:IcrS
     }perDoc.set(doc.id,docItems);
   }
   if(settings.method==='domains'){
-    const binaryAlpha=weightedAlpha(relevance);rows.push({label:'Global alpha binary — relevant vs uncoded text',items:relevance.reduce((sum,u)=>sum+u.weight,0),agreement:null,kappa:binaryAlpha});
-    for(const domain of domains){const units=domainItems.get(domain.name)||[];rows.push({label:`cu-alpha — ${domain.name}`,items:units.filter(u=>u.ratings.filter(v=>v!==null).length>=2).reduce((sum,u)=>sum+u.weight,0),agreement:null,kappa:weightedAlpha(units)});}
-    for(const [name,units] of domainBinary)rows.push({label:'Domain alpha binary — '+name,items:units.reduce((sum,u)=>sum+u.weight,0),agreement:null,kappa:weightedAlpha(units)});
-    for(const code of codes){const units=perCode.get(code.id)||[];rows.push({label:'Code alpha binary — '+code.name,items:units.reduce((sum,u)=>sum+u.weight,0),agreement:null,kappa:weightedAlpha(units)});}
+    const binaryAlpha=weightedAlpha(relevance);rows.push({statistic:'binary',role:'global',label:'Global alpha binary — relevant vs uncoded text',items:relevance.reduce((sum,u)=>sum+u.weight,0),agreement:null,kappa:binaryAlpha});
+    for(const domain of domains){const units=domainItems.get(domain.name)||[];rows.push({statistic:'domain',role:'domain',label:`cu-alpha — ${domain.name}`,items:units.filter(u=>u.ratings.filter(v=>v!==null).length>=2).reduce((sum,u)=>sum+u.weight,0),agreement:null,kappa:weightedAlpha(units)});}
+    for(const [name,units] of domainBinary)rows.push({statistic:'binary',role:'domain',label:'Domain alpha binary — '+name,items:units.reduce((sum,u)=>sum+u.weight,0),agreement:null,kappa:weightedAlpha(units)});
+    for(const code of codes){const units=perCode.get(code.id)||[];rows.push({statistic:'binary',role:'code',label:'Code alpha binary — '+code.name,items:units.reduce((sum,u)=>sum+u.weight,0),agreement:null,kappa:weightedAlpha(units)});}
     const distance=(a:string,b:string)=>{const x=JSON.parse(a) as string[],y=JSON.parse(b) as string[],intersection=x.filter(v=>y.includes(v)).length;return {difference:x.length*y.length-intersection**2,product:x.length*y.length};};
-    rows.push({label:'Cu-style global semantic-domain set alpha',items:globalDomainItems.filter(u=>u.ratings.filter(v=>v!==null).length>=2).reduce((sum,u)=>sum+u.weight,0),agreement:null,kappa:weightedAlpha(globalDomainItems,distance)});
+    rows.push({statistic:'exploratory',role:'global',label:'Exploratory global domain-set alpha',items:globalDomainItems.filter(u=>u.ratings.filter(v=>v!==null).length>=2).reduce((sum,u)=>sum+u.weight,0),agreement:null,kappa:weightedAlpha(globalDomainItems,distance)});
     warnings.push('Domain cu-alpha uses only positions where at least two coders assigned a code in that domain; absence is missing for that calculation. Global binary alpha separately assesses relevant vs uncoded text. The global set coefficient uses the domain-set distance |C||K| − |C∩K|² and finite-sample coincidence correction; it has not been validated for equivalence with the published global Cu-alpha method.');
-    return finish('Semantic-domain alpha','Character-length weighted comparisons on selected text. Domain codes must be mutually exclusive within each coder’s overlapping ranges. Images are excluded.',rows,warnings,coders,docs.length,codes.length);
+    return finish('domains','Semantic-domain alpha','Character-length weighted comparisons on selected text. Domain codes must be mutually exclusive within each coder’s overlapping ranges. Images are excluded.',rows,warnings,coders,docs.length,codes.length);
   }
   for(const [a,b] of pairs){const ai=coders.indexOf(a),bi=coders.indexOf(b),table=emptyTable();
     const summarize=(list:WeightedRatings[])=>{const t=emptyTable();for(const item of list)add(t,item.ratings[ai]==='present',item.ratings[bi]==='present',item.weight);return t;};
-    Object.assign(table,summarize(items));rows.push({label:`${a} / ${b} — pooled`,items:table.n,agreement:agreement(table),kappa:cohenKappa(table),holsti:holstiIndex(table)});
-    const fileRows=[...perDoc].map(([id,list])=>{const t=summarize(list);return {label:`${a} / ${b} — ${docs.find(d=>d.id===id)!.name}`,items:t.n,agreement:agreement(t),kappa:cohenKappa(t)};});rows.push(...fileRows);
-    const defined=fileRows.filter(row=>row.kappa!==null);rows.push({label:`${a} / ${b} — equal-document mean κ (${fileRows.length-defined.length} undefined excluded)`,items:fileRows.length,agreement:null,kappa:defined.length?defined.reduce((sum,row)=>sum+row.kappa!,0)/defined.length:null});
-    for(const code of codes){const t=summarize(perCode.get(code.id)||[]);rows.push({label:`${a} / ${b} — code ${code.name}`,items:t.n,agreement:agreement(t),kappa:cohenKappa(t),holsti:holstiIndex(t)});}
+    Object.assign(table,summarize(items));rows.push({statistic:'cohen',role:'total',label:`${a} / ${b} — pooled`,items:table.n,agreement:agreement(table),contingency:{...table},kappa:cohenKappa(table),holsti:holstiIndex(table)});
+    const fileRows=[...perDoc].map(([id,list])=>{const t=summarize(list);return {statistic:'cohen' as const,role:'source' as const,label:`${a} / ${b} — ${docs.find(d=>d.id===id)!.name}`,items:t.n,agreement:agreement(t),contingency:{...t},kappa:cohenKappa(t)};});rows.push(...fileRows);
+    const defined=fileRows.filter(row=>row.kappa!==null);rows.push({statistic:'cohen',role:'mean',label:`${a} / ${b} — equal-document mean κ (${fileRows.length-defined.length} undefined excluded)`,items:fileRows.length,agreement:null,kappa:defined.length?defined.reduce((sum,row)=>sum+row.kappa!,0)/defined.length:null});
+    for(const code of codes){const t=summarize(perCode.get(code.id)||[]);rows.push({statistic:'cohen',role:'code',label:`${a} / ${b} — code ${code.name}`,items:t.n,agreement:agreement(t),contingency:{...t},kappa:cohenKappa(t),holsti:holstiIndex(t)});}
   }
   const count=items.reduce((sum,u)=>sum+u.weight,0),full=items.filter(u=>u.ratings.every(value=>value===u.ratings[0])).reduce((sum,u)=>sum+u.weight,0);
-  rows.push({label:'All coders — nominal alpha binary',items:count,agreement:count?100*full/count:null,kappa:weightedAlpha(items)});
-  if(coders.length>=3)rows.push({label:'All coders — Fleiss’ κ',items:count,agreement:count?100*full/count:null,kappa:fleiss(items)});
-  for(const code of codes){const list=perCode.get(code.id)||[];rows.push({label:'Code alpha binary — '+code.name,items:list.reduce((sum,u)=>sum+u.weight,0),agreement:null,kappa:weightedAlpha(list)});}
+  rows.push({statistic:'binary',role:'global',label:'All coders',items:count,agreement:count?100*full/count:null,kappa:weightedAlpha(items)});
+  if(coders.length>=3)rows.push({statistic:'fleiss',role:'global',label:'All coders',items:count,agreement:count?100*full/count:null,kappa:fleiss(items)});
+  for(const code of codes){const list=perCode.get(code.id)||[];rows.push({statistic:'binary',role:'code',label:'Code alpha binary — '+code.name,items:list.reduce((sum,u)=>sum+u.weight,0),agreement:null,kappa:weightedAlpha(list)});}
   const description=settings.method==='characters'?'Each UTF-16 character position × direct code is a present/absent item; source offsets use UTF-16. Intervals with identical coding are length-weighted without expanding characters.':settings.method==='sentences'?'Each sentence × direct code is a present/absent item. Any coding overlap marks the whole sentence present. Sentences use the runtime’s Unicode sentence segmenter; whitespace-only units are excluded.':'Each non-empty newline-delimited paragraph × direct code is a present/absent item. Any coding overlap marks the whole paragraph present.';
   warnings.push('Pooled κ weights comparison items equally; equal-document mean κ gives each defined document coefficient equal weight. Sentence/paragraph parsing and aggregation may differ from another application.');
-  return finish(comparisonMethods[settings.method],description,rows,warnings,coders,docs.length,codes.length);
+  return finish(settings.method,comparisonMethods[settings.method],description,rows,warnings,coders,docs.length,codes.length);
 }
 function trainingComparison(data:IcrTrainingRow[],coders:string[],warnings:string[]):ComparisonResult {
   const scoped=data.filter(row=>coders.includes(normalizeCoderName(row.coder)));if(!scoped.length)throw Error('Import fixed-excerpt test rows for the selected coders first.');
@@ -131,23 +132,23 @@ function trainingComparison(data:IcrTrainingRow[],coders:string[],warnings:strin
   for(let a=0;a<coders.length;a++)for(let b=a+1;b<coders.length;b++){
     const overall=emptyTable();for(const code of codes){const table=emptyTable(),ratings:Array<[number,number]>=[];
       for(const unit of units){const left=scoped.find(row=>row.unit===unit&&row.code===code&&normalizeCoderName(row.coder)===coders[a]),right=scoped.find(row=>row.unit===unit&&row.code===code&&normalizeCoderName(row.coder)===coders[b]);if(!left||!right)continue;add(table,left.present,right.present);add(overall,left.present,right.present);if(left.present&&right.present&&left.rating!==undefined&&right.rating!==undefined)ratings.push([left.rating,right.rating]);}
-      rows.push({label:`${coders[a]} / ${coders[b]} — ${code}`,items:table.n,agreement:agreement(table),kappa:cohenKappa(table),holsti:holstiIndex(table)});
-      rows.push({label:`${coders[a]} / ${coders[b]} — Pearson r for ${code} ratings`,items:ratings.length,agreement:null,kappa:pearson(ratings)});
-    }rows.unshift({label:`${coders[a]} / ${coders[b]} — pooled fixed-excerpt κ`,items:overall.n,agreement:agreement(overall),kappa:cohenKappa(overall),holsti:holstiIndex(overall)});
+      rows.push({statistic:'cohen',role:'code',label:`${coders[a]} / ${coders[b]} — ${code}`,items:table.n,agreement:agreement(table),contingency:{...table},kappa:cohenKappa(table),holsti:holstiIndex(table)});
+      rows.push({statistic:'pearson',role:'code',label:`${coders[a]} / ${coders[b]} — Pearson r for ${code} ratings`,items:ratings.length,agreement:null,kappa:pearson(ratings)});
+    }rows.unshift({statistic:'cohen',role:'total',label:`${coders[a]} / ${coders[b]} — pooled fixed-excerpt κ`,items:overall.n,agreement:agreement(overall),contingency:{...overall},kappa:cohenKappa(overall),holsti:holstiIndex(overall)});
   }
   warnings.push('Missing Unit/Coder/Code rows are missing observations, not negative decisions. Ratings are paired only when both coders marked the code present and supplied numeric ratings. Pearson r measures correlation, not absolute agreement.');
-  return finish('Fixed-excerpt test and ratings','Fixed test units are explicitly supplied rather than inferred from overlapping quotes. Cohen’s κ uses binary code-application decisions. Pearson r is calculated separately for each code’s paired ratings.',rows,warnings,coders,units.length,codes.length);
+  return finish('training','Fixed-excerpt test and ratings','Fixed test units are explicitly supplied rather than inferred from overlapping quotes. Cohen’s κ uses binary code-application decisions. Pearson r is calculated separately for each code’s paired ratings.',rows,warnings,coders,units.length,codes.length);
 }
-function finish(title:string,description:string,rows:ComparisonRow[],warnings:string[],coders:string[],sources:number,codes:number):ComparisonResult {
+function finish(method:ComparisonMethod,title:string,description:string,rows:ComparisonRow[],warnings:string[],coders:string[],sources:number,codes:number):ComparisonResult {
   const range=(values:Array<number|null|undefined>,digits=3)=>{const defined=values.filter((v):v is number=>v!==null&&v!==undefined&&Number.isFinite(v));if(!defined.length)return 'undefined';const low=Math.min(...defined),high=Math.max(...defined);return low===high?low.toFixed(digits):low.toFixed(digits)+'–'+high.toFixed(digits);};
-  const totals=rows.filter(row=>/pooled|— total/.test(row.label));
-  let text=`Intercoder agreement was assessed in eQc using ${title.toLowerCase()} for ${coders.length} coders, ${sources} ${title.startsWith('Fixed')?'fixed units':'text documents'} and ${codes} codes. ${description} `;
-  if(totals.length){text+=`Across ${totals.length} coder pairs, ${range(totals.map(row=>row.items),0)} items per pair were compared; observed agreement was ${range(totals.map(row=>row.agreement),1)}%. `;if(!title.includes('frequency')&&!(title.startsWith('Code presence')&&totals.every(row=>row.kappa===null)))text+=`${title.includes('Segment')?'Brennan–Prediger':title.startsWith('Code presence')?'RK':'Cohen’s'} κ was ${range(totals.map(row=>row.kappa))} (${totals.filter(row=>row.kappa===null).length} undefined pair coefficients). `;if(totals.some(row=>row.holsti!==undefined))text+=`Holsti was ${range(totals.map(row=>row.holsti))}. `;}
-  const binary=rows.filter(row=>row.label.includes('binary correction'));if(binary.length)text+=`Brennan–Prediger κ with binary chance correction was ${range(binary.map(row=>row.kappa))}. `;
-  const equal=rows.filter(row=>row.label.includes('mean κ'));if(equal.length)text+=`Equal-document mean κ was ${range(equal.map(row=>row.kappa))}, excluding undefined document coefficients. `;
-  const correlations=rows.filter(row=>row.label.includes('Pearson'));if(correlations.length)text+=`Per-code Pearson correlations for paired positive ratings were ${range(correlations.map(row=>row.kappa))}; ${correlations.filter(row=>row.kappa===null).length} correlations were undefined. Pearson correlation does not measure absolute agreement. `;
-  for(const row of rows.filter(row=>/All coders|Global alpha binary|^cu-alpha/.test(row.label)))text+=`${row.label}: n = ${row.items}, ${/alpha/.test(row.label)?'α':'κ'} = ${fmt(row.kappa)}${row.agreement===null?'':`, full agreement = ${row.agreement.toFixed(1)}%`}. `;
-  if(title.includes('Semantic'))text+='The exploratory global Cu-style domain-set coefficient is omitted from this reporting paragraph because equivalence with the published global Cu-alpha method has not been validated. ';
+  const totals=rows.filter(row=>row.role==='total');
+  let text=`Intercoder agreement was assessed in eQc using ${title.toLowerCase()} for ${coders.length} coders, ${sources} ${method==='training'?'fixed units':'text documents'} and ${codes} codes. ${description} `;
+  if(totals.length){text+=`Across ${totals.length} coder pairs, ${range(totals.map(row=>row.items),0)} items per pair were compared; observed agreement was ${range(totals.map(row=>row.agreement),1)}%. `;if(totals.some(row=>row.statistic!=='percent'))text+=`${statisticName(totals[0].statistic)} was ${range(totals.map(row=>row.kappa))} (${totals.filter(row=>row.kappa===null).length} undefined pair coefficients). `;if(totals.some(row=>row.holsti!==undefined))text+=`Holsti index was ${range(totals.map(row=>row.holsti))}. `;}
+  const binary=rows.filter(row=>row.role==='binary');if(binary.length)text+=`Brennan–Prediger κ with binary chance correction was ${range(binary.map(row=>row.kappa))}. `;
+  const equal=rows.filter(row=>row.role==='mean');if(equal.length)text+=`Equal-document mean κ was ${range(equal.map(row=>row.kappa))}, excluding undefined document coefficients. `;
+  const correlations=rows.filter(row=>row.statistic==='pearson');if(correlations.length)text+=`Per-code Pearson correlations for paired positive ratings were ${range(correlations.map(row=>row.kappa))}; ${correlations.filter(row=>row.kappa===null).length} correlations were undefined. Pearson correlation does not measure absolute agreement. `;
+  for(const row of rows.filter(row=>(row.role==='global'||row.statistic==='domain')&&row.statistic!=='exploratory'))text+=`${row.label}: n = ${row.items}, ${statisticName(row.statistic)} = ${fmt(row.kappa)}${row.agreement===null?'':`, full agreement = ${row.agreement.toFixed(1)}%`}. `;
+  if(method==='domains')text+='The exploratory global Cu-style domain-set coefficient is omitted from this reporting paragraph because equivalence with the published global Cu-alpha method has not been validated. ';
   text+='Undefined coefficients are excluded from ranges. Coding independence and any disagreement-resolution procedure must be described separately.';
   return {title,description,rows,text,warnings};
 }

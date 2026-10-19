@@ -1,0 +1,81 @@
+name: Publish tested release artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag whose platform builds passed'
+        required: true
+        type: string
+      run_id:
+        description: 'Build and Release eQc run containing the tested artifacts'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: publish-tested-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify artifact provenance and every platform build
+        uses: actions/github-script@v7
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          BUILD_RUN_ID: ${{ inputs.run_id }}
+        with:
+          script: |
+            const fs = require('node:fs');
+            const tag = process.env.RELEASE_TAG, run_id = Number(process.env.BUILD_RUN_ID);
+            if (!/^v\d+\.\d+\.\d+$/.test(tag) || !Number.isSafeInteger(run_id) || run_id <= 0) throw Error('Invalid release tag or run ID.');
+            if (require(process.cwd() + '/package.json').version !== tag.slice(1)) throw Error('Default branch version does not match the release.');
+            const repo = {owner: context.repo.owner, repo: context.repo.repo};
+            const {data: run} = await github.rest.actions.getWorkflowRun({...repo, run_id});
+            const {data: commit} = await github.rest.repos.getCommit({...repo, ref: tag});
+            if (run.name !== 'Build and Release eQc' || run.event !== 'push' || run.head_sha !== commit.sha || run.head_repository?.full_name !== `${repo.owner}/${repo.repo}`) throw Error('Build artifacts do not belong to this repository/tag.');
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {...repo, run_id, per_page: 100});
+            const expected = ['build (windows-latest, win, x64)', 'build (ubuntu-22.04, linux, x64)', 'build (macos-15-intel, mac, x64)', 'build (macos-latest, mac, arm64)'];
+            for (const name of expected) if (jobs.filter(job => job.name === name && job.conclusion === 'success').length !== 1) throw Error(`Platform build did not pass: ${name}`);
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {...repo, run_id, per_page: 100});
+            const expectedArtifacts = ['build-windows-latest-x64', 'build-ubuntu-22.04-x64', 'build-macos-15-intel-x64', 'build-macos-latest-arm64', 'fictional-demo-kit'];
+            if (artifacts.length !== expectedArtifacts.length || expectedArtifacts.some(name => artifacts.filter(a => a.name === name && !a.expired).length !== 1)) throw Error('Missing, expired or unexpected release artifacts.');
+            try {
+              const {data: existing} = await github.rest.repos.getReleaseByTag({...repo, tag});
+              if (!existing.draft) throw Error('This release is already published; do not replace its assets.');
+            } catch (error) { if (error.status !== 404) throw error; }
+            const notes = fs.readFileSync('RELEASE_NOTES.md', 'utf8');
+            if (!notes.startsWith(`# eQc ${tag.slice(1)}\n`) && !notes.startsWith(`# eQc ${tag.slice(1)}\r\n`)) throw Error('Release notes version mismatch.');
+            core.info(`Verified ${tag}: four successful platform builds from ${commit.sha}.`);
+      - name: Download the verified artifacts
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.run_id }}
+          path: artifacts
+      - name: Install only the release YAML reader
+        run: npm install --prefix "$RUNNER_TEMP/eqc-release-metadata" --no-save --package-lock=false --ignore-scripts --no-audit --no-fund js-yaml@4.3.0
+      - name: Verify and combine Mac update metadata
+        run: node .github/scripts/merge-mac-updates.cjs artifacts
+        env:
+          NODE_PATH: ${{ runner.temp }}/eqc-release-metadata/node_modules
+      - name: Publish the tested release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          name: eQc ${{ inputs.tag }}
+          draft: false
+          body_path: RELEASE_NOTES.md
+          fail_on_unmatched_files: true
+          files: artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

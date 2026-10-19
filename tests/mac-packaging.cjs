@@ -122,8 +122,26 @@ test('release builds use separate native Mac runners, explicit targets and packa
   assert.deepEqual(matrix, [{ os: 'macos-15-intel', platform: 'mac', arch: 'x64' }, { os: 'macos-latest', platform: 'mac', arch: 'arm64' }]);
   const steps = workflow.jobs.build.steps;
   assert.ok(steps.some(step => step.run?.includes('electron-builder --${{ matrix.platform }} --${{ matrix.arch }}')));
+  assert.ok(steps.some(step => step.run === 'npx electron-builder --mac dmg:${{ matrix.arch }} --publish never' && step.if === "runner.os == 'macOS'"));
   assert.ok(steps.some(step => step.run?.includes('latest-mac-${{ matrix.arch }}.yml')));
   assert.equal(require('../package.json').build.afterPack, '.github/scripts/verify-mac-package.cjs');
   const release = workflow.jobs.release.steps;
   assert.ok(release.findIndex(step => step.run?.includes('merge-mac-updates.cjs')) < release.findIndex(step => step.uses?.startsWith('softprops/action-gh-release')));
 });
+
+for (const arch of ['x64', 'arm64']) {
+  test(`Electron Builder resolves the Mac ${arch} command to exactly one architecture despite package defaults`, () => {
+    const { normalizeOptions } = require('electron-builder/out/builder');
+    const { computeArchToTargetNamesMap } = require('app-builder-lib/out/targets/targetFactory');
+    const { Platform } = require('app-builder-lib');
+    const { Arch } = require('builder-util');
+    const normalized = normalizeOptions({ mac: [`dmg:${arch}`] });
+    const actual = computeArchToTargetNamesMap(normalized.targets.get(Platform.MAC), { platformSpecificBuildOptions: require('../package.json').build.mac }, Platform.MAC);
+    assert.deepEqual([...actual], [[Arch[arch], ['dmg']]]);
+    // An architecture flag with no explicit target incorrectly adds both
+    // package.json defaults; keep this regression visible in the test.
+    const previous = normalizeOptions({ mac: [], [arch]: true });
+    const mixed = computeArchToTargetNamesMap(previous.targets.get(Platform.MAC), { platformSpecificBuildOptions: require('../package.json').build.mac }, Platform.MAC);
+    assert.equal(mixed.size, 2);
+  });
+}

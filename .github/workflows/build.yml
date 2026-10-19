@@ -81,7 +81,14 @@ jobs:
         run: npm install dmg-license --no-save
 
       - name: Build Electron app (no publish yet)
+        if: runner.os != 'macOS'
         run: npx electron-builder --${{ matrix.platform }} --${{ matrix.arch }} --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Build and verify one Mac architecture
+        if: runner.os == 'macOS'
+        run: npx electron-builder --mac dmg:${{ matrix.arch }} --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 

@@ -1,6 +1,6 @@
 {
   "name": "eqc-desktop",
-  "version": "1.8.6",
+  "version": "1.8.7",
   "description": "eQc - Easy Qual Coding - local-first qualitative data coding and analysis app (Electron + React + SQLite)",
   "author": "Anisur Rahman Bayazid",
   "homepage": "https://github.com/anisur-bayazid25/eQc",
@@ -54,6 +54,7 @@
     "wait-on": "^7.2.0"
   },
   "build": {
+    "afterPack": ".github/scripts/verify-mac-package.cjs",
     "appId": "com.eQc.desktop",
     "productName": "eQc - Easy Qual Coding",
     "directories": {

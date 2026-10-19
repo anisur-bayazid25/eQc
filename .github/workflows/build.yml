@@ -12,7 +12,19 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-22.04]
+        include:
+          - os: windows-latest
+            platform: win
+            arch: x64
+          - os: ubuntu-22.04
+            platform: linux
+            arch: x64
+          - os: macos-15-intel
+            platform: mac
+            arch: x64
+          - os: macos-latest
+            platform: mac
+            arch: arm64
 
     runs-on: ${{ matrix.os }}
 
@@ -31,7 +43,10 @@ jobs:
 
       - name: Install Rollup native dependency on macOS
         if: runner.os == 'macOS'
-        run: npm install @rollup/rollup-darwin-arm64@4.62.2 --no-save
+        run: npm install @rollup/rollup-darwin-${{ matrix.arch }}@4.62.2 --no-save
+
+      - name: Check Mac packaging safeguards
+        run: node --test tests/mac-packaging.cjs
 
       - name: Run feature regression tests
         run: node --test tests/research-workflow.cjs tests/zenodo-citation.cjs tests/cooccurrence.cjs tests/feedback-apps-script.cjs tests/feedback.cjs tests/html-report.cjs tests/starred-quotes.cjs tests/icr-comparisons.cjs tests/release-1.6.4.cjs tests/release-1.7.0.cjs tests/code-report.cjs tests/formatted-mapping.cjs tests/source-lines.cjs tests/data-integrity.cjs tests/profile-sqlite.cjs tests/profile-store.cjs tests/time-tracking.cjs tests/milestones.cjs tests/desktop-bridge.cjs tests/resource-cleanup.cjs tests/next-help-import.cjs tests/easter-eggs.cjs tests/lan-identity.cjs tests/lan-announcements.cjs tests/memo-workspace.cjs tests/about-links.cjs tests/shortcuts.cjs tests/map-suggestions.cjs tests/map-drafts.cjs tests/map-text-fit.cjs tests/visualizations.cjs tests/statistical-visualizations.cjs tests/map-palettes.cjs tests/map-objects.cjs tests/sankey-words.cjs
@@ -66,14 +81,18 @@ jobs:
         run: npm install dmg-license --no-save
 
       - name: Build Electron app (no publish yet)
-        run: npx electron-builder --publish never
+        run: npx electron-builder --${{ matrix.platform }} --${{ matrix.arch }} --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Keep architecture-specific Mac update metadata
+        if: runner.os == 'macOS'
+        run: mv release/latest-mac.yml release/latest-mac-${{ matrix.arch }}.yml
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: build-${{ matrix.os }}
+          name: build-${{ matrix.os }}-${{ matrix.arch }}
           path: |
             release/*.exe
             release/*.dmg
@@ -95,6 +114,17 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+
+      - name: Install release metadata tools
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install locked dependencies without native rebuilds
+        run: npm ci --ignore-scripts
+
+      - name: Verify and combine Mac update metadata
+        run: node .github/scripts/merge-mac-updates.cjs artifacts
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

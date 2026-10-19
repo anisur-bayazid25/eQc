@@ -37,6 +37,8 @@ Normal coding, analysis and Help work offline. Downloads and updates need intern
 
 **OCR languages:** scanned-PDF recognition currently uses Bengali and English only. Other OCR languages are not selectable. This limitation applies to scanned-text recognition, not ordinary imported text; language choices in Word Cloud and word-frequency analysis do not change OCR recognition.
 
+**Mac installation:** Intel processors use the `x64.dmg` installer; Apple M-series chips use `arm64.dmg`. Open the disk image and drag eQc into Applications, then open it from Applications. If an Intel v1.8.6 installation does not start because of an incompatible SQLite architecture, replace the application with v1.8.7 or later; retain existing project/profile data.
+
 **Project and backup storage:** embedded images use base64, which adds roughly 33% to their binary size. HEIC-to-PNG conversion, retained original documents and PDF page images can add more. Photo-heavy projects can exceed 1 GB each; full JSON backups containing that media require additional space for every saved copy. The 1 GB installation allowance does not include project data or backups.
 
 ## Quick start

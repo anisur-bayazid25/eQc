@@ -1,18 +1,12 @@
-# eQc 1.8.6
+# eQc 1.8.7
 
-This release connects research tools to analysis, graphs and exports, improves intercoder agreement workflows, and makes routine LAN updates less distracting.
+This patch fixes eQc failing to open on Intel Macs after installation.
 
-- **Connected research scopes:** generate graphs from cases, source/code groups, participant attributes, saved queries or selected retrieved passages. Exact passage selections stay scoped to those coding entries; word clouds use the matching coded text.
-- **Intercoder agreement:** consistent statistical names across results and exports, agreement/disagreement details, independent source-review confirmations, disagreement evidence and linked resolution memos. These records do not alter the original coding.
-- **Named ICR runs:** preserve results, settings, scope and review confirmations for later reporting. Select a saved run in manuscript skeleton or HTML export; later coding changes leave historical values intact. Imported comparison setups remain separately available.
-- **Cleaner ICR controls:** Reviewed sources, Inspect disagreements and Saved ICR runs follow Comparison setup spacing, aligned labels, responsive coder checklists and collapsed detailed statistics.
-- **Case CSV exchange:** matching import/export with stable case identities, typed attributes and source/passage links. Preview additions, updates, ambiguous matches and validation errors before applying changes.
-- **Case × theme framework:** write summaries with participant attributes, linked evidence and memos; navigate to source passages and export to CSV, Word, HTML or the optional manuscript framework section.
-- **Project exchange:** structured REFI-QDA cases, variables and sets, plus an eQc appendix for app-specific research records and visualization drafts/notes. Export inventories, import reports and merge previews explain what is retained. QDPX schema and round-trip checks passed; other applications may support only part of the format.
-- **Quiet LAN activity:** routine project updates appear as short, unboxed text beside Saved, with a bounded queue and cleanup when sessions change. Announcements retain their separate notification controls.
-- **Citation automation:** after Zenodo archives this release, a separate workflow updates the repository citation and README with the version DOI and all-versions badge. DOI availability depends on Zenodo processing; no DOI is invented or reserved by the app.
-- **Help and documentation:** updated offline instructions cover the connected research workflows, statistics, saved runs, cases, framework analysis and exchange limits.
+- **Correct Intel Mac database component:** the v1.8.6 Intel installer included an Apple Silicon SQLite binary. Intel and Apple Silicon installers now build separately on matching-architecture Mac runners.
+- **Packaged Mac startup checks:** verify the architecture of the actual app executable and every unpacked native component, then start the packaged Electron runtime and exercise SQLite in memory before creating the installer. A mismatched component blocks the release.
+- **Verified Mac update information:** check both disk-image sizes and SHA-512 checksums and combine their update metadata so both Intel and Apple Silicon downloads remain represented.
+- **Installation guidance:** Intel Core i5/i7/i9 Macs use `eQc-Setup-1.8.7-x64.dmg`; Apple M-series Macs use `eQc-Setup-1.8.7-arm64.dmg`. Open the disk image, drag eQc into Applications and replace the older app. Existing project/profile data does not need to be removed.
 
-Windows, Intel/Apple Silicon macOS and Linux x64 AppImage/deb downloads are provided. Linux updates use manual downloads. Existing native project JSON backups remain supported. Keep a backup before importing or merging research data, and use compatible versions across LAN participants.
+The research workflows and other features introduced in v1.8.6 remain available. Windows, Intel/Apple Silicon macOS and Linux x64 AppImage/deb packages are provided.
 
-Validation: 184 automated feature/schema checks, all 28 browser checks and the production build passed before release preparation. Real-world import behavior in other research applications still depends on their importers.
+The v1.8.6 release and its archived DOI remain unchanged. Zenodo citation automation will update the repository citation and README when this new release is archived.

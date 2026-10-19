@@ -4,6 +4,11 @@ All notable changes to **eQc - Easy Qual Coding** are documented in this file.
 
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 1.8.7 - 2026-10-19
+
+- Fixed Intel Mac packaging including an Apple Silicon SQLite binary. Build Intel and Apple Silicon installers in separate matching-architecture jobs; check the executable and native modules and exercise packaged SQLite in memory before creating the DMG.
+- Verify both Mac disk-image checksums and combine update metadata before publication so separate builds retain both architecture entries.
+
 ## 1.8.6 - 2026-10-18
 
 - Connected case/group/attribute/query selections and exact retrieved coding entries to graph generation; scoped word clouds use coded text.

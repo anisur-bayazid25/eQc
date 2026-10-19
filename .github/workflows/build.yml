@@ -127,11 +127,13 @@ jobs:
         with:
           node-version: 24
 
-      - name: Install locked dependencies without native rebuilds
-        run: npm ci --ignore-scripts
+      - name: Install only the release YAML reader
+        run: npm install --prefix "$RUNNER_TEMP/eqc-release-metadata" --no-save --package-lock=false --ignore-scripts --no-audit --no-fund js-yaml@4.3.0
 
       - name: Verify and combine Mac update metadata
         run: node .github/scripts/merge-mac-updates.cjs artifacts
+        env:
+          NODE_PATH: ${{ runner.temp }}/eqc-release-metadata/node_modules
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

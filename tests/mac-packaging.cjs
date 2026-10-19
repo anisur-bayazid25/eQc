@@ -127,6 +127,9 @@ test('release builds use separate native Mac runners, explicit targets and packa
   assert.equal(require('../package.json').build.afterPack, '.github/scripts/verify-mac-package.cjs');
   const release = workflow.jobs.release.steps;
   assert.ok(release.findIndex(step => step.run?.includes('merge-mac-updates.cjs')) < release.findIndex(step => step.uses?.startsWith('softprops/action-gh-release')));
+  assert.ok(release.some(step => step.run?.includes('js-yaml@4.3.0') && step.run.includes('--ignore-scripts')));
+  assert.ok(!release.some(step => step.run?.startsWith('npm ci')));
+  assert.ok(release.find(step => step.run?.includes('merge-mac-updates.cjs')).env.NODE_PATH.includes('eqc-release-metadata/node_modules'));
 });
 
 for (const arch of ['x64', 'arm64']) {

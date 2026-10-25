@@ -21,9 +21,9 @@ Import interviews, field notes, documents and images; code passages and regions;
 
 **eQc — Easy Qual Coding** is a local-first qualitative data analysis workbench for researchers who want the depth of a professional QDA package without an account, a subscription, or a cloud upload.
 
-It is a desktop application built with **Electron 31, React 18, TypeScript and better-sqlite3** — roughly 16.5k lines of TypeScript across 139 files, v1.8.8, MIT licensed — running entirely on your own machine. Interviews, field notes, documents, images and the coding built on top of them stay on disk, so the work continues on a train, in a rural clinic, or in an archive with no signal.
+It is a desktop application built with **Electron 31, React 18, TypeScript and better-sqlite3** — running entirely on your own machine. Interviews, field notes, documents, images and the coding built on top of them stay on disk, so the work continues on a train, in a rural clinic, or in an archive with no signal.
 
-Think of it as a free, offline alternative to NVivo, ATLAS.ti or MAXQDA that keeps **REFI-QDA interoperability**, so a project can still travel to and from those tools when collaboration or archiving demands it. It grew out of a mixed-methods researcher's own fieldwork: everything here exists because a real analysis needed it.
+Think of it as a free, offline alternative to paid qualitative coding and analysis softwares, that keeps **REFI-QDA interoperability**, so a project can still travel to and from those tools when collaboration or archiving demands it. It grew out of a mixed-methods researcher's frustration working with paid Qualitative Data Analysis (QDA) softwares, and lack of easy to use open source QDA softwares, which have all the necessary functions: everything here exists because a real analysis needed it, and even paid licences failed to provide what was needed.
 
 ## What's inside
 
@@ -82,7 +82,6 @@ Normal coding, analysis and Help work offline. Installation downloads and update
 ## Previous release: 1.8.7
 
 - **Intel Mac startup fix:** corrected the Intel installer carrying an Apple Silicon SQLite component. Intel and Apple Silicon installers now build on separate matching-architecture runners, with binary checks and an in-memory packaged database startup check before publication.
-- **Mac update metadata:** both disk images are verified and included in the combined update information.
 - **Mac installation:** choose `x64.dmg` for Intel processors or `arm64.dmg` for Apple M-series chips. Copy eQc into Applications before opening it. Replace the app with this version if the Intel v1.8.6 installation would not start; keep existing project/profile data.
 
 ## Previous release: 1.8.6

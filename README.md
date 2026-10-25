@@ -10,6 +10,11 @@
 
 If you use eQc in published work, please cite it using the **Cite this repository** link on the GitHub page (APA and BibTeX), or the metadata in [`CITATION.cff`](CITATION.cff).
 
+<!-- zenodo-citation:start -->
+Archived release **v1.8.8**: [10.5281/zenodo.23646205](https://doi.org/10.5281/zenodo.23646205). Use this version DOI when citing this release.
+The [all-versions DOI](https://doi.org/10.5281/zenodo.23451326) above opens the latest archived release.
+<!-- zenodo-citation:end -->
+
 Import interviews, field notes, documents and images; code passages and regions; organise your codebook; write memos; and explore your analysis. No account or cloud upload is required.
 
 ## What eQc is

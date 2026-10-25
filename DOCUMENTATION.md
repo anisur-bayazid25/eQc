@@ -9,6 +9,7 @@
 - [Analysis](#analysis)
 - [Memo-Book](#memo-book)
 - [Visualization](#visualization)
+- [Visualization editing and colour palettes](#visualization-editing-and-colour-palettes)
 - [About](#about)
 - [LAN collaboration](#lan-collaboration)
 - [Profile and time](#profile-and-time)
@@ -47,7 +48,7 @@ Create a project, add an interview, create a code, select text and apply it. Rev
 
 ## Projects and backups
 
-Project tools handles creation, import and export. JSON is the full backup; QDPX is for compatible exchange. Choose retained Word/PDF originals or smaller plain-text document data. Check import reports for missing material. Merge separately coded projects with identical source text and matching code hierarchies. Undo/Redo covers project edits and document deletion; deleting a document removes its coding, framework cells and linked PDF page images/regions. Project deletion cannot be undone. Local History does not travel in backups.
+Project tools handles creation, import and export. JSON is the full backup; QDPX is for compatible exchange. Choose retained Word/PDF originals or smaller plain-text document data. Check import reports for missing material. Merge separately coded projects with identical source text and matching code hierarchies; folders are matched rather than duplicated, so repeating a merge adds nothing new, and a source memo or period on the incoming document is kept. Undo/Redo covers project edits and document deletion; deleting a document removes its coding, framework cells and linked PDF page images/regions. Project deletion cannot be undone. Local History does not travel in backups.
 
 ## Workspace
 
@@ -61,7 +62,7 @@ Research tools has Cases/attributes, source/code Groups, contextual Review/saved
 
 ## Codebook
 
-Definitions are coding rules; summaries are interpretations. Manage the hierarchy, inspect collated excerpts and filter by source or coder. Merge selected codes after reviewing the destination. Import codebooks/coding CSV with a column preview. Export all/selected codes, optional children and starred evidence. Project exports include all notes, REFI-QDA and the manuscript skeleton.
+Definitions are coding rules; summaries are interpretations. Manage the hierarchy, inspect collated excerpts and filter by source or coder. Merge selected codes after reviewing the destination. Import a codebook or coded data from CSV, tab-separated text or an Excel workbook: choose the sheet, then add one level per step of the code tree (no depth limit) and match each level's code column plus its optional definition and summary columns. Header names do not need a fixed wording. Export all/selected codes, optional children and starred evidence. Project exports include all notes, REFI-QDA and the manuscript skeleton.
 
 ## Auto-Code
 
@@ -69,7 +70,7 @@ Preview word/phrase matches and target codes before applying coding. Review resu
 
 ## Analysis
 
-Frequency/Documents count coding entries, not participants. Co-occurrence counts different codes on overlapping passages/regions; click a pair for evidence and a relationship memo. Framework stores editable source × theme summaries. Word frequencies needs Generate List; KWIC needs Search. Interview prompts and headers can contribute words. Export tables or a combined HTML Report. HTML options include selected saved draft figures and optional visualization notes; figures use isolated copies of the saved canvases and do not restore or edit the working project. Regenerate saved graphs first if their analysis needs updating. Reports embed figures offline, show all selected source-level coder pairs plus the saved additional ICR comparison and calculation details, and use collapsible/searchable tables, individually collapsible code summaries and research records grouped by type. Print expands details and filtered rows temporarily, then restores the previous view.
+Frequency/Documents count coding entries, not participants, and the HTML report summary card labels that count “Coding entries”. Co-occurrence counts different codes on overlapping passages/regions; identical ranges are counted once across coders, matching the heat map, network and Sankey views. Click a pair for evidence and a relationship memo. Framework stores editable source × theme summaries. Word frequencies needs Generate List; KWIC needs Search. Interview prompts and headers can contribute words. Export tables or a combined HTML Report. HTML options include selected saved draft figures and optional visualization notes; figures use isolated copies of the saved canvases and do not restore or edit the working project. Regenerate saved graphs first if their analysis needs updating. Reports embed figures offline, show all selected source-level coder pairs plus the saved additional ICR comparison and calculation details, and use collapsible/searchable tables, individually collapsible code summaries and research records grouped by type. Print expands details and filtered rows temporarily, then restores the previous view.
 
 ICR uses selected sources/coders and includes source × code presence measures. Repeated coding to one code/source counts once for presence; joint absences can raise agreement. Consensus groups overlapping text, with at least two participating coders. Agreement requires the same single code; multi-code groups appear as Disagreements even when sets match. Text-unit nominal alpha uses a dominant code on overlap groups and includes uncoded ratings; it is not semantic-domain Cu-alpha. Regions are not passage-consensus items. Export ICR and save a checkpoint before adjudication removes other coders' entries.
 
@@ -83,7 +84,7 @@ Reviewed sources records independent review confirmations. Inspect disagreements
 
 Case × theme framework summaries provide participant attribute columns, evidence navigation and CSV/Word export alongside the existing document framework. Case summaries are included in Memo-Book and research reports. Excerpt review can send selected entries directly to a graph; visualization scopes reuse cases, groups, attribute filters and saved queries. Scoped word clouds use selected coded text rather than whole documents.
 
-Case CSV export matches its previewed importer, with stable IDs, typed attribute columns and source/passage links. QDPX exchanges structured cases, variables and sets. Additional research records and graph drafts are retained in an eQc appendix and readable notes; other apps may not reconstruct those objects. The export inventory, import report and merge preview explain retained objects, unresolved links and destination-setting conflicts. Preserve a native JSON backup for full eQc recovery.
+Case CSV export matches its previewed importer, with stable IDs, typed attribute columns and source/passage links. QDPX exchanges structured cases, variables and sets. Starred evidence, analysis periods, folder paths, code order and coder identity have no REFI-QDA equivalent, so they travel in the eQc appendix and are restored on import; sources, coding positions, the code hierarchy and coder attribution stay in the standard elements other applications read. Additional research records and graph drafts are retained in the same appendix and readable notes; other apps may not reconstruct those objects. The export inventory, import report and merge preview explain retained objects, unresolved links and destination-setting conflicts. Preserve a native JSON backup for full eQc recovery.
 
 ## Memo-Book
 
@@ -119,6 +120,16 @@ Results are editable snapshots: regenerate explicitly after data changes. Draw o
 
 Visualization notes are separate draggable cards toggled with Notes, snapshotted independently in named drafts and aggregated under Visualization notes in Memo-Book. Canvas/edge labels are Visualization labels. Notes are excluded from figure exports and manuscripts, but retained in native JSON backups and LAN snapshots. LAN is whole-project last-writer-wins; simultaneous canvas edits can overwrite one another.
 
+### Visualization editing and colour palettes
+
+Select a line in any visualization to move it; drag either endpoint to change its length and direction. The Inspector controls annotation line width, style, curve, arrowhead, colour and opacity; Link controls code relationships. Topic-to-code lines are editable too. Moving an attached line gives it a manual position; moving or resizing a Sankey ribbon makes that ribbon a free shape. Regenerate to restore automatic connections and proportional geometry. Double-click number labels to edit their displayed text, and use Label background in the Inspector for colour and opacity (0 makes it transparent). These edits change the figure only: calculated counts, supporting evidence and coding stay unchanged. Save a named draft to retain edits; generating a new figure replaces them.
+
+The Colours tool offers 17 built-in palettes, including Viridis, Magma, Plasma, Inferno, Cividis, ColorBrewer Set2, Tableau 10, muted palettes, grayscale and monochrome. Create/edit a custom palette from any preset, change or add swatches, and save a project palette by name. Scientific bases retain a sequential heat-map ramp. Individual text, fill, border and line colours remain editable through the expanded shared picker.
+
+Arrange supports Shift/Ctrl multi-selection, marquee selection, group/ungroup, shared move/resize, proportion locking, center/align and front/back order. Groups and layers are retained in canvas records and named drafts. Returning from a source or another tab resumes the working canvas; inactive visualization does not render or aggregate data.
+
+Settings use editable numeric limits with suggestions. Code/context and document limits support up to 200 separately; generated mind/code maps have a total of 200 nodes. Themes (up to 100) and subcodes per theme (up to 200) are editable. Diagrams support a label/stage limit up to 48, except Venn diagrams (2–3 sets). Matrix generation allows 2,500 cells; dendrograms cluster up to 100 non-empty items. These bounds are shown in settings. Large figures need a larger export or narrower selection for readable labels.
+
 ## About
 
 Check the installed version and updates. Click the email to open your email app, or right-click to copy the address/link. Right-click Source & releases to copy GitHub's address.
@@ -127,7 +138,7 @@ Feedback in the toolbar, Help's reporting button or Ctrl/Cmd+Shift+B opens a dir
 
 ## LAN collaboration
 
-Host/Join shares project work on a trusted local network. Confirm coder identities before teamwork. Personal profiles/time stay separate. Back up before a session; offline colleagues can exchange and merge project files.
+Host/Join shares project work on a trusted local network. A session password of at least 4 characters is required before hosting, and every joiner must enter it; without one the session would be open to any device on the network. Confirm coder identities before teamwork. Personal profiles/time stay separate. Back up before a session; offline colleagues can exchange and merge project files.
 
 ### Announcements
 
@@ -146,19 +157,8 @@ The round avatar opens profiles and active app/coding time. Upload or Adjust pho
 
 ## Supported files
 
-TXT, Markdown, Word and PDF; common images plus HEIC/HEIF still photos; structured coding CSV; JSON/QDPX/QDC/QDE projects/codebooks. QDE needs adjacent sources. Exports include JSON, QDPX, CSV, Word, Memo-Book Excel and HTML.
+TXT, Markdown, Word and PDF; common images plus HEIC/HEIF still photos; structured coding CSV, tab-separated text and Excel workbooks (`.xlsx`, `.xlsm`, including Excel “Unicode text”); JSON/QDPX/QDC/QDE projects/codebooks. QDE needs adjacent sources. Exports include JSON, QDPX, CSV, Word, Memo-Book Excel and HTML.
 
 ## Keyboard shortcuts
 
 Choose a profile below and expand Active shortcut keys. Coding actions need a selected source passage/region. Standard/Numbered codes profiles support project-specific Ctrl+1–9 code assignments. Ctrl+S saves current work; Ctrl+Z and Ctrl+Y/Ctrl+Shift+Z undo/redo. F1 opens Help; Esc/Tab support normal dialog/navigation behavior. On macOS, the active table uses Cmd/Option labels. Typing fields keep native clipboard and editing keys. The profiles cover supported eQc actions; multimedia/rich-text/internal-link commands are not assigned.
-
-
-### Visualization editing and colour palettes
-
-Select a line in any visualization to move it; drag either endpoint to change its length and direction. The Inspector controls annotation line width, style, curve, arrowhead, colour and opacity; Link controls code relationships. Topic-to-code lines are editable too. Moving an attached line gives it a manual position; moving or resizing a Sankey ribbon makes that ribbon a free shape. Regenerate to restore automatic connections and proportional geometry. Double-click number labels to edit their displayed text, and use Label background in the Inspector for colour and opacity (0 makes it transparent). These edits change the figure only: calculated counts, supporting evidence and coding stay unchanged. Save a named draft to retain edits; generating a new figure replaces them.
-
-The Colours tool offers 17 built-in palettes, including Viridis, Magma, Plasma, Inferno, Cividis, ColorBrewer Set2, Tableau 10, muted palettes, grayscale and monochrome. Create/edit a custom palette from any preset, change or add swatches, and save a project palette by name. Scientific bases retain a sequential heat-map ramp. Individual text, fill, border and line colours remain editable through the expanded shared picker.
-
-Arrange supports Shift/Ctrl multi-selection, marquee selection, group/ungroup, shared move/resize, proportion locking, center/align and front/back order. Groups and layers are retained in canvas records and named drafts. Returning from a source or another tab resumes the working canvas; inactive visualization does not render or aggregate data.
-
-Settings use editable numeric limits with suggestions. Code/context and document limits support up to 200 separately; generated mind/code maps have a total of 200 nodes. Themes (up to 100) and subcodes per theme (up to 200) are editable. Diagrams support a label/stage limit up to 48, except Venn diagrams (2–3 sets). Matrix generation allows 2,500 cells; dendrograms cluster up to 100 non-empty items. These bounds are shown in settings. Large figures need a larger export or narrower selection for readable labels.

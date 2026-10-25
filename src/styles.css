@@ -14,6 +14,15 @@
   --toast-bg: #2b2620;
   --modal-overlay: rgba(0, 0, 0, 0.35);
   --shadow: rgba(0, 0, 0, 0.15);
+  --danger: #dc2626;
+  --danger-text: #ffffff;
+  --warning-bg: #fff4d1;
+  --warning-text: #503b08;
+  --success-bg: #f0fdf4;
+  --success-border: #bbf7d0;
+  --success-text: #166534;
+  --info-bg: #eff6ff;
+  --info-text: #1e40af;
 }
 
 [data-theme="dark"] {
@@ -31,6 +40,15 @@
   --toast-bg: #1e293b;
   --modal-overlay: rgba(0, 0, 0, 0.55);
   --shadow: rgba(0, 0, 0, 0.4);
+  --danger: #ef4444;
+  --danger-text: #ffffff;
+  --warning-bg: #3a2f14;
+  --warning-text: #fde68a;
+  --success-bg: #0f2d1c;
+  --success-border: #1c5c37;
+  --success-text: #86efac;
+  --info-bg: #12233f;
+  --info-text: #93c5fd;
 }
 
 * { box-sizing: border-box; }
@@ -260,23 +278,46 @@ input, select, textarea {
 .modal-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--modal-overlay, rgba(0, 0, 0, 0.6));
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
+  /* Must sit above every other layer (research overlay 1800, milestone 2200,
+     easter eggs 9500) so a confirmation can never be painted underneath one. */
+  z-index: 9800;
 }
 
 .modal-content {
-  background: var(--bg-color, #1e1e24); /* Matches your dark theme */
+  background: var(--panel);
+  color: var(--text);
   padding: 24px 32px;
   border-radius: 8px;
-  border: 1px solid var(--border-color, #444);
+  border: 1px solid var(--border);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  max-width: 400px;
+  max-width: 440px;
   text-align: center;
-  color: white;
 }
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* Destructive action button (delete), themed instead of the inline red. */
+.btn-danger {
+  background: var(--danger);
+  color: var(--danger-text);
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  padding: 8px 18px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-danger:hover { filter: brightness(0.9); }
+.btn-danger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .update-banner {
   display: flex;
@@ -320,6 +361,10 @@ input, select, textarea {
 .panel-toolbar { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
 .sort-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: var(--text-dim); }
 .sort-row select { flex: 1; }
+/* Captioned export pair: several Analysis views offer two different exports
+   side by side, so each pair gets a visible label and its own group. */
+.export-group { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.export-group-label { font-size: 11px; font-weight: 600; color: var(--text-dim); text-transform: none; }
 
 .empty-hint { color: var(--text-dim); font-style: italic; padding: 12px 4px; }
 .empty-hint.center { display: flex; align-items: center; justify-content: center; height: 100%; }
@@ -391,9 +436,18 @@ input, select, textarea {
   cursor: pointer;
   border-bottom: 1px solid var(--border);
   font-size: 13px;
+  /* Rendered as <button> so results are keyboard reachable; undo the UA styles. */
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
 }
 .code-search-row:last-child { border-bottom: none; }
-.code-search-row:hover { background: rgba(255,255,255,0.06); }
+.code-search-row:hover { background: var(--button-hover); }
+.code-search-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .code-search-row.apply-hint { outline: 1px dashed var(--accent); outline-offset: -1px; }
 .code-search-path { color: var(--text-dim); font-size: 11px; white-space: nowrap; }
 .code-search-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -632,16 +686,8 @@ input, select, textarea {
   color: var(--text);
 }
 
-/* Prompt modal (replaces window.prompt, which Electron doesn't support) */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--modal-overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
-}
+/* Prompt modal (replaces window.prompt, which Electron doesn't support).
+   The overlay itself is styled above; this block only adds the prompt box. */
 .modal-box {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -858,12 +904,12 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
   .radio-row { flex-wrap: wrap; }
 }
 .document-view-switch, .formatted-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-.document-view-switch button, .formatted-toolbar button, .formatted-toolbar select { color: #172033; background: #fff; border: 1px solid #94a3b8; border-radius: 5px; padding: 4px 8px; }
-.document-view-switch button[aria-pressed="true"], .formatted-toolbar button[aria-pressed="true"] { border-color: #2563eb; box-shadow: inset 0 0 0 1px #2563eb; font-weight: 600; }
-.formatted-toolbar { position: static; padding: 8px; background: #e2e8f0; color: #172033; border-radius: 6px; font-size: 13px; }
+.document-view-switch button, .formatted-toolbar button, .formatted-toolbar select { color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 5px; padding: 4px 8px; }
+.document-view-switch button[aria-pressed="true"], .formatted-toolbar button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); font-weight: 600; }
+.formatted-toolbar { position: static; padding: 8px; background: var(--panel-alt); color: var(--text); border-radius: 6px; font-size: 13px; }
 .formatted-toolbar label { display: flex; align-items: center; gap: 5px; }
 .formatted-toolbar small { flex: 1; min-width: 140px; }
-.formatted-warning { background: #fff4d1; color: #503b08; padding: 8px 12px; border-radius: 5px; font-size: 13px; }
+.formatted-warning { background: var(--warning-bg); color: var(--warning-text); padding: 8px 12px; border-radius: 5px; font-size: 13px; }
 .formatted-document { min-width: 0; }
 .word-document-body { color: #000; background: #d7dce2; width: max-content; min-width: 100%; }
 .word-document-body .eqc-word-wrapper { padding: 16px !important; background: #d7dce2 !important; }
@@ -944,6 +990,81 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
 .project-export-dialog { width:min(540px,100%); background:var(--panel); color:var(--text); padding:24px; border:1px solid var(--border); border-radius:12px; max-height:calc(100dvh - 32px); overflow:auto; }
 .project-export-dialog > label { display:grid; gap:6px; margin:16px 0; }
 .project-export-dialog select { max-width:100%; padding:8px; }
+
+/* ---- Codebook / coded-data import dialog -------------------------------- */
+.import-dialog {
+  width: min(880px, 100%);
+  max-height: calc(100dvh - 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 22px;
+  box-shadow: 0 18px 50px var(--shadow);
+  /* Many code levels can make the dialog tall; scroll instead of overflowing. */
+  overflow: auto;
+}
+.import-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.import-dialog-head h2 { margin: 0 0 4px; font-size: 20px; }
+.import-dialog-head .section-hint { margin: 0; max-width: 62ch; }
+.import-source-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-alt); }
+.import-file-name { font-size: 12px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 46ch; }
+.import-sheet-pick { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-left: auto; }
+.import-sheet-pick select { max-width: 32ch; }
+.import-columns { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 16px; align-items: start; }
+.import-levels { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.import-level-head { display: flex; align-items: baseline; justify-content: space-between; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-dim); }
+.import-level-count { text-transform: none; letter-spacing: 0; font-weight: 500; }
+.import-level {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-alt);
+}
+.import-level-index {
+  width: 24px; height: 24px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 12px; font-weight: 700;
+  background: var(--panel); border: 1px solid var(--border); color: var(--text-dim);
+}
+.import-level-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; min-width: 0; }
+.import-level-remove { align-self: center; padding: 4px 8px; line-height: 1; }
+.import-add-level { align-self: flex-start; }
+.import-role-group { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px 12px; margin: 0; min-width: 0; }
+.import-role-group legend { padding: 0 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-dim); }
+.import-role { display: grid; gap: 2px; margin-bottom: 10px; }
+.import-role:last-child { margin-bottom: 0; }
+.import-role-label { font-size: 12px; font-weight: 600; }
+.import-role select { width: 100%; padding: 6px 8px; }
+.import-role-hint { font-size: 11px; color: var(--text-dim); }
+.import-side { display: flex; flex-direction: column; gap: 10px; font-size: 12px; }
+.import-toggle { display: flex; gap: 8px; align-items: flex-start; line-height: 1.35; }
+.import-side-note { margin: 0; color: var(--text-dim); font-size: 11px; line-height: 1.45; }
+.import-warning { margin: 0; padding: 8px 12px; border-radius: 8px; background: var(--warning-bg); color: var(--warning-text); font-size: 13px; }
+.import-summary { margin: 0; font-size: 13px; padding: 8px 12px; border-radius: 8px; background: var(--success-bg); color: var(--success-text); }
+.import-preview { min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+.import-preview h3 { margin: 0; font-size: 12px; color: var(--text-dim); font-weight: 600; }
+.import-preview-scroll { overflow: auto; border: 1px solid var(--border); border-radius: 8px; max-height: 210px; }
+.import-preview table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.import-preview th, .import-preview td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.import-preview th { position: sticky; top: 0; background: var(--panel-alt); font-size: 11px; z-index: 1; }
+.import-preview td { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.import-empty { color: var(--text-dim); }
+.import-dialog-foot { display: flex; justify-content: flex-end; gap: 10px; padding-top: 4px; border-top: 1px solid var(--border); }
+.import-choices button { display: grid; gap: 3px; }
+.import-choices button strong { font-size: 13px; font-weight: 600; }
+.import-choices button span { font-size: 11px; font-weight: 400; color: var(--text-dim); line-height: 1.4; }
+@media (max-width: 860px) {
+  .import-columns { grid-template-columns: 1fr; }
+  .import-dialog { padding: 16px; }
+}
 .help-panel { flex:1; min-height:0; overflow:auto; padding:24px clamp(16px,4vw,60px); }
 .help-controls { display:flex; gap:14px; align-items:end; flex-wrap:wrap; margin:18px 0; }
 .help-controls label { display:grid; gap:6px; flex:1; min-width:min(240px,100%); }

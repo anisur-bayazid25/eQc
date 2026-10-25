@@ -238,7 +238,7 @@ export function buildReportHtml(project: Project, extras?: ReportExtras): string
   <div class="stats">
     <div class="stat"><div class="num">${project.docs.length}</div>Documents</div>
     <div class="stat"><div class="num">${project.codes.length}</div>Codes</div>
-    <div class="stat"><div class="num">${project.codedSegments.length}</div>Coded passages</div>
+    <div class="stat"><div class="num">${project.codedSegments.length}</div>Coding entries<br><small>overlaps and separate coders each count</small></div>
   </div>
   <!-- REPORT_CONTENTS -->
 

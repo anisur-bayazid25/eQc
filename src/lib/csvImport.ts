@@ -58,18 +58,34 @@ function appendSummary(code: Code, text: string) {
   code.summary = code.summary ? `${code.summary}\n\n${clean}` : clean;
 }
 
-function matchSummaryTarget(
-  fieldName: string,
-  parentCode: Code,
-  child1Code: Code | null,
-  child2Code: Code | null
-): Code | null {
+// Code depth is arbitrary in eQc, so the importer works from a path of levels
+// rather than a fixed parent/child1/child2 triple. Header-based routing is kept
+// for older callers that only pass `summaryFields`; the import dialog passes
+// explicit `{ field, level }` entries instead.
+function levelForHeader(fieldName: string): number | 'leaf' {
   const n = normalize(fieldName);
-  if (n.includes('child 2') || n.includes('child node 2')) return child2Code;
-  if (n.includes('child 1') || n.includes('child node 1')) return child1Code;
-  if (n.includes('parent')) return parentCode;
-  return child2Code || child1Code || parentCode; // generic columns describe this row’s leaf code
+  // "Level 2" counts levels from one, so it is the second code level (index 1);
+  // "Child 2" already names the second child (index 2). Keep the two rules
+  // separate — collapsing them shifted summary/definition columns one level up.
+  const levelWord = /level[\s_-]*(\d+)/.exec(n);
+  if (levelWord) return Math.max(0, Number(levelWord[1]) - 1);
+  const childWord = /(?:child|sub[\s_-]?code|code|node)[\s_-]*(?:code|node)?[\s_-]*(\d+)/.exec(n);
+  if (childWord) return Math.max(1, Number(childWord[1]));
+  if (/\bparent\b|\btheme\b|\bcategory\b|\bdomain\b/.test(n)) return 0;
+  return 'leaf';
 }
+
+function pathTarget(path: Array<Code | null>, fieldName: string): Code | null {
+  const level = levelForHeader(fieldName);
+  if (level === 'leaf') return deepestCode(path);
+  return path[level] || null;
+}
+
+function deepestCode(path: Array<Code | null>): Code | null {
+  for (let i = path.length - 1; i >= 0; i--) if (path[i]) return path[i];
+  return null;
+}
+
 
 // Same level-routing as summaries, but a definition is a single codebook
 // rule rather than an accreting memo: first non-empty value wins, later
@@ -81,19 +97,6 @@ function applyDefinition(code: Code, text: string): boolean {
   if (code.definition && code.definition.trim()) return false;
   code.definition = clean;
   return true;
-}
-
-function matchDefinitionTarget(
-  fieldName: string,
-  parentCode: Code,
-  child1Code: Code | null,
-  child2Code: Code | null
-): Code | null {
-  const n = normalize(fieldName);
-  if (n.includes('child 2') || n.includes('child node 2')) return child2Code;
-  if (n.includes('child 1') || n.includes('child node 1')) return child1Code;
-  if (n.includes('parent')) return parentCode;
-  return child2Code || child1Code || parentCode; // generic columns describe this row’s leaf code
 }
 
 // Mirrors the manual-coding limitation already noted for this app: the
@@ -115,43 +118,67 @@ export function importCsvDataset(project: Project, csv: CsvParseResult): CsvImpo
     definitionsSkipped: 0
   };
 
+  // Level columns in order. `levels` (from the import dialog) supports any
+  // depth; the fixed parent/child1/child2 triple remains for older callers.
+  const legacyLevels = [csv.columns.parent, csv.columns.child1, csv.columns.child2];
+  const rawLevels = csv.columns.levels && csv.columns.levels.length ? csv.columns.levels.slice() : legacyLevels;
+  // Drop trailing empty levels, but keep a gap in the middle: it means "this
+  // level has no column", and deeper codes attach to the nearest ancestor.
+  while (rawLevels.length && !rawLevels[rawLevels.length - 1]) rawLevels.pop();
+  const levelColumns: Array<string | null> = rawLevels;
+
   const hasSourceAndQuote = !!(csv.columns.source && csv.columns.quote);
-  const hasAnyCodeColumn = !!(csv.columns.parent || csv.columns.child1 || csv.columns.child2);
+  const hasAnyCodeColumn = levelColumns.some(Boolean);
 
   if (!hasSourceAndQuote && !hasAnyCodeColumn) {
     throw new Error(
-      'CSV needs either a Document/Source + Quote/Excerpt pair (to import coded excerpts), or at least a Parent/Child code column (to import a codebook only).'
+      'CSV needs either a Document/Source + Quote/Excerpt pair (to import coded excerpts), or at least one code column (to import a codebook only).'
     );
   }
 
   const codesBefore = project.codes.length;
+  // Documents created by this import run (their content is built from quotes).
+  // A document that already existed is never modified.
+  const createdDocIds = new Set<string>();
 
   for (const row of csv.rows) {
-    const parentName = csv.columns.parent ? row[csv.columns.parent] : '';
-    const child1Name = csv.columns.child1 ? row[csv.columns.child1] : '';
-    const child2Name = csv.columns.child2 ? row[csv.columns.child2] : '';
-
-    let parentCode: Code | null = null;
-    let child1Code: Code | null = null;
-    let child2Code: Code | null = null;
-
-    if (parentName && parentName.trim()) {
-      parentCode = findOrCreateCode(project, parentName, null);
+    // Build this row's code path, one entry per level. An empty cell leaves the
+    // level null and deeper codes attach to the nearest ancestor that exists.
+    const path: Array<Code | null> = [];
+    let parentId: string | null = null;
+    for (const column of levelColumns) {
+      const name = column ? String(row[column] || '').trim() : '';
+      if (!name) {
+        path.push(null);
+        continue;
+      }
+      const code = findOrCreateCode(project, name, parentId);
+      path.push(code);
+      parentId = code.id;
     }
-    if (child1Name && child1Name.trim()) {
-      child1Code = findOrCreateCode(project, child1Name, parentCode ? parentCode.id : null);
+    const leafCode = deepestCode(path);
+
+    // Per-level summary and definition columns win; they are explicit, so a
+    // five-level codebook can give every level its own summary and rule.
+    for (const binding of csv.summaryColumns || []) {
+      const text = row[binding.field];
+      if (!text || !text.trim()) continue;
+      const target = path[binding.level] || null;
+      if (target) appendSummary(target, text);
     }
-    if (child2Name && child2Name.trim()) {
-      child2Code = findOrCreateCode(project, child2Name, child1Code ? child1Code.id : parentCode ? parentCode.id : null);
+    for (const binding of csv.definitionColumns || []) {
+      const text = row[binding.field];
+      if (!text || !text.trim()) continue;
+      const target = path[binding.level] || null;
+      if (target && !applyDefinition(target, text)) summary.definitionsSkipped++;
     }
 
-    // Summaries now apply regardless of whether this row has a
-    // source/excerpt — a codebook-only CSV (codes + summary columns, no
-    // data columns at all) will still populate code memos correctly.
+    // Header-routed columns (older callers, and files whose column names say
+    // which level they describe, e.g. "Summary of Child 1").
     for (const field of csv.summaryFields) {
       const text = row[field];
-      if (!text || !text.trim() || !parentCode) continue;
-      const target = matchSummaryTarget(field, parentCode, child1Code, child2Code);
+      if (!text || !text.trim() || !leafCode) continue;
+      const target = pathTarget(path, field);
       if (target) appendSummary(target, text);
     }
 
@@ -160,9 +187,17 @@ export function importCsvDataset(project: Project, csv: CsvParseResult): CsvImpo
     // that loses to an existing one is counted, never silently discarded.
     for (const field of csv.definitionFields || []) {
       const text = row[field];
-      if (!text || !text.trim() || !parentCode) continue;
-      const target = matchDefinitionTarget(field, parentCode, child1Code, child2Code);
+      if (!text || !text.trim() || !leafCode) continue;
+      const target = pathTarget(path, field);
       if (target && !applyDefinition(target, text)) summary.definitionsSkipped++;
+    }
+
+    // Keep structured codebook guidance in the leaf memo with its labels.
+    if (leafCode) {
+      for (const field of csv.metadataFields || []) {
+        const text = row[field]?.trim();
+        if (text) appendSummary(leafCode, `${field}: ${text}`);
+      }
     }
 
     // Everything below only runs if the file actually has source/quote
@@ -174,18 +209,25 @@ export function importCsvDataset(project: Project, csv: CsvParseResult): CsvImpo
     const quote = row[csv.columns.quote!] || '';
     if (!sourceName.trim() || !quote.trim()) continue;
 
+    const coderName = csv.columns.coder ? String(row[csv.columns.coder] || '').trim() : '';
+
     const { doc, created } = findOrCreateDoc(project, sourceName);
     if (created) {
       summary.docsCreated++;
+      // Remember which documents this import created: only those may be
+      // extended with further quotes. An existing transcript is never
+      // rewritten, which previously appended unmatched (typo'd or paraphrased)
+      // quotes onto the user's real source text.
+      createdDocIds.add(doc.id);
       doc.content = quote;
       doc.sizeBytes = doc.content.length;
-    } else if (!doc.content.includes(quote)) {
+    } else if (createdDocIds.has(doc.id) && !doc.content.includes(quote)) {
       doc.content = doc.content ? `${doc.content}\n\n${quote}` : quote;
       doc.sizeBytes = doc.content.length;
       summary.docsAppended++;
     }
 
-    const targetCode = child2Code || child1Code || parentCode;
+    const targetCode = leafCode;
     if (!targetCode) continue;
 
     const loc = locateQuote(doc.content, quote);
@@ -195,7 +237,8 @@ export function importCsvDataset(project: Project, csv: CsvParseResult): CsvImpo
     }
 
     const alreadyCoded = project.codedSegments.some(
-      s => s.docId === doc.id && s.codeId === targetCode.id && s.start === loc.start && s.end === loc.end
+      s => s.docId === doc.id && s.codeId === targetCode.id && s.start === loc.start && s.end === loc.end &&
+        (s.coder || '') === coderName
     );
     if (!alreadyCoded) {
       const segment: CodedSegment = {
@@ -206,7 +249,8 @@ export function importCsvDataset(project: Project, csv: CsvParseResult): CsvImpo
         end: loc.end,
         text: quote,
         createdAt: Date.now(),
-        source: 'csv-import'
+        source: 'csv-import',
+        ...(coderName ? { coder: coderName } : {})
       };
       project.codedSegments.push(segment);
       summary.segmentsCreated++;

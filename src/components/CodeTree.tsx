@@ -259,7 +259,7 @@ const CodeTreeView = React.memo(function CodeTreeView({
   }
 
   if (roots.length === 0) {
-    return <div className="empty-hint">No codes yet. Use "+ Root Code" to start your codebook.</div>;
+    return <div className="empty-hint">No codes yet. Use “+ Add Root Code” to start your codebook.</div>;
   }
 
   return (

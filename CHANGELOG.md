@@ -4,6 +4,35 @@ All notable changes to **eQc - Easy Qual Coding** are documented in this file.
 
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 1.8.8 - 2026-10-25
+
+### Added
+
+- Codebook and coded-data import now opens a mapping dialog: CSV, tab-separated text, Excel workbook (with worksheet choice) or Excel “Unicode text”. The code tree is built level by level with **Add level** and no depth limit; every level matches its own code column plus optional definition and summary/memo columns, so a five- or six-level codebook imports with the correct text on each level. A preview shows the first rows and a dry run states how many codes, documents and coded passages will be added before anything is written. Column names no longer need fixed wording such as “Parent node”.
+- UTF-16 (Excel “Unicode text”) files are decoded instead of producing an unreadable import error.
+- CSV import reads an optional coder column and records it as excerpt attribution.
+
+### Changed
+
+- LAN hosting now requires a session password of at least 4 characters, enforced in the dialog and again before the server starts. Joining requires the same password.
+- The Analysis co-occurrence matrix counts identical code/document/ranges once across pooled coders, matching the heat map, network and Sankey views; multi-coder projects therefore show lower, non-duplicated pair counts.
+- Codebook export tools are grouped under “Project and codebook files” with descriptive labels, and the two export pairs in the co-occurrence view are captioned (Matrix, Relationship memos).
+- Undo/redo copy on the image-delete dialog now matches behaviour (it is undoable), and non-destructive confirmations (merging codes, applying a project merge) no longer use the red destructive button.
+- The HTML report summary card now reads “Coding entries” with the overlap/coder note instead of “Coded passages”.
+
+### Fixed
+
+- Appending text to a document no longer extends the last coded quote over the appended text, and coded quotes keep their exact boundaries when text is inserted at a segment end.
+- Editing a Windows (CRLF) source no longer drops every coded passage that spans a line break. Sources are stored with LF line endings and relocation normalises line endings before comparing.
+- QDPX exchange now carries starred evidence, analysis periods (definitions and assignments), folder paths, code order and coder identity in the eQc appendix, and restores them on import. Nothing was removed from the standard REFI-QDA elements other tools read.
+- Consolidating codes now remaps case × theme framework summaries, ICR comparison settings/domains, adjudication decisions, saved queries, canvas drafts and annotations; previously these kept pointing at removed codes and case-framework memos were deleted on the next save. Merging also removes duplicate excerpts for the surviving code.
+- Re-running a project merge no longer duplicates the folder tree, and merging onto an existing document keeps that document's notes and period.
+- CSV import no longer appends an unmatched quote to an existing source document; the quote is reported as not found and the transcript is left untouched. Flat codebooks (no parent column) now keep their definitions and summaries.
+- PDF OCR import disables pdf.js font-program evaluation (`isEvalSupported: false`), matching the PDF viewer and closing CVE-2024-4367.
+- Confirmation dialogs close with Escape, trap Tab focus, expose the dialog role and use theme colours in light and dark mode (previously a fixed near-black panel with hard-coded red buttons).
+- Command shortcuts, search results and analysis sort/filter controls are reachable by keyboard and announced with names; the stale “+ Root Folder / + Doc / + Root Code” hints now name the real buttons.
+- Light and dark themes: LAN dialogs, the Word formatting toolbar, warning banners and the prompt box use theme colours instead of hard-coded light values.
+
 ## 1.8.7 - 2026-10-19
 
 - Fixed Intel Mac packaging including an Apple Silicon SQLite binary. Build Intel and Apple Silicon installers in separate matching-architecture jobs; check the executable and native modules and exercise packaged SQLite in memory before creating the DMG.

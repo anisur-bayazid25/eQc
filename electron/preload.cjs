@@ -56,6 +56,8 @@ onUpdateProgress: (cb) => ipcRenderer.on('update:progress', (_e, pct) => cb(pct)
 
   // CSV dataset import
   pickAndParseCsv: () => ipcRenderer.invoke('csv:pickAndParse'),
+  // Codebook / coded-data import with sheet selection and column mapping
+  pickImportTable: () => ipcRenderer.invoke('import:pickTable'),
 
   pickAndEncodeImages: () => ipcRenderer.invoke('images:pickAndEncode'),
   extractDroppedImages: (paths) => ipcRenderer.invoke('images:extractDropped', paths),

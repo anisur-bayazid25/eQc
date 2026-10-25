@@ -80,7 +80,7 @@ Save backups outside the app's local storage. Local History checkpoints do not t
 
 ### Merge and undo
 
-Merge separately coded project files to combine teamwork. Identical source names and text allow coding to share one source; matching code hierarchies are reused. Check coder names before merging.
+Merge separately coded project files to combine teamwork. Identical source names and text allow coding to share one source; matching code hierarchies are reused, and a source memo or period on the incoming copy is kept. Folders are matched rather than duplicated, so merging the same file twice adds nothing the second time. Check coder names before merging.
 
 Use **Undo/Redo** after changing coding, codes or memos. Changes made in a text field must be saved through that editor first. Deleting a document also removes its coded passages, framework cells and linked PDF page images/regions; Undo restores the deleted document and its analysis. Project deletion cannot be undone.
 
@@ -131,17 +131,17 @@ To change a text boundary, choose **Adjust passage**, select replacement text in
 
 Select a code to edit its name, colour, definition and summary. A **definition** explains what should be coded; a **summary/memo** records your interpretation. Browse the gathered excerpts and filter them by source or coder.
 
-Use parent and child codes to organise themes. **Merge** combines selected codes into the code you choose. Review the destination before confirming.
+Use parent and child codes to organise themes, to any depth. **Merge** combines selected codes into the code you choose; review the destination before confirming. Merging keeps excerpts, image regions, definitions, summaries, case × theme summaries and saved comparison settings that referred to the codes being merged, removes duplicate excerpts left on the survivor, and can be undone with Ctrl+Z.
 
 ### Import
 
-Import a codebook or structured coding CSV from the Import tab. Preview the columns and assign the requested mappings. Keep definitions and summaries in their matching columns.
+Import a codebook or coded data from the Import tab: CSV, tab-separated text, an Excel workbook, or Excel “Unicode text”. Choose the file, pick the worksheet when the workbook has several, then build the code tree level by level. **Add level** adds another step of depth — there is no limit — and each level has its own code column plus an optional definition and summary/memo column, so a five- or six-level codebook imports with the right text on every level. Header names do not have to follow a fixed wording; **— not in this file —** leaves a column unused, and the preview shows the first rows plus what the import will add before anything changes. A codebook file may contain only code columns; a coded-data file needs a document and quote column, and an optional coder column records attribution. Quotes are matched against the source text exactly, case and punctuation included; a quote that is not found is reported and the existing source text is never altered.
 
 ### 4.3 Export tab
 
 Choose **All codes** or **Selected codes**; optionally include child codes. Choose the content scope, then export **CSV** or **DOCX**. **Starred Images** and **Starred Quotes** sit side by side. Starred Quotes downloads only starred text as Word: choose **Manuscript format** for quotes with the same italic participant attribution as the manuscript skeleton, or **Document, code & all case attributes** for source names, code paths and every attribute of linked cases. Both choices respect the code selection, omit memos and images, and show repeated coding of the same quote once per code. The existing **Starred Excerpts** content scope still exports both text and image excerpts.
 
-Under **Project exports**, export a codebook, all notes, or a **Manuscript Skeleton**. The skeleton uses code summaries, linked memos, analysis notes and starred evidence as material for writing. It is an editable outline, not a finished report. The same writing export is available in Memo-Book.
+Under **Project and codebook files**, export the whole project or just the codebook as REFI-QDA (QDPX), all notes as a spreadsheet, or a **Manuscript Skeleton**. The skeleton uses code summaries, linked memos, analysis notes and starred evidence as material for writing. It is an editable outline, not a finished report. The same writing export is available in Memo-Book. These exports always cover the whole project, not the code selection above.
 
 
 ## 5. Auto-Code
@@ -155,7 +155,7 @@ Choose words or phrases, set matching options and target codes, then preview the
 | --- | --- |
 | Frequency | Coding-entry counts by code |
 | Documents | Code × source counts |
-| Co-occurrence | Different codes on overlapping passages or regions |
+| Co-occurrence | Different codes on overlapping passages or regions; identical ranges are counted once across coders |
 | Framework | Editable source × theme summaries |
 | Word frequencies | Common words after applying the stop-word list |
 | KWIC | A keyword with its surrounding words |
@@ -190,7 +190,7 @@ The ICR workspace has one **Comparison method** selector. Open Scope to change c
 
 **Case framework:** Analysis → Framework → Case × theme framework provides summaries for cases that span sources or selected passages. Choose participant attribute columns, click a case/theme cell, inspect supporting excerpts and linked memos, then save the summary. CSV/Word exports include case identifiers and selected attributes. Summaries also appear in Memo-Book and analytical HTML reports; the manuscript's optional framework section includes summary text without adding operational notes.
 
-**Exchange:** The project export dialog shows a preservation inventory. QDPX uses structured cases, typed variables and source/code sets, plus an eQc appendix for saved queries, graph drafts, ICR runs and other app-specific records. Another application may display appendix information as notes instead of recreating eQc tools. Import reports list research-object counts and unresolved/unsupported references. Merge previews changes, keeps the working canvas, remaps research links and preserves conflicting ICR settings separately. Local recovery history stays on its original computer.
+**Exchange:** The project export dialog shows a preservation inventory. QDPX uses structured cases, typed variables and source/code sets, plus an eQc appendix for saved queries, graph drafts, ICR runs, starred evidence, analysis periods, folder paths, code order and coder identity. Sources, coding positions, the code hierarchy and coder attribution stay in the standard parts, so other applications read them normally; appendix information may appear there as notes instead of recreating eQc tools. Import reports list research-object counts and unresolved/unsupported references. Merge previews changes, keeps the working canvas, remaps research links and preserves conflicting ICR settings separately. Local recovery history stays on its original computer.
 
 ### ICR calculations and reporting
 
@@ -392,7 +392,7 @@ An eQc-window screenshot is previewed before sending. Capture it again, attach a
 
 ## 10. LAN collaboration
 
-Use **LAN → Host** to share a project on a trusted local network. Colleagues use **Join**, select the host or enter its address, and connect with the session details.
+Use **LAN → Host** to share a project on a trusted local network. Enter a session password of at least 4 characters — hosting is disabled until you do, because the session listens on the network and anyone who can reach it could otherwise read or overwrite the project. Share that password with your team only. Colleagues use **Join**, select the host or enter its address, and type the same password.
 
 Check each person's coder name. Project coding and research records are shared; personal profiles and time histories stay separate. For remote or offline teamwork, exchange project files and merge them. Export a backup before starting a team session.
 
@@ -426,7 +426,7 @@ Profile deletion removes that profile's local details and time records, not rese
 | --- | --- | --- |
 | Standard documents | .txt, .md, .docx, .pdf | Markdown imports as coding text; Word/PDF can retain originals |
 | Images | .png, .jpg/.jpeg, .gif, .webp, .bmp, .heic/.heif | HEIC/HEIF still photos convert locally |
-| Structured coding | .csv | Preview and map columns before import |
+| Structured coding | .csv, .tsv, .txt, .xlsx, .xlsm | Workbook sheet selection and column mapping before import; Excel “Unicode text” is read as well |
 | Projects/codebooks | .json, .qdpx, .qdc, .qde | QDE needs its adjacent sources |
 | Exports | .json, .qdpx, .csv, .docx, .xlsx, .html | Excel is available for Memo-Book exports |
 

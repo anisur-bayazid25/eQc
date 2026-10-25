@@ -100,6 +100,15 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
   // ===================== HOST =====================
 
   async function startHost({ hostName, password, project }) {
+    // The session password is required. The server binds every interface and
+    // accepts WebSocket connections from any origin, so the old empty-password
+    // default let any device on the network — or any web page in a browser on
+    // this machine — pull the whole project.
+    const sessionPassword = String(password || '').trim();
+    if (sessionPassword.length < 4) {
+      throw new Error('A session password of at least 4 characters is required.');
+    }
+
     stopHost();
     stopClient();
     stopDiscovery();
@@ -113,7 +122,7 @@ module.exports = function setupLan(ipcMain, { getWindow, saveProject }) {
     state.role = 'host';
     state.host = {
       hostName: String(hostName || 'Coder'),
-      password: String(password || ''),
+      password: sessionPassword,
       projectId: project.id,
       // The session is LOCKED to exactly this project id for its whole
       // life. Everything broadcast into the session must carry this id;

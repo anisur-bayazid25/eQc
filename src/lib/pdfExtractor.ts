@@ -3,7 +3,9 @@ import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.js?url';
 import { createWorker } from 'tesseract.js';
 pdfjsLib.GlobalWorkerOptions.workerSrc=pdfWorker;
 export async function extractBengaliTextFromPDF(file:File,onProgress?:(msg:string)=>void):Promise<string> {
-  const task=pdfjsLib.getDocument({data:await file.arrayBuffer()});
+  // isEvalSupported:false matches PdfDocumentView and closes CVE-2024-4367,
+  // where a crafted PDF font program is compiled with new Function().
+  const task=pdfjsLib.getDocument({data:await file.arrayBuffer(),isEvalSupported:false});
   let worker:Awaited<ReturnType<typeof createWorker>>|undefined;
   const text:string[]=[];
   try {

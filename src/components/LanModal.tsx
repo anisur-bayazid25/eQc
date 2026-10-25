@@ -23,7 +23,9 @@ export default function LanModal({
   onMyNameChange, onStartHost, onStopHost, onJoin, onDisconnect, onKickClient, onAnnouncementPermission, onClose
 }: Props) {
   const [tab, setTab] = useState<'host' | 'join'>(initialTab === 'join' ? 'join' : 'host');
-  const [requirePassword, setRequirePassword] = useState(true);
+  // A session password is always required. The host listens on every network
+  // interface and accepts connections from any origin, so an open session let
+  // anyone on the network read and overwrite the project.
   const [password, setPassword] = useState('');
   const [selected, setSelected] = useState<LanHostInfo | null>(null);
   const [joinPassword, setJoinPassword] = useState('');
@@ -33,6 +35,8 @@ export default function LanModal({
 
   const busy = joining || starting;
   const syncing = !!sync && (sync.phase === 'connect' || sync.phase === 'auth' || sync.phase === 'sync');
+  const MIN_PASSWORD = 4;
+  const passwordTooShort = password.trim().length < MIN_PASSWORD;
 
   useEffect(() => {
     window.qv.lan.startDiscovery().then(() => {});
@@ -43,8 +47,9 @@ export default function LanModal({
   const clientActive = session?.role === 'client';
 
   async function doStartHost() {
+    if (passwordTooShort) return;
     setStarting(true);
-    await onStartHost(myName.trim() || 'Coder', requirePassword ? password : '');
+    await onStartHost(myName.trim() || 'Coder', password.trim());
     setStarting(false);
   }
 
@@ -76,7 +81,7 @@ export default function LanModal({
       <div className="modal" style={{
         position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
         width: 480, maxWidth: '92vw', maxHeight: '85vh', overflowY: 'auto',
-        backgroundColor: '#ffffff', color: '#0f172a', padding: '20px', borderRadius: '10px',
+        backgroundColor: 'var(--panel)', color: 'var(--text)', padding: '20px', borderRadius: '10px',
         boxShadow: '0 20px 50px rgba(0,0,0,0.5)'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
@@ -87,7 +92,7 @@ export default function LanModal({
         <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
           <button
             className="mini-btn"
-            style={{ flex: 1, padding: '6px', fontWeight: tab === 'host' ? 'bold' : 'normal', border: tab === 'host' ? '2px solid #3b82f6' : '1px solid #cbd5e1' }}
+            style={{ flex: 1, padding: '6px', fontWeight: tab === 'host' ? 'bold' : 'normal', border: tab === 'host' ? '2px solid var(--accent)' : '1px solid var(--border)' }}
             onClick={() => setTab('host')}
             disabled={busy}
           >
@@ -95,7 +100,7 @@ export default function LanModal({
           </button>
           <button
             className="mini-btn"
-            style={{ flex: 1, padding: '6px', fontWeight: tab === 'join' ? 'bold' : 'normal', border: tab === 'join' ? '2px solid #3b82f6' : '1px solid #cbd5e1' }}
+            style={{ flex: 1, padding: '6px', fontWeight: tab === 'join' ? 'bold' : 'normal', border: tab === 'join' ? '2px solid var(--accent)' : '1px solid var(--border)' }}
             onClick={() => setTab('join')}
             disabled={busy}
           >
@@ -103,7 +108,7 @@ export default function LanModal({
           </button>
         </div>
 
-        <p style={{fontSize:12,color:'#475569'}}>Use 📣 beside Profile for announcements. The host can allow individual participants to post. Notices can be saved with the project or kept for this session only.</p>
+        <p style={{fontSize:12,color:'var(--text-dim)'}}>Use 📣 beside Profile for announcements. The host can allow individual participants to post. Notices can be saved with the project or kept for this session only.</p>
         {tab === 'host' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div>
@@ -119,52 +124,55 @@ export default function LanModal({
             </div>
 
             <div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 'bold', marginBottom: 4, cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={requirePassword}
-                  onChange={e => { setRequirePassword(e.target.checked); if (!e.target.checked) setPassword(''); }}
-                  disabled={busy || hostActive}
-                />
-                Require a session password
+              <label htmlFor="lan-host-password" style={{ display: 'block', fontSize: 12, fontWeight: 'bold', marginBottom: 4 }}>
+                Session password (required)
               </label>
-              {requirePassword && (
-                <input
-                  type="password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="Session password"
-                  disabled={busy || hostActive}
-                  style={{ width: '100%', padding: '8px', boxSizing: 'border-box', fontSize: 13 }}
-                />
-              )}
+              <input
+                id="lan-host-password"
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder={`At least ${MIN_PASSWORD} characters`}
+                aria-describedby="lan-host-password-hint"
+                aria-invalid={passwordTooShort && password.length > 0}
+                disabled={busy || hostActive}
+                style={{ width: '100%', padding: '8px', boxSizing: 'border-box', fontSize: 13 }}
+              />
+              <p id="lan-host-password-hint" style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--text-dim)' }}>
+                Everyone who joins must type this password. Share it with your team only.
+              </p>
             </div>
 
             {hostActive && session ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, border: '1px solid #bbf7d0', backgroundColor: '#f0fdf4', borderRadius: 8, padding: 12 }}>
-                <div style={{ fontSize: 13, fontWeight: 'bold', color: '#166534' }}>● Hosting — port 8080</div>
-                <div style={{ fontSize: 12, color: '#14532d' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, border: '1px solid var(--success-border)', backgroundColor: 'var(--success-bg)', borderRadius: 8, padding: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--success-text)' }}>● Hosting — port 8080</div>
+                <div style={{ fontSize: 12, color: 'var(--success-text)' }}>
                   {session.coders.filter(c => c.source === 'client').length} connected coder(s) — live synced
                 </div>
                 <div style={{ fontSize: 12 }}>
                   {session.coders.map((c, i) => (
-                    <span key={i} style={{ display: 'inline-block', backgroundColor: '#bbf7d0', color: '#14532d', borderRadius: 10, padding: '2px 8px', margin: '2px 4px 0 0' }}>
+                    <span key={i} style={{ display: 'inline-block', backgroundColor: 'var(--success-border)', color: 'var(--success-text)', borderRadius: 10, padding: '2px 8px', margin: '2px 4px 0 0' }}>
                       {c.source === 'host' ? '🖥️' : '👤'} {c.coderName}
                       {c.source === 'client' && c.clientId && <label style={{display:'block',fontSize:12}}><input type="checkbox" aria-label={'Allow announcements for '+c.coderName} checked={!!c.canAnnounce} onChange={e=>void onAnnouncementPermission(c.clientId!,e.target.checked)}/>Allow announcements</label>}
                       {c.source === 'client' && c.clientId && (
                         <button
                           title={`Disconnect ${c.coderName}`}
                           onClick={() => onKickClient(c.clientId!)}
-                          style={{ border: 'none', background: 'none', color: '#991b1b', cursor: 'pointer', marginLeft: 4, fontSize: 11, padding: 0 }}
+                          style={{ border: 'none', background: 'none', color: 'var(--danger)', cursor: 'pointer', marginLeft: 4, fontSize: 11, padding: 0 }}
                         >✕</button>
                       )}
                     </span>
                   ))}
                 </div>
-                <button className="mini-btn" style={{ alignSelf: 'flex-start', padding: '6px 12px', color: '#991b1b', borderColor: '#fecaca' }} onClick={onStopHost} disabled={busy}>⏹ Stop Session</button>
+                <button className="mini-btn" style={{ alignSelf: 'flex-start', padding: '6px 12px', color: 'var(--danger)', borderColor: 'var(--danger)' }} onClick={onStopHost} disabled={busy}>⏹ Stop Session</button>
               </div>
             ) : (
-              <button className="primary-btn" onClick={doStartHost} disabled={busy || !myName.trim()}>
+              <button
+                className="primary-btn"
+                onClick={doStartHost}
+                disabled={busy || !myName.trim() || passwordTooShort}
+                title={passwordTooShort ? `Enter a session password of at least ${MIN_PASSWORD} characters` : undefined}
+              >
                 {starting ? 'Starting…' : '▶ Start Hosting'}
               </button>
             )}
@@ -174,16 +182,16 @@ export default function LanModal({
         {tab === 'join' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {clientActive && session ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, border: '1px solid #bfdbfe', backgroundColor: '#eff6ff', borderRadius: 8, padding: 12 }}>
-                <div style={{ fontSize: 13, fontWeight: 'bold', color: '#1e40af' }}>● Connected to {session.hostName || session.myName}'s session</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, border: '1px solid var(--info-bg)', backgroundColor: 'var(--info-bg)', borderRadius: 8, padding: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--info-text)' }}>● Connected to {session.hostName || session.myName}'s session</div>
                 <div style={{ fontSize: 12 }}>
                   {session.coders.map((c, i) => (
-                    <span key={i} style={{ display: 'inline-block', backgroundColor: '#bfdbfe', color: '#1e40af', borderRadius: 10, padding: '2px 8px', margin: '2px 4px 0 0' }}>
+                    <span key={i} style={{ display: 'inline-block', backgroundColor: 'var(--info-bg)', color: 'var(--info-text)', borderRadius: 10, padding: '2px 8px', margin: '2px 4px 0 0' }}>
                       {c.source === 'host' ? '🖥️' : '👤'} {c.coderName}
                     </span>
                   ))}
                 </div>
-                <button className="mini-btn" style={{ alignSelf: 'flex-start', padding: '6px 12px', color: '#991b1b', borderColor: '#fecaca' }} onClick={onDisconnect} disabled={busy}>⏹ Disconnect</button>
+                <button className="mini-btn" style={{ alignSelf: 'flex-start', padding: '6px 12px', color: 'var(--danger)', borderColor: 'var(--danger)' }} onClick={onDisconnect} disabled={busy}>⏹ Disconnect</button>
               </div>
             ) : (
               <>
@@ -199,13 +207,13 @@ export default function LanModal({
                   />
                 </div>
 
-                <div style={{ fontSize: 12, color: '#475569', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 10, backgroundColor: hosts.length > 0 ? '#22c55e' : '#94a3b8', animation: 'none' }} />
+                <div style={{ fontSize: 12, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 10, backgroundColor: hosts.length > 0 ? 'var(--success-text)' : 'var(--text-dim)', animation: 'none' }} />
                   {hosts.length > 0 ? `${hosts.length} host(s) found on this network` : 'Scanning for hosts on this network…'}
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 8, padding: 6 }}>
-                  {hosts.length === 0 && <div style={{ fontSize: 12, color: '#94a3b8', padding: '10px 4px' }}>No active sessions found. Make sure a host is running on the same Wi-Fi/network.</div>}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: 6 }}>
+                  {hosts.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: '10px 4px' }}>No active sessions found. Make sure a host is running on the same Wi-Fi/network.</div>}
                   {hosts.map(h => {
                     const isSelected = selected?.ip === h.ip && selected?.wsPort === h.wsPort;
                     return (
@@ -214,14 +222,14 @@ export default function LanModal({
                         onClick={() => { setSelected(h); setJoinPassword(''); }}
                         style={{
                           textAlign: 'left', padding: '10px', borderRadius: 6, cursor: 'pointer',
-                          border: isSelected ? '2px solid #3b82f6' : '1px solid #e2e8f0',
-                          backgroundColor: isSelected ? '#eff6ff' : '#ffffff', fontSize: 13
+                          border: isSelected ? '2px solid var(--accent)' : '1px solid var(--border)',
+                          backgroundColor: isSelected ? 'var(--info-bg)' : 'var(--panel)', fontSize: 13
                         }}
                       >
                         <div style={{ fontWeight: 'bold' }}>
                           {h.requiresPassword ? '🔒 ' : '👤 '}{h.hostName}
                         </div>
-                        <div style={{ fontSize: 11, color: '#64748b' }}>{h.projectName} · {h.ip}:{h.wsPort}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{h.projectName} · {h.ip}:{h.wsPort}</div>
                       </button>
                     );
                   })}
@@ -239,7 +247,7 @@ export default function LanModal({
                     {pinging ? 'Searching…' : '🔍 Find by IP'}
                   </button>
                 </div>
-                {pinging && <div style={{ fontSize: 11, color: '#64748b' }}>Sent a request to {manualIp.trim()} — if a host is listening it will appear in the list above.</div>}
+                {pinging && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Sent a request to {manualIp.trim()} — if a host is listening it will appear in the list above.</div>}
 
                 {selected && !clientActive && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -266,12 +274,12 @@ export default function LanModal({
 
       {(syncing || joining) && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15,23,42,0.65)' }}>
-          <div style={{ backgroundColor: '#ffffff', color: '#0f172a', padding: '24px 32px', borderRadius: 10, minWidth: 360, boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
+          <div style={{ backgroundColor: 'var(--panel)', color: 'var(--text)', padding: '24px 32px', borderRadius: 10, minWidth: 360, boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
             <div style={{ fontWeight: 'bold', marginBottom: 12 }}>Downloading Host Project Data…</div>
-            <div style={{ height: 14, backgroundColor: '#e2e8f0', borderRadius: 8, overflow: 'hidden', marginBottom: 8 }}>
-              <div style={{ height: '100%', width: `${Math.max(0, Math.min(100, (sync?.percent ?? 0)))}%`, backgroundColor: '#3b82f6', transition: 'width 0.2s ease' }} />
+            <div style={{ height: 14, backgroundColor: 'var(--border)', borderRadius: 8, overflow: 'hidden', marginBottom: 8 }}>
+              <div style={{ height: '100%', width: `${Math.max(0, Math.min(100, (sync?.percent ?? 0)))}%`, backgroundColor: 'var(--accent)', transition: 'width 0.2s ease' }} />
             </div>
-            <div style={{ fontSize: 12, color: '#475569' }}>
+            <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
               {sync ? `${Math.round(sync.percent)}%` : 'Waiting for host…'}{sync?.total ? ` — chunk ${sync.received ?? 0}/${sync.total}` : ''}
             </div>
           </div>

@@ -286,15 +286,49 @@ export async function buildQdpxExport(project: Project): Promise<QdpxExportPaylo
     .map(img => buildPictureSource(project, img, codeGuids, sizes[img.id], bytes, users.guids, users.creator, sourceGuids))
     .join('');
 
-  if ([project.cases,project.groups,project.annotations,project.memos,project.queries,project.icrRuns,project.mapDrafts,project.frameworkCells,project.caseFrameworkCells,project.visualizationNotes,project.reviewedSources].some(items=>items?.length)||project.icrComparison) {
+  // eQc-only semantics (stars, periods, folders, ordering, canvas styling) have
+  // no REFI-QDA equivalent, so they travel in the labelled appendix. Everything
+  // another tool needs stays in the standard elements above: sources, coding
+  // positions, code hierarchy, coders and dates.
+  const folderPath = (folderId: string | null | undefined): string[] => {
+    const path: string[] = [];
+    let current = folderId ? project.folders.find(f => f.id === folderId) : undefined;
+    const guard = new Set<string>();
+    while (current && !guard.has(current.id)) {
+      guard.add(current.id);
+      path.unshift(current.name);
+      current = current.parentId ? project.folders.find(f => f.id === current!.parentId) : undefined;
+    }
+    return path;
+  };
+  const hasArchiveContent = (
+    [project.cases, project.groups, project.annotations, project.memos, project.queries, project.icrRuns,
+      project.mapDrafts, project.frameworkCells, project.caseFrameworkCells, project.visualizationNotes,
+      project.reviewedSources].some(items => items?.length)
+    || project.icrComparison
+    // Exchange fidelity for plain coding projects too: without this, stars,
+    // periods, folders and code ordering were silently dropped on export.
+    || (project.analysisPeriods || []).length
+    || project.folders.length
+    || project.coderName
+    || project.codedSegments.some(s => s.starred || s.periodId)
+    || (project.codedRegions || []).some(r => r.starred)
+    || project.codes.some(c => c.sortIndex !== undefined)
+  );
+  if (hasArchiveContent) {
     // Standard Notes provide readable records; the labelled appendix retains app-specific semantics.
     const rows=researchRows(project);
     for(const row of rows.slice(1).filter(r=>['Case','Attribute','Case link','Group','Annotation','Saved query','ICR run','Case framework summary','Framework memo','Relationship memo'].includes(r[0])||r[0].startsWith('Memo:')))
       memos.push({guid:uuid(),name:'eQc research record — '+row[0]+' — '+row[1],text:row.map((v,i)=>v?rows[0][i]+': '+v:'').filter(Boolean).join('\n')});
     const references=Object.fromEntries([...codeGuids,...sourceGuids]);
     const records={name:project.name,icrComparison:project.icrComparison,icrSetups:project.icrSetups,icrRuns:project.icrRuns,reviewedSources:project.reviewedSources,icrResolutions:project.icrResolutions,caseFrameworkCells:project.caseFrameworkCells,mapDrafts:project.mapDrafts,visualizationNotes:project.visualizationNotes,frameworkCells:project.frameworkCells,relationNotes:project.relationNotes,cases:project.cases,groups:project.groups,annotations:project.annotations,memos:project.memos,queries:project.queries,
-      codedSegments:project.codedSegments.map(s=>({id:s.id,docId:s.docId,codeId:s.codeId,start:s.start,end:s.end,coder:s.coder})),
-      codedRegions:(project.codedRegions||[]).map(r=>({id:r.id,imageId:r.imageId,codeId:r.codeId,x:r.x,y:r.y,width:r.width,height:r.height,coder:r.coder}))};
+      coderName:project.coderName,
+      analysisPeriods:project.analysisPeriods,
+      codeMeta:project.codes.map(c=>({id:c.id,sortIndex:c.sortIndex,createdAt:c.createdAt})),
+      docMeta:project.docs.map(d=>({id:d.id,folderPath:folderPath(d.folderId),periodId:d.periodId,addedAt:d.addedAt})),
+      imageMeta:(project.images||[]).map(i=>({id:i.id,folderPath:folderPath(i.folderId),addedAt:i.addedAt})),
+      codedSegments:project.codedSegments.map(s=>({id:s.id,docId:s.docId,codeId:s.codeId,start:s.start,end:s.end,coder:s.coder,note:s.note,starred:s.starred,periodId:s.periodId,createdAt:s.createdAt})),
+      codedRegions:(project.codedRegions||[]).map(r=>({id:r.id,imageId:r.imageId,codeId:r.codeId,x:r.x,y:r.y,width:r.width,height:r.height,coder:r.coder,note:r.note,starred:r.starred,createdAt:r.createdAt}))};
     memos.push({guid:uuid(),name:'eQc research archive (JSON, version 1)',text:JSON.stringify({format:'eQc-research',version:1,references,records})});
   }
 

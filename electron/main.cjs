@@ -4,7 +4,6 @@ const path = require('node:path');
 const fs = require('node:fs');
 const Database = require('better-sqlite3');
 const mammoth = require('mammoth');
-const Papa = require('papaparse');
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -303,10 +302,18 @@ autoUpdater.on('download-progress', progress => {
 // ---------------------------------------------------------------------
 const { convert: htmlToText } = require('html-to-text');
 
+// Sources are stored with LF line endings. The editor is an HTML <textarea>,
+// which normalises CRLF to LF on its own; storing CRLF meant that every
+// opening/saving of a Windows .txt rewrote the document and could drop coded
+// passages that spanned a line break.
+function normalizeNewlines(text) {
+  return String(text).replace(/\r\n?/g, '\n');
+}
+
 async function extractText(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   if (ext === '.txt' || ext === '.md') {
-    return fs.readFileSync(filePath, 'utf-8');
+    return normalizeNewlines(fs.readFileSync(filePath, 'utf-8'));
   }
   if (ext === '.docx') {
     const buffer = fs.readFileSync(filePath);
@@ -315,13 +322,13 @@ async function extractText(filePath) {
     // readable plain text, with tables specifically laid out as aligned
     // columns instead of every cell's text getting jammed together.
     const { value: html } = await mammoth.convertToHtml({ buffer });
-    return htmlToText(html, {
+    return normalizeNewlines(htmlToText(html, {
       wordwrap: false,
       selectors: [
         { selector: 'table', format: 'dataTable' },
         { selector: 'img', format: 'skip' }
       ]
-    });
+    }));
   }
   if (ext === '.pdf') {
     // Lazy-require: pdf-parse touches the filesystem for its own test
@@ -329,10 +336,10 @@ async function extractText(filePath) {
     const pdfParse = require('pdf-parse');
     const buffer = fs.readFileSync(filePath);
     const result = await pdfParse(buffer);
-    return result.text;
+    return normalizeNewlines(result.text);
   }
   if (ext === '.csv') {
-    return fs.readFileSync(filePath, 'utf-8');
+    return normalizeNewlines(fs.readFileSync(filePath, 'utf-8'));
   }
   throw new Error(`Unsupported file type: ${ext}`);
 }
@@ -743,17 +750,8 @@ ipcMain.handle('docxComments:pickAndParse', async () => {
 // roles; the renderer builds the code tree / docs / codedSegments so it
 // can merge with in-memory project state and undo cleanly.
 // ---------------------------------------------------------------------
-function normalizeHeader(h) {
-  return String(h || '').trim().toLowerCase();
-}
-
-const HEADER_MAP = {
-  source: ['participant', 'document', 'source'],
-  quote: ['quote', 'quotes', 'excerpt', 'text'],
-  parent: ['parent node', 'parent'],
-  child1: ['child node 1', 'child 1'],
-  child2: ['child node 2', 'child 2']
-};
+const { parseCsvDataset, gridToTable } = require('./csvDataset.cjs');
+const { readWorkbook } = require('./xlsxTable.cjs');
 
 const iconv = require('iconv-lite');
 
@@ -763,6 +761,11 @@ const iconv = require('iconv-lite');
 // that and fall back to Windows-1252 decoding of the same bytes.
 function readCsvSmart(filePath) {
   const buffer = fs.readFileSync(filePath);
+  // UTF-16 (Excel's "Unicode Text" export) starts with FF FE / FE FF. Decoding
+  // it as UTF-8 produced NUL-laden garbage and an unhelpful "needs a
+  // Document/Quote column" error.
+  if (buffer.length >= 2 && buffer[0] === 0xff && buffer[1] === 0xfe) return iconv.decode(buffer, 'utf16-le');
+  if (buffer.length >= 2 && buffer[0] === 0xfe && buffer[1] === 0xff) return iconv.decode(buffer, 'utf16-be');
   const hasBom = buffer.length >= 3 && buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf;
   const utf8Text = hasBom ? buffer.slice(3).toString('utf-8') : buffer.toString('utf-8');
   if (!hasBom && utf8Text.includes('\uFFFD')) {
@@ -771,52 +774,53 @@ function readCsvSmart(filePath) {
   return utf8Text;
 }
 
+// One entry point for "bring a table into the project". Returns the raw header
+// list plus rows so the renderer can offer sheet selection and column mapping
+// instead of relying on magic header names.
+ipcMain.handle('import:pickTable', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    title: 'Import codebook or coded data',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Codebook or coded data (CSV, TSV, Excel)', extensions: ['csv', 'tsv', 'txt', 'xlsx', 'xlsm'] },
+      { name: 'All files', extensions: ['*'] }
+    ]
+  });
+  if (canceled || filePaths.length === 0) return null;
+
+  const filePath = filePaths[0];
+  const fileName = path.basename(filePath);
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === '.xls') {
+    throw new Error('Old .xls workbooks are not supported. Save the sheet as .xlsx or CSV, then import again.');
+  }
+  if (ext === '.xlsx' || ext === '.xlsm') {
+    const sheets = await readWorkbook(fs.readFileSync(filePath));
+    if (!sheets.length) throw new Error('That workbook has no readable sheets.');
+    return {
+      kind: 'xlsx',
+      fileName,
+      sheets: sheets.map(sheet => ({
+        name: sheet.name,
+        totalRows: Math.max(0, sheet.rows.length - 1),
+        ...gridToTable(sheet.rows)
+      }))
+    };
+  }
+  const parsed = parseCsvDataset(readCsvSmart(filePath), fileName);
+  return { kind: 'text', fileName, ...parsed };
+});
+
 ipcMain.handle('csv:pickAndParse', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
-    title: 'Import Dataset (CSV)',
+    title: 'Import dataset or codebook',
     properties: ['openFile'],
-    filters: [{ name: 'CSV', extensions: ['csv'] }]
+    filters: [{ name: 'CSV / tab-separated codebook', extensions: ['csv', 'tsv', 'txt'] }]
   });
   if (canceled || filePaths.length === 0) return null;
 
   const raw = readCsvSmart(filePaths[0]);
-  const parsed = Papa.parse(raw, { header: true, skipEmptyLines: true });
-  const fields = (parsed.meta.fields || []).map(f => ({ raw: f, norm: normalizeHeader(f) }));
-
-  const findField = keys => {
-    const hit = fields.find(f => keys.includes(f.norm));
-    return hit ? hit.raw : null;
-  };
-
-  const columns = {
-    source: findField(HEADER_MAP.source),
-    quote: findField(HEADER_MAP.quote),
-    parent: findField(HEADER_MAP.parent),
-    child1: findField(HEADER_MAP.child1),
-    child2: findField(HEADER_MAP.child2)
-  };
-
-  // Summary columns: anything starting with "summary of" or ending "summary"
-  const summaryFields = fields.filter(
-    f => f.norm.startsWith('summary of') || f.norm.endsWith('summary')
-  );
-
-  // Definition columns (coding definitions for the codebook): a bare
-  // "definition" / "code definition" / "coding definition" header, anything
-  // starting with "definition of", or anything ending "definition".
-  const definitionFields = fields.filter(
-    f => f.norm === 'definition' || f.norm === 'code definition' || f.norm === 'coding definition' ||
-      f.norm.startsWith('definition of') || f.norm.endsWith('definition')
-  );
-
-  return {
-    fileName: path.basename(filePaths[0]),
-    columns,
-    summaryFields: summaryFields.map(f => f.raw),
-    definitionFields: definitionFields.map(f => f.raw),
-    rows: parsed.data,
-    errors: parsed.errors
-  };
+  return parseCsvDataset(raw, path.basename(filePaths[0]));
 });
 
 // ---------------------------------------------------------------------

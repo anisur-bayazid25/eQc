@@ -308,7 +308,7 @@ export default function DocTree(props: Props) {
         <ImageRow key={img.id} {...props} image={img} depth={0} />
       ))}
       {rootFolders.length === 0 && rootDocs.length === 0 && rootImages.length === 0 && (
-        <div className="empty-hint">No documents yet. Use “+ Root Folder” or “+ Doc” to add sources.</div>
+        <div className="empty-hint">No documents yet. Use “+ Add source” to add a document, folder or scanned PDF.</div>
       )}
     </div>
   );

@@ -27,6 +27,11 @@ export interface CsvColumns {
   parent: string | null;
   child1: string | null;
   child2: string | null;
+  /** Optional coder/author column, preserved as segment attribution. */
+  coder?: string | null;
+  /** Arbitrary-depth code columns, outermost first. Takes precedence over
+   *  parent/child1/child2 when present. */
+  levels?: Array<string | null>;
 }
 
 export interface CsvParseResult {
@@ -34,9 +39,27 @@ export interface CsvParseResult {
   columns: CsvColumns;
   summaryFields: string[];
   definitionFields: string[];
+  /** Explicit per-level text columns; `level` is 0-based in the code path. */
+  summaryColumns?: Array<{ field: string; level: number }>;
+  definitionColumns?: Array<{ field: string; level: number }>;
+  metadataFields?: string[];
+  /** Raw header cells, in file order. */
+  fields?: string[];
   rows: Record<string, string>[];
   errors: unknown[];
 }
+
+/** One sheet (or the whole CSV/TSV) prepared for column mapping. */
+export interface ImportTableSheet {
+  name: string;
+  fields: string[];
+  rows: Record<string, string>[];
+  totalRows?: number;
+}
+
+export type ImportTablePayload =
+  | ({ kind: 'text'; fileName: string; fields: string[]; rows: Record<string, string>[]; errors: unknown[] } & Partial<CsvParseResult>)
+  | { kind: 'xlsx'; fileName: string; sheets: ImportTableSheet[] };
 
 interface QdpxParsePayload {
   fileName: string;
@@ -177,6 +200,7 @@ export interface QvBridge {
   saveOriginalSource(original: OriginalSource): Promise<string | null>;
   extractDroppedDocs(paths: string[]): Promise<ExtractedDoc[]>;
   pickAndParseCsv(): Promise<CsvParseResult | null>;
+  pickImportTable(): Promise<import('./global').ImportTablePayload | null>;
   pickAndParseQdpx: () => Promise<QdpxParsePayload | null>;
   exportQdpx: (payload: QdpxExportPayload) => Promise<string | null>;
   pickAndParseDocxComments: () => Promise<{ fileName: string; documentXml: string; commentsXml: string; originalBase64?: string } | null>;

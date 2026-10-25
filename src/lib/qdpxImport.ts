@@ -4,6 +4,119 @@ import { qdaToUtf16Range } from './qdpxOffsets';
 import { hashSourceText } from './sourceOriginal';
 import { mergeResearch } from './researchMerge';
 
+// REFI-QDA has no concept for stars, periods, folder paths, code ordering or
+// eQc's coder identity, so those travel in the labelled appendix written by
+// qdpxExport. The standard elements still import every source, coding position
+// and coder; this pass only re-applies the eQc-specific extras on top, matching
+// by the natural key of each record so it works even when the importer
+// deduplicated a row.
+function restoreExchangeMetadata(project: Project, records: Record<string, unknown>, refs: Map<string, string>) {
+  // Declared as a function (not an arrow generic) so the file still parses when
+  // tests transpile every .ts with the JSX transform enabled.
+  function listOf<T>(value: unknown): T[] { return Array.isArray(value) ? value as T[] : []; }
+  const list = listOf;
+  if (typeof records.coderName === 'string' && records.coderName.trim() && !project.coderName) {
+    project.coderName = records.coderName;
+  }
+
+  const periodMap = new Map<string, string>();
+  for (const period of list<{ id?: string; label?: string; order?: number }>(records.analysisPeriods)) {
+    if (!period || typeof period.label !== 'string') continue;
+    project.analysisPeriods ||= [];
+    let match = project.analysisPeriods.find(p => p.label === period.label);
+    if (!match) {
+      match = { id: uid('period'), label: period.label, order: Number.isFinite(period.order) ? Number(period.order) : project.analysisPeriods.length };
+      project.analysisPeriods.push(match);
+    }
+    if (period.id) periodMap.set(String(period.id), match.id);
+  }
+  const periodFor = (value: unknown) => (value ? periodMap.get(String(value)) : undefined);
+
+  const ensureFolder = (path: unknown): string | null => {
+    if (!Array.isArray(path) || path.length === 0) return null;
+    let parentId: string | null = null;
+    for (const raw of path) {
+      const name = String(raw);
+      let folder = project.folders.find(f => f.parentId === parentId && f.name === name);
+      if (!folder) {
+        folder = { id: uid('folder'), name, parentId };
+        project.folders.push(folder);
+      }
+      parentId = folder.id;
+    }
+    return parentId;
+  };
+
+  for (const meta of list<{ id: string; sortIndex?: number; createdAt?: number }>(records.codeMeta)) {
+    const id = refs.get(String(meta.id));
+    const code = id ? project.codes.find(c => c.id === id) : undefined;
+    if (!code) continue;
+    if (typeof meta.sortIndex === 'number') code.sortIndex = meta.sortIndex;
+    if (typeof meta.createdAt === 'number') code.createdAt = meta.createdAt;
+  }
+
+  for (const meta of list<{ id: string; folderPath?: string[]; periodId?: string; addedAt?: number }>(records.docMeta)) {
+    const id = refs.get(String(meta.id));
+    const doc = id ? project.docs.find(d => d.id === id) : undefined;
+    if (!doc) continue;
+    const folderId = ensureFolder(meta.folderPath);
+    if (folderId) doc.folderId = folderId;
+    const periodId = periodFor(meta.periodId);
+    if (periodId) doc.periodId = periodId;
+    if (typeof meta.addedAt === 'number') doc.addedAt = meta.addedAt;
+  }
+
+  for (const meta of list<{ id: string; folderPath?: string[]; addedAt?: number }>(records.imageMeta)) {
+    const id = refs.get(String(meta.id));
+    const image = id ? (project.images || []).find(i => i.id === id) : undefined;
+    if (!image) continue;
+    const folderId = ensureFolder(meta.folderPath);
+    if (folderId) image.folderId = folderId;
+    if (typeof meta.addedAt === 'number') image.addedAt = meta.addedAt;
+  }
+
+  for (const record of list<{ docId: string; codeId: string; start: number; end: number; coder?: string; note?: string; starred?: boolean; periodId?: string; createdAt?: number }>(records.codedSegments)) {
+    const docId = refs.get(String(record.docId));
+    const codeId = refs.get(String(record.codeId));
+    if (!docId || !codeId) continue;
+    const match = project.codedSegments.find(s =>
+      s.docId === docId && s.codeId === codeId && s.start === record.start && s.end === record.end &&
+      (s.coder || '') === (record.coder || '')
+    );
+    if (!match) continue;
+    if (record.starred) match.starred = true;
+    if (record.note && !match.note) match.note = record.note;
+    const periodId = periodFor(record.periodId);
+    if (periodId) match.periodId = periodId;
+    if (typeof record.createdAt === 'number') match.createdAt = record.createdAt;
+  }
+
+  // Region geometry is re-quantised to whole pixels by the exchange format, so
+  // regions are paired in export order per (image, code) group instead of by
+  // exact coordinates.
+  const regionRecords = list<{ imageId: string; codeId: string; coder?: string; note?: string; starred?: boolean; createdAt?: number }>(records.codedRegions);
+  const regionGroups = new Map<string, typeof regionRecords>();
+  for (const record of regionRecords) {
+    const imageId = refs.get(String(record.imageId));
+    const codeId = refs.get(String(record.codeId));
+    if (!imageId || !codeId) continue;
+    const key = `${imageId}\u0000${codeId}\u0000${record.coder || ''}`;
+    if (!regionGroups.has(key)) regionGroups.set(key, []);
+    regionGroups.get(key)!.push(record);
+  }
+  for (const [key, recordsForGroup] of regionGroups) {
+    const [imageId, codeId, coder] = key.split('\u0000');
+    const imported = (project.codedRegions || []).filter(r => r.imageId === imageId && r.codeId === codeId && (r.coder || '') === coder);
+    recordsForGroup.forEach((record, index) => {
+      const match = imported[index];
+      if (!match) return;
+      if (record.starred) match.starred = true;
+      if (record.note && !match.note) match.note = record.note;
+      if (typeof record.createdAt === 'number') match.createdAt = record.createdAt;
+    });
+  }
+}
+
 export interface QdpxParsePayload {
   fileName: string;
   qdeXml: string;
@@ -586,6 +699,7 @@ export async function importQdpx(project: Project, payload: QdpxParsePayload): P
       const refs=new Map<string,string>(Object.entries(data.references).flatMap(([id,guid])=>guidMap.has(String(guid))?[[id,guidMap.get(String(guid))!]]:[]));
       for(const key of ['cases','groups','annotations','memos','queries','codedSegments','codedRegions','icrRuns','reviewedSources','icrSetups','caseFrameworkCells','icrResolutions','mapDrafts','visualizationNotes','frameworkCells','relationNotes'])if(data.records[key]!==undefined&&!Array.isArray(data.records[key]))throw new Error('Invalid research archive collection.');
       mergeResearch(project,{...data.records,docs:[],codes:[],folders:[],codedSegments:data.records.codedSegments||[]} as Project,refs,refs,refs,refs,true);
+      restoreExchangeMetadata(project,data.records,refs);
     }
   }
 

@@ -1,23 +1,39 @@
-﻿<p align="center">
+<p align="center">
   <img src="public/eqc-logo.png" alt="eQc logo" width="180">
 </p>
 
 # eQc — Easy Qual Coding
 
-**Version 1.8.7** · A local desktop app for qualitative research.
+**Version 1.8.8** · A local desktop app for qualitative research.
 
 [![ORCID](https://img.shields.io/badge/ORCID-0000--0001--9015--4422-green?style=flat-square&logo=orcid&labelColor=A6CE39)](https://orcid.org/0000-0001-9015-4422) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23451326.svg)](https://doi.org/10.5281/zenodo.23451326) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 If you use eQc in published work, please cite it using the **Cite this repository** link on the GitHub page (APA and BibTeX), or the metadata in [`CITATION.cff`](CITATION.cff).
 
-<!-- zenodo-citation:start -->
-Archived release **v1.8.7**: [10.5281/zenodo.23464302](https://doi.org/10.5281/zenodo.23464302). Use this version DOI when citing this release.
-The [all-versions DOI](https://doi.org/10.5281/zenodo.23451326) above opens the latest archived release.
-<!-- zenodo-citation:end -->
-
 Import interviews, field notes, documents and images; code passages and regions; organise your codebook; write memos; and explore your analysis. No account or cloud upload is required.
 
-Visualization includes 17 coordinated colour presets with order inversion, expanded text/shape colour pickers, and a working canvas that resumes after source navigation while the renderer unloads in other tabs.
+## What eQc is
+
+**eQc — Easy Qual Coding** is a local-first qualitative data analysis workbench for researchers who want the depth of a professional QDA package without an account, a subscription, or a cloud upload.
+
+It is a desktop application built with **Electron 31, React 18, TypeScript and better-sqlite3** — roughly 16.5k lines of TypeScript across 139 files, v1.8.8, MIT licensed — running entirely on your own machine. Interviews, field notes, documents, images and the coding built on top of them stay on disk, so the work continues on a train, in a rural clinic, or in an archive with no signal.
+
+Think of it as a free, offline alternative to NVivo, ATLAS.ti or MAXQDA that keeps **REFI-QDA interoperability**, so a project can still travel to and from those tools when collaboration or archiving demands it. It grew out of a mixed-methods researcher's own fieldwork: everything here exists because a real analysis needed it.
+
+## What's inside
+
+| Area | Capability |
+| --- | --- |
+| **Workspace** | TXT, Markdown, Word and PDF sources — including scanned PDFs read with local Tesseract OCR in Bengali and English — plus PNG, JPEG, GIF, WebP, BMP and HEIC images. Folder trees, overlapping coding, coding stripes, line numbers, reading themes and typefaces, image-region coding with resize handles, annotations, in-vivo codes, multi-code application, case links, coder filters and source memos. Retained originals open in a formatted Word view or the PDF reader. Research tools add cases with attributes, groups, a filtering Review panel, saved queries and local History. |
+| **Codebook** | A code tree of any depth with drag-order, definitions kept distinct from interpretive summaries, collated excerpts per code, code consolidation, and codebook or coded-data import from CSV, TSV or Excel with sheet choice and column mapping. Exports carry child codes and starred evidence. |
+| **Auto-Code** | Keyword and phrase scanning across every source, with exact-match or enclosing-sentence boundaries, literal or word-root matching, duplicate suppression and a preview of what will be applied. |
+| **Analysis** | Coding frequency, code × document matrix, co-occurrence with relationship memos, framework matrices for documents and for case × theme, word frequencies, KWIC contexts, intercoder reliability with eight comparison methods, consensus adjudication, and a combined offline HTML report. |
+| **Memo-Book** | Every note in one place — project, document, code, quote, case, framework and co-occurrence memos — with filters, paging, Word and Excel export, and a manuscript skeleton for drafting. |
+| **Visualization** | Seventeen diagram families, seventeen colour presets including Viridis and Okabe–Ito, custom palettes, a fully editable canvas, named drafts, and SVG, PNG or JPEG export with a publication print width. |
+| **Help and About** | The complete user guide and application reference ship inside the app, searchable offline. About carries version, update checks and a hardened feedback form. |
+| **Across the app** | LAN host and join with team announcements; researcher profiles with time tracking and milestones; project exchange as JSON, QDPX, QDC or QDE; recovery snapshots and checkpoints; undo and redo; five keyboard-shortcut profiles; light and dark themes. |
+
+Every feature is reachable from the eight tabs at the top of the window, and the Help tab explains the app without needing an internet connection.
 
 ## Downloads and Help
 
@@ -49,7 +65,16 @@ Normal coding, analysis and Help work offline. Installation downloads and update
 
 **Project and backup storage:** embedded images use base64, which adds roughly 33% to their binary size. HEIC-to-PNG conversion, retained original documents and PDF page images can add more. Photo-heavy projects can exceed 1 GB each; full JSON backups containing that media require additional space for every saved copy. The 1 GB installation allowance does not include project data or backups.
 
-## What's new in 1.8.7
+## What's new in 1.8.8
+
+- **Codebook import you can map yourself:** bring a codebook or coded dataset in from CSV, tab-separated text or an Excel workbook (choose the worksheet). Build the tree level by level — there is no depth limit — and give every level its own code, definition and summary column, so header names such as “Parent code” or “Child node 1” no longer decide what the importer understands. A preview and a dry run show the counts before anything is written.
+- **Safer editing:** appending to a document no longer stretches the last coded quote over the new text, and editing a Windows-line-ending source no longer drops the coding that spans a line break.
+- **Safer exchange:** QDPX now carries starred evidence, analysis periods, folder paths, code order and coder identity in the eQc appendix while keeping the standard parts other tools read; consolidating codes and re-merging projects no longer strand case-framework memos, duplicate excerpts or duplicate folders.
+- **Clearer numbers:** the dashboard and HTML report co-occurrence matrix count identical ranges once across coders, matching the heat map, network and Sankey views.
+- **LAN sessions require a password:** hosting is disabled until one of at least four characters is set, and every joiner must enter it.
+- **Polish:** confirmation dialogs close with Escape and keep keyboard focus, light and dark themes are consistent across dialogs and toolbars, duplicated export buttons are labelled, and the interface text now names the controls it describes.
+
+## Previous release: 1.8.7
 
 - **Intel Mac startup fix:** corrected the Intel installer carrying an Apple Silicon SQLite component. Intel and Apple Silicon installers now build on separate matching-architecture runners, with binary checks and an in-memory packaged database startup check before publication.
 - **Mac update metadata:** both disk images are verified and included in the combined update information.
@@ -100,7 +125,7 @@ Normal coding, analysis and Help work offline. Installation downloads and update
 
 1. Create a project and add sources in **Workspace**.
 2. Create codes, select a passage or image region, and apply a code.
-3. Use **Codebook** for definitions, summaries, merge and export.
+3. Use **Codebook** for definitions, summaries, merge and export — or import an existing codebook from CSV, TSV or Excel and map its columns to your tree.
 4. Open **Workspace → Research tools** for cases, groups, queries and recovery history.
 5. Use **Analysis** for frequencies, matrices, framework analysis, text searches, ICR and Consensus. **Visualization** offers a square-card library of editable code/mind/hierarchy maps, heat maps, word trees, word clouds (shapes and PNG/SVG masks), six Sankey presets, co-occurrence networks, histomaps, dendrograms, and process/journey/pyramid/Venn/honeycomb/ecology diagrams, with presets, manual drawing, named drafts and SVG/image export. Generation runs only when requested.
 6. Use **Memo-Book** to link evidence, develop writing and export notes or a manuscript skeleton.
@@ -108,7 +133,7 @@ Normal coding, analysis and Help work offline. Installation downloads and update
 
 ## Files and sharing
 
-Documents: TXT, Markdown, DOCX and PDF; scanned PDFs support local OCR. Images: PNG, JPEG, GIF, WebP, BMP and HEIC/HEIF. Structured CSV datasets, codebooks and Word-comment coding can also be imported.
+Documents: TXT, Markdown, DOCX and PDF; scanned PDFs support local OCR. Images: PNG, JPEG, GIF, WebP, BMP and HEIC/HEIF. Structured coding and codebooks import from CSV, tab-separated text or an Excel workbook — pick the worksheet, then map each column to a code level, definition, summary, document, quote or coder — and Word-comment coding can be imported too.
 
 Project import accepts JSON, QDPX, QDC and extracted QDE files with their matching sources. Project export offers JSON or QDPX, with original attachments or smaller plain-text document data. Selected coding exports to Word/CSV; Memo-Book exports to Word/Excel; analysis reports export to HTML. JSON is the complete eQc backup format and can include the selected profile and time history.
 
@@ -124,9 +149,13 @@ All people, interviews, events and findings are invented for training. Three sim
 
 ## Development
 
-Install dependencies with `npm install`. `npm run dev` starts the development app, `npm run check` checks TypeScript, `npm run build` creates the web bundle, and `npm run pack -- --publish never` packages Windows without publishing.
+Install dependencies with `npm install` using **Node 22.13 or newer** (CI uses Node 24; several tests use the built-in `node:sqlite`). `npm run dev` starts the development app, `npm run check` checks TypeScript, `npm run build` creates the web bundle, and `npm run pack -- --publish never` packages Windows without publishing.
 
-Feature checks: `node --test tests/data-integrity.cjs tests/release-1.6.4.cjs tests/release-1.7.0.cjs tests/code-report.cjs tests/formatted-mapping.cjs tests/source-lines.cjs`.
+Feature checks use Node's test runner. The authoritative list is the **Run feature regression tests** step in [`.github/workflows/build.yml`](.github/workflows/build.yml); the same command runs locally, for example:
+
+`node --test tests/data-integrity.cjs tests/codebook-levels.cjs tests/cooccurrence.cjs tests/icr-comparisons.cjs tests/code-report.cjs tests/formatted-mapping.cjs tests/source-lines.cjs`
+
+The QDPX schema checks additionally need Python with `lxml`.
 
 For browser checks without starting Electron, install Playwright and its Chromium browser, set `EQC_BROWSER_CHANNEL=chromium`, and run `node tests/run-browser-checks.cjs`. The runner starts and stops a temporary Vite server. Without the browser-channel setting, it uses installed Microsoft Edge.
 

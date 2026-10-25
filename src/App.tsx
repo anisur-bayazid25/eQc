@@ -34,6 +34,7 @@ const ResearchWorkspace=deferPanel(()=>import('./components/ResearchWorkspace'),
 import CodingMargin from './components/CodingMargin';
 const HelpPanel=deferPanel(()=>import('./components/HelpPanel'),'help');
 const ProjectExportDialog=deferPanel(()=>import('./components/ProjectExportDialog'),'export options');
+const TableImportDialog=deferPanel(()=>import('./components/TableImportDialog'),'import options');
 import { GrowingCodeTree, WorkspaceCritter, CaptureBall, PikachuCourier, PatienceSnorlax } from './components/EasterEggs';
 import { workspaceSurprises, WorkspaceSurprise } from './lib/easterEggs';
 const ZoroSlash=deferPanel(()=>import('./components/ZoroSlash'),'animation');
@@ -64,7 +65,7 @@ import { cropRegionToPng, renderCodedImagePng } from './lib/imageCrop';
 const CodeMap=deferPanel(()=>import('./components/CodeMap'),'code map');
 import DocumentPortrait from './components/DocumentPortrait';
 import LanModal from './components/LanModal';
-import type { LanHostInfo, LanSessionState, LanSyncProgress, LanRemoteProject, LanRole, LanCoder } from './global';
+import type { LanHostInfo, LanSessionState, LanSyncProgress, LanRemoteProject, LanRole, LanCoder, CsvParseResult } from './global';
 
 function IsolatedPromptModal({ isOpen, message, buttonText, defaultValue, onResolve }: any) {
   const [val, setVal] = React.useState(defaultValue || '');
@@ -86,7 +87,7 @@ function IsolatedPromptModal({ isOpen, message, buttonText, defaultValue, onReso
       <div style={{ position: 'fixed', inset: 0, zIndex: 9998, backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => onResolve(null)} />
       
       {/* Modal Box */}
-      <div className="modal" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 9999, backgroundColor: '#ffffff', color: '#0f172a', padding: '24px', borderRadius: '8px', minWidth: '300px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
+      <div className="modal" role="dialog" aria-modal="true" aria-label={message} style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 9999, backgroundColor: 'var(--panel)', color: 'var(--text)', padding: '24px', borderRadius: '8px', minWidth: '300px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
         <h3 style={{ marginTop: 0 }}>{message}</h3>
         <input 
           aria-label={message}
@@ -106,6 +107,60 @@ function IsolatedPromptModal({ isOpen, message, buttonText, defaultValue, onReso
         </div>
       </div>
     </>
+  );
+}
+
+// Shared shell for the confirmation dialogs. It gives them the semantics the
+// rest of the app was missing: a named dialog role, Escape to cancel, focus
+// moved to the safe (Cancel) button, and a Tab cycle that cannot wander into
+// the page behind the dialog. Help → Keyboard shortcuts promises Esc works, so
+// these dialogs have to honour it.
+function ModalFrame({ id, title, onCancel, children }: { id: string; title: string; onCancel: () => void; children: React.ReactNode }) {
+  const boxRef = React.useRef<HTMLDivElement>(null);
+  const cancelRef = React.useRef<() => void>(onCancel);
+  cancelRef.current = onCancel;
+
+  React.useEffect(() => {
+    const box = boxRef.current;
+    const focusable = () => Array.from(
+      box?.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])') || []
+    ).filter(el => !el.hasAttribute('disabled') && el.offsetParent !== null);
+
+    // Cancel is rendered last in every dialog, so focusing the last control
+    // means Enter/Escape both land on the safe action.
+    const controls = focusable();
+    (controls[controls.length - 1] || box)?.focus();
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        cancelRef.current();
+        return;
+      }
+      if (event.key !== 'Tab' || !box) return;
+      const items = focusable();
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (!event.shiftKey && active === last) { event.preventDefault(); first.focus(); }
+      else if (event.shiftKey && (active === first || !active || !box.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content" role="dialog" aria-modal="true" aria-labelledby={id} ref={boxRef} tabIndex={-1}>
+        <h3 id={id}>{title}</h3>
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -531,6 +586,7 @@ useEffect(() => {
       setConfirmDialog({
         message: `Merge ${selectedCodeIds.length} codes into “${project.codes.find(c => c.id === mergeTargetId)?.name}”? Quotes, image regions, child codes, definitions, and memos will be retained. You can undo this with Ctrl+Z.`,
         confirmText: 'Merge codes',
+        tone: 'primary',
         onConfirm: () => {
           persist(merged);
           setCodeSelection({ projectId: project.id, ids: [mergeTargetId] });
@@ -579,6 +635,10 @@ useEffect(() => {
     message: string;
     confirmText: string;
     onConfirm: () => void;
+    /** Heading; defaults to the button label. */
+    title?: string;
+    /** 'danger' (default) paints the confirm button red. Merges are not destructive. */
+    tone?: 'danger' | 'primary';
   } | null>(null);
 
   const customPrompt = (message: string, defaultValue: string = '', buttonText: string = 'Create'): Promise<string | null> => {
@@ -1544,7 +1604,7 @@ function openProjectSettings() {
       `+${totalCodes} codes, +${totalSegs} coded passages.` +
       (carried.length ? ` Also carried: ${carried.join(', ')}.` : '')
     );
-    setConfirmDialog({confirmText:'Apply merge',message:message+'\n\nResearch records and graph drafts are remapped and retained separately. The destination working canvas stays in place. Conflicting ICR settings become selectable imported setups. Case records with different attributes remain separate. Local recovery history is not merged.',onConfirm:()=>{if(projectRef.current!==base){showToast('The project changed while previewing. Open Merge again to refresh the preview.');return;}persist(next);showToast(message);}});
+    setConfirmDialog({confirmText:'Apply merge',title:'Apply project merge',tone:'primary',message:message+'\n\nResearch records and graph drafts are remapped and retained separately. The destination working canvas stays in place. Conflicting ICR settings become selectable imported setups. Case records with different attributes remain separate. Local recovery history is not merged.',onConfirm:()=>{if(projectRef.current!==base){showToast('The project changed while previewing. Open Merge again to refresh the preview.');return;}persist(next);showToast(message);}});
   }
 
   // =================================================================
@@ -2417,10 +2477,12 @@ function handleRunAutoCode() {
   // =================================================================
   // CSV dataset import (Codebook tab)
   // =================================================================
-  async function handleCsvImport() {
+  // CSV / Excel import: one dialog maps the file's columns (and sheet) before
+  // anything is written, so a codebook no longer has to use fixed header names.
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+
+  function applyCsvImport(parsed: CsvParseResult) {
     if (!project) return;
-    const parsed = await window.qv.pickAndParseCsv();
-    if (!parsed) return;
     try {
       const draft: Project = structuredClone(project);
       const summary = importCsvDataset(draft, parsed);
@@ -3106,7 +3168,7 @@ function openDocxCommentImport() {
                 <button onClick={() => addDocs(null)}>+ Doc</button>
                 <button onClick={() => addScannedPdf(null)}>+ Scanned PDF (OCR)</button>
                 <button onClick={() => addImages(null)}>+ Add Image</button>
-                <button onClick={handleCsvImport}>CSV dataset / codebook</button>
+                <button onClick={() => setImportDialogOpen(true)}>Import codebook or coded data…</button>
               </ToolMenu>
               <ToolMenu label="Research tools">
                 {[['cases', 'Cases & attributes'], ['groups', 'Document & code groups'], ['review', 'Excerpt review & queries'], ['history', 'History & recovery']].map(([id, label]) => <button key={id} onClick={e => { e.currentTarget.closest('details')?.removeAttribute('open'); setResearchSection(id); setResearchOpen(true); }}>{label}</button>)}
@@ -3126,12 +3188,12 @@ function openDocxCommentImport() {
                 {contentSearchQuery.trim() && (
                   <div className="code-search-results">
                     {contentSearchResults.map((r, i) => (
-                      <div key={i} className="code-search-row" onClick={() => goToTextMatch(r)}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <button type="button" key={i} className="code-search-row" onClick={() => goToTextMatch(r)}>
+                        <span style={{ display: 'flex', flexDirection: 'column', gap: 2, textAlign: 'left' }}>
                           <span className="code-search-path">{r.docName}</span>
                           <span className="code-search-name" style={{ whiteSpace: 'normal' }}>{r.snippet}</span>
-                        </div>
-                      </div>
+                        </span>
+                      </button>
                     ))}
                     {contentSearchResults.length === 0 && (
                       <div className="empty-hint" style={{ padding: 8 }}>No matches.</div>
@@ -3146,7 +3208,7 @@ function openDocxCommentImport() {
             <details className="disclosure"><summary>Sort & coder filter</summary>
             <div className="sort-row">
               <label>Sort by</label>
-              <select value={sortBy} onChange={e => setSortBy(e.target.value as SortKey)}>
+              <select aria-label="Sort by" value={sortBy} onChange={e => setSortBy(e.target.value as SortKey)}>
                 <option value="name">Name</option>
                 <option value="date">Date added</option>
                 <option value="size">Size</option>
@@ -3156,7 +3218,7 @@ function openDocxCommentImport() {
             {coderOptions.length > 1 && (
               <div className="sort-row">
                 <label>Coder</label>
-                <select value={selectedCoderFilter} onChange={e => setSelectedCoderFilter(e.target.value)}>
+                <select aria-label="Coder" value={selectedCoderFilter} onChange={e => setSelectedCoderFilter(e.target.value)}>
                   {coderOptions.map(name => (
                     <option key={name} value={name}>{name === 'all' ? 'Everyone' : name}</option>
                   ))}
@@ -3177,13 +3239,14 @@ function openDocxCommentImport() {
                   {project.docs
                     .filter(d => d.name.toLowerCase().includes(docNameQuery.trim().toLowerCase()))
                     .map(d => (
-                      <div
+                      <button
+                        type="button"
                         key={d.id}
                         className={`code-search-row ${selectedDocId === d.id ? 'selected' : ''}`}
                         onClick={() => { setSelectedDocId(d.id); setSelectedImageId(null); setPendingSelection(null); setEditingDocId(null); }}
                       >
                         <span className="code-search-name">{d.name}</span>
-                      </div>
+                      </button>
                     ))}
                   {project.docs.filter(d => d.name.toLowerCase().includes(docNameQuery.trim().toLowerCase())).length === 0 && (
                     <div className="empty-hint" style={{ padding: 8 }}>No matching documents.</div>
@@ -3397,18 +3460,21 @@ function openDocxCommentImport() {
     <textarea
       value={draftContent}
       onChange={e => setDraftContent(e.target.value)}
+      aria-label={`Edit document text: ${selectedDoc?.name || 'document'}`}
       style={{ 
         flex: 1, 
         width: '100%', 
         height: '100%', 
         padding: '12px', 
-        fontSize: '14px', 
+        fontSize: `${readerFontSize}px`, 
         lineHeight: '1.5',
-        fontFamily: 'monospace', 
+        fontFamily: readerFontFamily || 'inherit', 
         resize: 'none', 
         boxSizing: 'border-box',
         borderRadius: '6px',
-        border: '1px solid var(--border-color, #ccc)'
+        border: '1px solid var(--border)',
+        background: 'var(--panel)',
+        color: 'var(--text)'
       }}
       placeholder="Edit document text here…"
     />
@@ -3850,34 +3916,56 @@ function openDocxCommentImport() {
                 <button className="mini-btn" onClick={e => { e.currentTarget.closest('details')?.removeAttribute('open'); void handleDownloadStarredQuotes('details'); }}>Document, code &amp; all case attributes (DOCX)</button>
               </ToolMenu>
             </div>
-            <details className="disclosure project-exports"><summary>Project exports</summary>
-              <p className="section-hint">These exports always use the whole project.</p>
-          <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleQdpxExport}>
-            ⬇️ REFI-QDA
+            <details className="disclosure project-exports"><summary>Project and codebook files</summary>
+              <p className="section-hint">These always cover the whole project, not the code selection above.</p>
+          <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleQdpxExport} title="Sources, coding and codebook for another qualitative tool">
+            ⬇️ Full project as REFI-QDA (QDPX)
           </button>
 
-          <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleQdpxCodebookExport}>
-            📚 Export Codebook (QDPX)
+          <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleQdpxCodebookExport} title="Code tree only, no documents or coding">
+            📚 Codebook only (QDPX)
           </button>
 
-          <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleExportNotesCsv}>
-            📝 Export All Notes &amp; Memos (CSV)
+          <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleExportNotesCsv} title="Every note and memo as a spreadsheet">
+            📝 All notes &amp; memos (CSV)
           </button>
 
-          <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleExportManuscriptSkeleton}>
-            📄 Manuscript Skeleton
+          <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleExportManuscriptSkeleton} title="Word draft with code summaries and starred quotes">
+            📄 Manuscript skeleton (Word)
           </button>
 
             </details>
           </div>
           <div id="task-panel-import" role="tabpanel" aria-labelledby="task-tab-import" hidden={codebookTask !== 'import'}>
-            <h3>Import coded data</h3>
-            <p className="section-hint">Add a codebook or coded sources to the current project.</p>
-            <div className="action-list">
-              <button onClick={handleCsvImport}>CSV dataset / codebook</button>
-              <button onClick={handleQdpxImport}>REFI-QDA (QDPX / QDC)</button>
-              <button onClick={openDocxCommentImport}>Word comments (DOCX)</button>
+            <h3>Import into this project</h3>
+            <p className="section-hint">Adds codes and excerpts alongside your work — nothing is overwritten. Pick the format of the file you have.</p>
+            <div className="action-list import-choices">
+              <button onClick={() => setImportDialogOpen(true)}>
+                <strong>Codebook or coded data…</strong>
+                <span>CSV, tab-separated or Excel. Choose the sheet, then match your columns — any header names work.</span>
+              </button>
+              <button onClick={handleQdpxImport}>
+                <strong>REFI-QDA project (QDPX / QDC)…</strong>
+                <span>Sources, coding and codebook from NVivo, ATLAS.ti, MAXQDA or QualCoder.</span>
+              </button>
+              <button onClick={openDocxCommentImport}>
+                <strong>Word comment coding (DOCX)…</strong>
+                <span>Turns Word comments into codes on the text they mark.</span>
+              </button>
             </div>
+            <details className="disclosure">
+              <summary>Which one do I need?</summary>
+              <p className="section-hint">
+                <strong>Codebook or coded data</strong> — a spreadsheet or CSV of themes, sub-codes, definitions and/or quoted
+                excerpts. This is the usual choice for an Excel codebook.
+              </p>
+              <p className="section-hint">
+                <strong>REFI-QDA project</strong> — a whole project exported from another qualitative tool, including its documents.
+              </p>
+              <p className="section-hint">
+                <strong>Word comment coding</strong> — a Word file where a reviewer already marked passages with comments.
+              </p>
+            </details>
           </div>
         </div>
       </aside>
@@ -4155,7 +4243,7 @@ function openDocxCommentImport() {
 
     <div className="form-grid">
       <label>Search keyword / phrase</label>
-      <input
+      <input aria-label="Search keyword / phrase"
         type="text"
         value={autoCodeQuery}
         onChange={e => setAutoCodeQuery(e.target.value)}
@@ -4177,7 +4265,7 @@ function openDocxCommentImport() {
       {autoCodeBoundary === 'sentence' && (
         <>
           <label>Language</label>
-          <select value={autoCodeLanguage} onChange={e => setAutoCodeLanguage(e.target.value)}>
+          <select aria-label="Language" value={autoCodeLanguage} onChange={e => setAutoCodeLanguage(e.target.value)}>
             {AUTO_CODE_LANGUAGES.map(l => (
               <option key={l.code} value={l.code}>{l.label}</option>
             ))}
@@ -4198,7 +4286,7 @@ function openDocxCommentImport() {
       </div>
 
       <label>Target code</label>
-      <select value={autoCodeTargetCodeId} onChange={e => setAutoCodeTargetCodeId(e.target.value)}>
+      <select aria-label="Target code" value={autoCodeTargetCodeId} onChange={e => setAutoCodeTargetCodeId(e.target.value)}>
         <option value="">Select a code…</option>
         {flatCodes.map(({ code, depth }) => (
           <option key={code.id} value={code.id}>
@@ -4289,6 +4377,7 @@ function openDocxCommentImport() {
 
 {importReport && <div className="research-overlay" onKeyDown={e => { if(e.key === 'Escape') setImportReport(null); if(e.key === 'Tab') e.preventDefault(); }}><section className="project-export-dialog" role="dialog" aria-modal="true" aria-labelledby="import-report-title"><h2 id="import-report-title">{importReport.title}</h2><p style={{whiteSpace:'pre-wrap'}}>{importReport.message}</p><button autoFocus onClick={() => setImportReport(null)}>Close import report</button></section></div>}
 {projectExportOpen && <ProjectExportDialog getProfileBackup={timeTracking.exportProfile} project={project} onClose={() => setProjectExportOpen(false)} onMessage={showToast} />}
+     {importDialogOpen && <TableImportDialog project={project} onImport={applyCsvImport} onClose={() => setImportDialogOpen(false)} showToast={showToast} />}
 {tab === 'help' && <HelpPanel onFeedback={()=>void openFeedback()} request={helpRequest} shortcutProfile={shortcutProfile} onShortcutProfile={value=>{setShortcutProfile(value);localStorage.setItem('eqc-shortcut-profile',value);}} codes={project.codes} favorites={favoriteCodes} onFavorite={(slot,id)=>{const next=Array.from({length:9},(_,i)=>i===slot?id:favoriteCodes[i]||'');setFavoriteCodes(next);localStorage.setItem('eqc-code-shortcuts-'+project.id,JSON.stringify(next));}}/>}
 {tab === 'profile' && <ProfilePanel {...timeTracking} setProfile={saveUnifiedProfile} onClose={() => setTab('workspace')}/>}
 {timeTracking.profile.workspaceAnimations && tab === 'workspace' && (['sources','codes'] as const).map(side => <div key={side} className={`workspace-surprises workspace-surprises-${side}`}>{workspaceEggs.filter(egg => (egg.kind === 'jiji') === (side === 'codes')).map(egg => <WorkspaceCritter key={egg.id} kind={egg.kind} onDone={() => setWorkspaceEggs(current => current.filter(item => item.id !== egg.id))}/>)}</div>)}
@@ -4324,54 +4413,35 @@ function openDocxCommentImport() {
   </main>
 )}
 {pendingDeleteImageId && (
-  <div className="modal-overlay">
-    <div className="modal-content">
-      <h3>Delete Image</h3>
-      <p>Are you sure you want to delete this image? This action cannot be undone.</p>
-      <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '20px' }}>
-        <button 
-          className="primary-btn" 
-          style={{ background: '#d9534f', color: 'white', border: 'none' }} 
-          onClick={executeDeleteImage}
-        >
-          Yes, Delete
-        </button>
-        <button 
-          className="secondary-btn" 
-          onClick={() => setPendingDeleteImageId(null)}
-        >
-          Cancel
-        </button>
-      </div>
+  <ModalFrame id="delete-image-title" title="Delete image" onCancel={() => setPendingDeleteImageId(null)}>
+    <p>Delete this image and everything coded on it? You can undo with Ctrl+Z.</p>
+    <div className="modal-actions" style={{ justifyContent: 'center', marginTop: 20 }}>
+      <button className="btn-danger" onClick={executeDeleteImage}>Delete image</button>
+      <button className="secondary-btn" onClick={() => setPendingDeleteImageId(null)}>Cancel</button>
     </div>
-  </div>
+  </ModalFrame>
 )}
 {confirmDialog && (
-  <div className="modal-overlay">
-    <div className="modal-content">
-      <h3>{confirmDialog.confirmText || 'Delete'}</h3>
-      <p>{confirmDialog.message}</p>
-      <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '20px' }}>
-        <button
-          className="primary-btn"
-          style={{ background: '#d9534f', color: 'white', border: 'none', padding: '8px 24px' }}
-          onClick={() => {
-            const fn = confirmDialog.onConfirm;
-            setConfirmDialog(null);
-            fn();
-          }}
-        >
-          {confirmDialog.confirmText || 'Delete'}
-        </button>
-        <button
-          className="secondary-btn"
-          onClick={() => setConfirmDialog(null)}
-        >
-          Cancel
-        </button>
-      </div>
+  <ModalFrame
+    id="confirm-dialog-title"
+    title={confirmDialog.title || confirmDialog.confirmText || 'Confirm'}
+    onCancel={() => setConfirmDialog(null)}
+  >
+    <p>{confirmDialog.message}</p>
+    <div className="modal-actions" style={{ justifyContent: 'center', marginTop: 20 }}>
+      <button
+        className={confirmDialog.tone === 'primary' ? 'primary-btn' : 'btn-danger'}
+        onClick={() => {
+          const fn = confirmDialog.onConfirm;
+          setConfirmDialog(null);
+          fn();
+        }}
+      >
+        {confirmDialog.confirmText || 'Confirm'}
+      </button>
+      <button className="secondary-btn" onClick={() => setConfirmDialog(null)}>Cancel</button>
     </div>
-  </div>
+  </ModalFrame>
 )}
 {lanModalOpen && (
   <LanModal
@@ -4409,13 +4479,16 @@ function FrameworkCellInput({ initialValue, onSave }: { initialValue: string; on
 }
 
 function AnalysisExportButtons({
-  title, filenameBase, headers, rows, showToast
+  title, filenameBase, headers, rows, showToast, label
 }: {
   title: string;
   filenameBase: string;
   headers: string[];
   rows: (string | number)[][];
   showToast: (msg: string) => void;
+  /** Visible caption for the pair. Several views offer two exports side by side,
+   *  and without a caption the two identical CSV/DOCX pairs cannot be told apart. */
+  label?: string;
 }) {
   async function doExport(kind: 'csv' | 'docx') {
     const path = kind === 'csv'
@@ -4436,9 +4509,18 @@ function AnalysisExportButtons({
     if (path) showToast(`Exported ${title} to ${path}`);
   }
   return (
-    <div style={{ display: 'flex', gap: 6 }}>
-      <button onClick={() => doExport('csv')}>⬇️ CSV</button>
-      <button onClick={() => doExport('docx')}>⬇️ DOCX</button>
+    <div className="export-group">
+      {label && <span className="export-group-label">{label}</span>}
+      <button
+        title={`Export ${title} as CSV`}
+        aria-label={`Export ${title} as CSV`}
+        onClick={() => doExport('csv')}
+      >⬇️ CSV</button>
+      <button
+        title={`Export ${title} as Word`}
+        aria-label={`Export ${title} as Word`}
+        onClick={() => doExport('docx')}
+      >⬇️ DOCX</button>
     </div>
   );
 }
@@ -4741,7 +4823,7 @@ function AnalysisTab({ onProjectChange,onOpenIcrExcerpt,onIcrHelp,onIcrSettings,
         <section>
           <div className="sort-row">
             <label>Sort</label>
-            <select value={freqSort} onChange={e => setFreqSort(e.target.value as FreqSortKey)}>
+            <select aria-label="Sort" value={freqSort} onChange={e => setFreqSort(e.target.value as FreqSortKey)}>
               <option value="groupedNameAsc">Grouped, A → Z</option>
               <option value="groupedNameDesc">Grouped, Z → A</option>
               <option value="groupedCountDesc">Grouped, highest → lowest</option>
@@ -4785,11 +4867,11 @@ function AnalysisTab({ onProjectChange,onOpenIcrExcerpt,onIcrHelp,onIcrSettings,
         <section>
           <div className="sort-row">
             <label>Sort codes</label>
-            <select value={docMatrixCodeSort} onChange={e => setDocMatrixCodeSort(e.target.value as NameCountSort)}>
+            <select aria-label="Sort codes" value={docMatrixCodeSort} onChange={e => setDocMatrixCodeSort(e.target.value as NameCountSort)}>
               {SORT_OPTIONS}
             </select>
             <label>Sort documents</label>
-            <select value={docMatrixDocSort} onChange={e => setDocMatrixDocSort(e.target.value as NameCountSort)}>
+            <select aria-label="Sort documents" value={docMatrixDocSort} onChange={e => setDocMatrixDocSort(e.target.value as NameCountSort)}>
               {SORT_OPTIONS}
             </select>
             <AnalysisExportButtons
@@ -4829,10 +4911,11 @@ function AnalysisTab({ onProjectChange,onOpenIcrExcerpt,onIcrHelp,onIcrSettings,
           <div className="sort-row">
             <span className="section-hint">Click a cell to see the shared excerpts</span>
             <label>Sort</label>
-            <select value={coocSort} onChange={e => setCoocSort(e.target.value as NameCountSort)}>
+            <select aria-label="Sort" value={coocSort} onChange={e => setCoocSort(e.target.value as NameCountSort)}>
               {SORT_OPTIONS}
             </select>
             <AnalysisExportButtons
+              label="Matrix"
               title={`${project.name} — Code Co-occurrence Matrix`}
               filenameBase={`${project.name.replace(/[^\w\- ]/g, '_')}_code_cooccurrence_matrix`}
               headers={['', ...sortedCoocCodes.map(c => c.name)]}
@@ -4843,6 +4926,7 @@ function AnalysisTab({ onProjectChange,onOpenIcrExcerpt,onIcrHelp,onIcrSettings,
               showToast={showToast}
             />
             <AnalysisExportButtons
+              label="Relationship memos"
               title={`${project.name} — Code Relationship Notes`}
               filenameBase={`${project.name.replace(/[^\w\- ]/g, '_')}_relationship_notes`}
               headers={['Code A', 'Code B', 'Co-occurrence Count', 'Relationship Memo']}
@@ -4944,14 +5028,14 @@ function AnalysisTab({ onProjectChange,onOpenIcrExcerpt,onIcrHelp,onIcrSettings,
           <div className="sort-row">
             <span className="section-hint">One short summary per theme, per case. Click a cell to write or edit — saves when you click away.</span>
             <label>Sort themes</label>
-            <select value={fwRowSort} onChange={e => setFwRowSort(e.target.value as NameCountSort)}>
+            <select aria-label="Sort themes" value={fwRowSort} onChange={e => setFwRowSort(e.target.value as NameCountSort)}>
               <option value="nameAsc">A → Z</option>
               <option value="nameDesc">Z → A</option>
               <option value="countDesc">Most filled → least</option>
               <option value="countAsc">Least filled → most</option>
             </select>
             <label>Sort documents</label>
-            <select value={fwColSort} onChange={e => setFwColSort(e.target.value as NameCountSort)}>
+            <select aria-label="Sort documents" value={fwColSort} onChange={e => setFwColSort(e.target.value as NameCountSort)}>
               <option value="nameAsc">A → Z</option>
               <option value="nameDesc">Z → A</option>
               <option value="countDesc">Most filled → least</option>

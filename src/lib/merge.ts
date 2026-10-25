@@ -75,20 +75,30 @@ export function mergeProjectInto(target: Project, source: Project): MergeSummary
     imagesAdded: 0, imagesMerged: 0, regionsAdded: 0, frameworkCellsAdded: 0, relationNotesAdded: 0, edgeStylesAdded: 0
   };
 
+  // Folders are matched by (parent, name) instead of always receiving a new id.
+  // Merging the same backup twice used to leave a duplicate, empty copy of the
+  // whole folder tree behind, while documents, codes and passages deduplicated.
   const folderIdMap = new Map<string, string>();
-  for (const f of source.folders) {
-    const newId = uid('folder');
-    folderIdMap.set(f.id, newId);
-  }
-  for (const f of source.folders) {
-    const mapped: Folder = {
-      id: folderIdMap.get(f.id)!,
-      name: f.name,
-      parentId: f.parentId ? folderIdMap.get(f.parentId) || null : null
-    };
-    target.folders.push(mapped);
+  const findOrCreateFolder = (f: Folder, parentId: string | null): string => {
+    const existing = target.folders.find(tf => tf.parentId === parentId && normalize(tf.name) === normalize(f.name));
+    if (existing) return existing.id;
+    const created: Folder = { id: uid('folder'), name: f.name, parentId };
+    target.folders.push(created);
     summary.foldersAdded++;
-  }
+    return created.id;
+  };
+  // Parents must be resolved before their children, so walk the source tree
+  // from the roots down rather than trusting array order.
+  const resolveFolder = (f: Folder): string => {
+    const already = folderIdMap.get(f.id);
+    if (already) return already;
+    const parent = f.parentId ? source.folders.find(p => p.id === f.parentId) : undefined;
+    const parentId = parent ? resolveFolder(parent) : null;
+    const id = findOrCreateFolder(f, parentId);
+    folderIdMap.set(f.id, id);
+    return id;
+  };
+  for (const f of source.folders) resolveFolder(f);
 
   const docIdMap = new Map<string, string>();
   for (const d of source.docs) {
@@ -97,6 +107,13 @@ export function mergeProjectInto(target: Project, source: Project): MergeSummary
     );
     if (existingMatch) {
       if (!existingMatch.original && d.original) existingMatch.original = { ...d.original };
+      // A teammate's source memo and period tag must not be dropped just
+      // because the document text happens to match.
+      if (!existingMatch.notes && d.notes) existingMatch.notes = d.notes;
+      else if (existingMatch.notes && d.notes && existingMatch.notes !== d.notes && !existingMatch.notes.includes(d.notes)) {
+        existingMatch.notes = `${existingMatch.notes}\n\n${d.notes}`;
+      }
+      if (!existingMatch.periodId && d.periodId) existingMatch.periodId = d.periodId;
       docIdMap.set(d.id, existingMatch.id);
       summary.docsMerged++;
       continue;
@@ -110,6 +127,8 @@ export function mergeProjectInto(target: Project, source: Project): MergeSummary
       content: d.content,
       addedAt: d.addedAt || Date.now(),
       sizeBytes: d.sizeBytes || d.content.length,
+      ...(d.periodId ? { periodId: d.periodId } : {}),
+      ...(d.notes ? { notes: d.notes } : {}),
       ...(d.original ? { original: { ...d.original } } : {})
     };
     target.docs.push(mapped);
@@ -172,6 +191,7 @@ export function mergeProjectInto(target: Project, source: Project): MergeSummary
       : t.dataUrl === img.dataUrl);
     if (existing) {
       if (!existing.pdfPage && img.pdfPage && docIdMap.has(img.pdfPage.docId)) existing.pdfPage = { ...img.pdfPage, docId: docIdMap.get(img.pdfPage.docId)! };
+      if (!existing.notes && img.notes) existing.notes = img.notes;
       imageIdMap.set(img.id, existing.id);
       summary.imagesMerged++;
       continue;
@@ -213,6 +233,7 @@ export function mergeProjectInto(target: Project, source: Project): MergeSummary
       text: seg.text,
       createdAt: seg.createdAt || Date.now(),
       source: seg.source || 'manual',
+      ...(seg.periodId ? { periodId: seg.periodId } : {}),
       ...(coder ? { coder } : {}),
       ...(seg.note ? { note: seg.note } : {}),
       ...(seg.starred ? { starred: true } : {})

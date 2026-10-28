@@ -176,9 +176,9 @@ function CodeNode({
                 className="mini-btn"
                 style={{
                   cursor: 'pointer',
-                  backgroundColor: '#f1f5f9',
-                  color: '#0f172a',
-                  border: '1px solid #cbd5e1',
+                  backgroundColor: 'var(--panel-alt)',
+                  color: 'var(--text)',
+                  border: '1px solid var(--border)',
                   borderRadius: '4px',
                   padding: '0',
                   width: '28px',
@@ -198,11 +198,11 @@ function CodeNode({
                 }}
               >
                 <option value="" disabled>{'\u21B3 '}</option>
-                <option value="root" style={{ background: '#ffffff', color: '#000000' }}>
+                <option value="root" >
                   [Root Level]
                 </option>
                 {eligibleParents.map(p => (
-                  <option key={p.id} value={p.id} style={{ background: '#ffffff', color: '#000000' }}>
+                  <option key={p.id} value={p.id} >
                     {'\u21B3 '}{p.name}
                   </option>
                 ))}

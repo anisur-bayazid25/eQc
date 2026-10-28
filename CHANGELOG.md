@@ -4,6 +4,38 @@ All notable changes to **eQc - Easy Qual Coding** are documented in this file.
 
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 1.8.9 - 2026-10-28
+
+### Added
+
+- Demographic table builder with publication layouts, comparison columns, participant profiles, source/attribute filters, saved table drafts and formatted Word/HTML/clipboard/CSV exports. The right-hand setup drawer supports category recoding, numeric comparisons (=, >, ≥, <, ≤, between), endpoint controls, cutoff splits, equal-width bands and descriptive statistics.
+- Analysis opens with a grid of distinct illustrated cards. Memo-Book and visualization source navigation now retain the working view and offer a return button.
+- Supporting-source navigation retains the current analysis working view, with **Back to analysis draft** in Workspace. View state lasts while the project stays open.
+- Visible draggable resize rails replace native corner grips on resizable text areas and sidebars, including keyboard adjustments.
+
+- Searchable **Assign cases** on selected transcript text, coded-passage popups, Codebook excerpts and Review results. The picker shows the passage with surrounding transcript context and searches case names, IDs and profile attributes, with cases from the current document listed first.
+- Explicit **Cases / participants** and **Documents** framework views. Case summaries and co-occurrence relationship memos open beside the matrix in collapsible, resizable drawers. Framework summaries save on leaving the field. All editors place summary writing beside independently scrolling evidence, with wider drawers; document framework cells now open an editor rather than embedding textareas. The document framework toolbar is compact.
+- Matrix navigation across case frameworks, document frameworks, code/document counts and co-occurrence: frozen headers and row labels, row/column jumps, keyboard navigation, drag-to-pan, compact spacing and an expanded view.
+- The reading font picker now lists the fonts actually installed on the computer, with a search box and a live preview of every family, instead of asking you to type a name. Used fonts are remembered under **My fonts**, and the list falls back to the built-in families when the runtime cannot enumerate installed fonts.
+
+### Fixed
+
+- Standardized spreadsheet exports on genuine Excel workbooks, removed duplicate CSV choices, and added Excel case-table import. Moved Memo-Book after Codebook in the main navigation. Workspace controls follow the reader theme independently of app light/dark mode.
+- Dark/light native dropdowns now use paired text/background colours and the correct system colour scheme. Fixed reader-control and empty-state contrast, and themed the code-move selector and offline-edit dialog.
+- Compacted shared navigation, analysis, demographics, Memo-Book, Help and visualization headers. Demographics uses a single wrapping command ribbon with an unbroken action group and a document/bookmark icon for saved tables. Pagination has consistent edge padding; long source lists no longer shrink and clip the sort/filter box.
+- Memo-Book has one Export menu for all/selected memos, research records and manuscript output. The project-wide HTML report is available on Analysis home, while individual analysis views retain their own exports.
+- Compacted Memo-Book headers, exports and linked-source lists; retained hidden panels avoid background updates and memo lists render 20 records per page. Loading no longer waits for an artificial delay.
+- Responsive source controls now use search/sort-direction icons, consistent padding and themed filters. Workspace provides a centered document-selection prompt. Codebook keeps the combined codes/excerpts/summaries export and removes only the duplicate starred-excerpts dropdown option.
+- Coded-passage popups are compact and stay within the viewport. Quotes show their first/last four words; long notes show an eight-word preview, with full text available during editing.
+
+- Reduced transcript rendering and coding-stripe layout work during unrelated UI changes. Highlight construction now sweeps interval boundaries, participant retrieval indexes links by source, and valid research links retain their references during save cleanup.
+- Participant passage links now offer a readable quote preview in the case editor. Removing case attribution from selected text retains that case's links outside the selected range.
+- A reading font whose family is not installed (for example “Bookman Old” instead of “Bookman Old Style”) is now detected: the picker says the reader is showing a substitute and offers the closest installed family in one click. Typing a family name that no installed font answers to is refused with a spelling hint instead of being saved.
+- The installed-font list no longer stays empty after a restart. The browser only allows the list to be read while the window is visible, so a startup attempt used to fail permanently; failures are no longer cached, and the list reloads when you open it, when the window becomes visible, and a few seconds after a failure, with a **Try again** button.
+- A saved family is no longer reported as missing when the font list itself could not be read: the picker checks the family by measuring text, so “Bookman Old Style” is accepted while a genuinely absent name is still flagged.
+- Choosing a reading font closes the Reading panel, so the text underneath is immediately visible and selectable for coding.
+- Reader text is rendered with `font-synthesis: none` and kerning, so a chosen family without real bold/italic faces is no longer smeared into a substitute that looks blurry.
+
 ## 1.8.8 - 2026-10-25
 
 ### Added
@@ -69,7 +101,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Added counted co-occurrence presets to heat maps and Sankey, sharing the same direct-text-code calculation for overlapping range pairs or shared documents. Documented counting units, pooled-coder deduplication, matrix symmetry, chord endpoint totals and non-directional Sankey pair weights.
 - Prioritized Code map, Co-occurrence network, Sankey and Word cloud in the first visualization row; moved Mind map to the next row.
 
-- Fixed QualCoder QDPX imports failing on undated notes and duplicate journal titles by including creation dates, author references and unique note titles in project and codebook exports.
+- Fixed external software QDPX imports failing on undated notes and duplicate journal titles by including creation dates, author references and unique note titles in project and codebook exports.
 
 - Added resizing of existing coded image regions using corner/edge handles, with Save/Cancel, Escape, zoom-aware image bounds and Undo/Redo. Coding identity, coder attribution, notes and stars are retained.
 
@@ -416,7 +448,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - **Color scheme** — root codes get a color from the palette; subcodes automatically inherit their parent's color (overridable via the codebook swatch picker).
 - **Export Options layout** — removed a duplicate "Export Options" group in the Codebook tab; REFI-QDA export now sits at the top of the existing Export Options group, above Manuscript Skeleton.
 - **Image zoom steps** — `âˆ’` / `+` buttons and the slider now move in 10% steps (was 25%); minimum zoom is now 10%.
-- **REFI-QDA import robustness** — the importer now also reads subcodes nested inside a `<SubCodes>` wrapper (a legacy wrapper shape; the standard uses direct nested Code elements), so real MAXQDA/NVivo files import better and exports round-trip.
+- **REFI-QDA import robustness** — the importer now also reads subcodes nested inside a `<SubCodes>` wrapper (a legacy wrapper shape; the standard uses direct nested Code elements), so real external-producer files import better and exports round-trip.
 
 ### Fixed
 - **Zoom buttons** — the `âˆ’` / `+` / Reset / slider buttons in the image viewer were nested inside the Notes button, so clicking them also opened the notes panel; they are now separate controls.

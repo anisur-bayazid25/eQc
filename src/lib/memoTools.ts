@@ -7,6 +7,7 @@ export function listMemoRecords(project: Project): MemoRecord[] {
   const records: MemoRecord[] = (project.memos || []).map(m => ({ ...m, origin:{kind:'standalone',id:m.id} }));
   const sources = new Map([...project.docs,...(project.images || [])].map(s => [s.id,s.name]));
   const codes = new Map(project.codes.map(c => [c.id,c.name]));
+  const caseById=new Map((project.cases||[]).map(c=>[c.id,c]));
   const source = (id: string) => sources.get(id) || 'Unavailable source';
   const code = (id: string) => codes.get(id) || 'Unavailable code';
   function add(kind: string, id: string, title: string, text: string | undefined, docIds: string[] = [], codeIds: string[] = [], caseIds: string[] = [], segmentIds: string[] = [], createdAt = 0, updatedAt = 0) {
@@ -19,7 +20,7 @@ export function listMemoRecords(project: Project): MemoRecord[] {
   project.images?.forEach(i => add('image',i.id,'Image memo — '+i.name,i.notes,[i.id]));
   project.codedRegions?.forEach(r => add('region',r.id,'Region memo — '+source(r.imageId)+' / '+code(r.codeId),r.note,[r.imageId],[r.codeId],[],[r.id],r.createdAt));
   project.frameworkCells?.forEach(f => add('framework',f.id,'Framework memo — '+source(f.docId)+' / '+code(f.codeId),f.text,[f.docId],[f.codeId],[],[],0,f.updatedAt));
-  project.caseFrameworkCells?.forEach(f=>add('case-framework',f.id,'Case framework memo — '+(project.cases?.find(c=>c.id===f.caseId)?.name||'Unavailable case')+' / '+code(f.codeId),f.text,project.cases?.find(c=>c.id===f.caseId)?.links.map(l=>l.docId)||[],[f.codeId],[f.caseId],[],0,f.updatedAt));
+  project.caseFrameworkCells?.forEach(f=>add('case-framework',f.id,'Case framework memo — '+(caseById.get(f.caseId)?.name||'Unavailable case')+' / '+code(f.codeId),f.text,caseById.get(f.caseId)?.links.map(l=>l.docId)||[],[f.codeId],[f.caseId],[],0,f.updatedAt));
   project.relationNotes?.forEach(r => add('relationship',r.id,'Relationship memo — '+code(r.codeAId)+' / '+code(r.codeBId),r.note,[],[r.codeAId,r.codeBId],[],[],0,r.updatedAt));
   project.cases?.forEach(c => add('case',c.id,'Case memo — '+c.name,c.notes,c.links.map(l => l.docId),[],[c.id]));
   project.annotations?.forEach(a => add('annotation',a.id,'Passage annotation — '+source(a.docId),a.note,[a.docId],[],[],[],a.createdAt));

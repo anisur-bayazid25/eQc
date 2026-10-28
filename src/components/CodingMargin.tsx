@@ -18,12 +18,13 @@ export default function CodingMargin({ enabled, segments, codesById, onJump, chi
           }
         });
         const lanes: number[] = [];
-        setMarks(Array.from(bounds, ([id,b]) => ({ id,top:b.top,height:Math.max(20,b.bottom-b.top),lane:0 })).sort((a,b)=>a.top-b.top).map(m => { let lane=lanes.findIndex(end=>end<=m.top); if(lane<0)lane=lanes.length;lanes[lane]=m.top+m.height;m.lane=lane;return m; }));
+        const next = Array.from(bounds, ([id,b]) => ({ id,top:b.top,height:Math.max(20,b.bottom-b.top),lane:0 })).sort((a,b)=>a.top-b.top).map(m => { let lane=lanes.findIndex(end=>end<=m.top); if(lane<0)lane=lanes.length;lanes[lane]=m.top+m.height;m.lane=lane;return m; });
+        setMarks(previous => previous.length === next.length && previous.every((m,i) => m.id===next[i].id && m.top===next[i].top && m.height===next[i].height && m.lane===next[i].lane) ? previous : next);
       });
     };
     const resize = new ResizeObserver(update), mutate = new MutationObserver(update);
-    resize.observe(root); mutate.observe(root,{childList:true,subtree:true,characterData:true}); update();
+    resize.observe(root); mutate.observe(root,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['style','class']}); update();
     return () => { resize.disconnect();mutate.disconnect();cancelAnimationFrame(frame); };
-  }, [enabled, segments, children]);
+  }, [enabled, segments]);
   return <div className={`coding-surface${enabled?' with-coding-margin':''}`} style={{ '--coding-bg':readerStyle.backgroundColor, '--coding-text':readerStyle.color, color:readerStyle.color } as React.CSSProperties}><div className="coding-reader" ref={ref}>{children}</div>{enabled&&<aside className="coding-margin" style={{ flexBasis: Math.max(28, (Math.max(-1,...marks.map(m=>m.lane)) + 1) * 20 + 8) }} aria-label="Coding stripes">{marks.map(m=>{const seg=segments.find(s=>s.id===m.id),code=seg&&codesById.get(seg.codeId);return seg&&<button key={m.id} aria-label={'Jump to '+code?.name} title={`${code?.name} · ${seg.coder||'Unattributed'}`} style={{top:m.top,height:m.height,left:m.lane*20,borderLeftColor:code?.color}} onClick={()=>onJump(seg)}><span style={{maxHeight:Math.max(14,m.height-4)}}>{code?.name}</span></button>;})}</aside>}</div>;
 }

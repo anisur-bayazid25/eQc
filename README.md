@@ -4,7 +4,7 @@
 
 # eQc — Easy Qual Coding
 
-**Version 1.8.8** · A local desktop app for qualitative research.
+**Version 1.8.9** · A local desktop app for qualitative research.
 
 [![ORCID](https://img.shields.io/badge/ORCID-0000--0001--9015--4422-green?style=flat-square&logo=orcid&labelColor=A6CE39)](https://orcid.org/0000-0001-9015-4422) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23451326.svg)](https://doi.org/10.5281/zenodo.23451326) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -70,6 +70,13 @@ Normal coding, analysis and Help work offline. Installation downloads and update
 
 **Project and backup storage:** embedded images use base64, which adds roughly 33% to their binary size. HEIC-to-PNG conversion, retained original documents and PDF page images can add more. Photo-heavy projects can exceed 1 GB each; full JSON backups containing that media require additional space for every saved copy. The 1 GB installation allowance does not include project data or backups.
 
+## What's new in 1.8.9
+
+- Assign participant cases directly from a selected or coded passage, with searchable profiles and a compact picker.
+- Build demographic tables with source scopes, category rules, descriptive summaries, comparison groups and saved table layouts.
+- Write framework and relationship memos beside their evidence in resizable drawers, and return to your analysis or memo draft after inspecting a source.
+- Compact, responsive headers, clearer icons, dark-mode fixes, lighter memo lists and Excel spreadsheet exports throughout the app.
+
 ## What's new in 1.8.8
 
 - **Codebook import you can map yourself:** bring a codebook or coded dataset in from CSV, tab-separated text or an Excel workbook (choose the worksheet). Build the tree level by level — there is no depth limit — and give every level its own code, definition and summary column, so header names such as “Parent code” or “Child node 1” no longer decide what the importer understands. A preview and a dry run show the counts before anything is written.
@@ -106,7 +113,7 @@ Normal coding, analysis and Help work offline. Installation downloads and update
 - **Matching analytical views:** co-occurrence presets in Heat map and Sankey use the same explicit overlapping-range or shared-document counts, coder filters and scope. Drafts and HTML report figures retain their calculation details.
 - **Clearer visualization workspace:** Code map, Network, Sankey and Word cloud lead the gallery; scrollbar-safe toolbars keep labels aligned at different window sizes.
 - **Resize image coding:** adjust existing regions with corner/edge handles, preview, Save/Cancel and Undo/Redo while retaining attribution, notes and stars.
-- **Project exchange:** QDPX notes include dates, author references and unique titles to avoid QualCoder import errors.
+- **Project exchange:** QDPX notes include dates, author references and unique titles to avoid external software import errors.
 - **Linux packages:** x64 AppImage and Debian/Ubuntu `.deb` builds join Windows and macOS releases. Linux desktop validation remains limited.
 
 ## Previous release: 1.8.3
@@ -139,7 +146,7 @@ Normal coding, analysis and Help work offline. Installation downloads and update
 
 Documents: TXT, Markdown, DOCX and PDF; scanned PDFs support local OCR. Images: PNG, JPEG, GIF, WebP, BMP and HEIC/HEIF. Structured coding and codebooks import from CSV, tab-separated text or an Excel workbook — pick the worksheet, then map each column to a code level, definition, summary, document, quote or coder — and Word-comment coding can be imported too.
 
-Project import accepts JSON, QDPX, QDC and extracted QDE files with their matching sources. Project export offers JSON or QDPX, with original attachments or smaller plain-text document data. Selected coding exports to Word/CSV; Memo-Book exports to Word/Excel; analysis reports export to HTML. JSON is the complete eQc backup format and can include the selected profile and time history.
+Project import accepts JSON, QDPX, QDC and extracted QDE files with their matching sources. Project export offers JSON or QDPX, with original attachments or smaller plain-text document data. Selected coding exports to Word/Excel; Memo-Book exports to Word/Excel; analysis reports export to HTML. JSON is the complete eQc backup format and can include the selected profile and time history.
 
 LAN collaboration shares research projects with colleagues on a trusted local network. Profiles and personal time records are kept separate from LAN sessions.
 

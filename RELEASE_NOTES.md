@@ -1,42 +1,44 @@
-# eQc 1.8.8
+# eQc 1.8.9
 
-This release makes codebook import fit real-world files, protects existing coding from three quiet data-loss paths, and completes the exchange and interface polish begun in 1.8.6–1.8.7.
+This release improves participant attribution, demographic tables, evidence-led memo writing and everyday performance. The changes work in new and existing projects.
 
-## Import any codebook, at any depth
+## Participant attribution while coding
 
-- **A mapping dialog instead of fixed header names.** Choose a CSV, tab-separated file, Excel workbook or Excel “Unicode text”; pick the worksheet when the workbook has more than one. Each column is matched to a role from a dropdown, so “Parent code”, “Parent node”, “Theme”, “Sub-code 1” and “Code definition” all work — and so does a language the importer has never seen.
-- **No depth limit.** Add a level for every step of the tree. Each level has its own code column plus an optional definition and summary/memo column, so a five- or six-level codebook arrives with the right text on every level.
-- **Preview before writing.** The first rows, the mapped columns and a dry run (“will add 24 codes, 4 documents, 118 coded passages, 2 quotes not found”) appear before anything changes.
+- Assign cases directly from selected text, coded-passage popups, Codebook excerpts and review results.
+- Search case names, IDs and profile attributes. The compact picker defaults to cases linked to the current document, with a checkbox to include the wider project.
+- Passage attribution is shared across codes on the same text. Removing an attribution preserves the case links outside that range.
+- Quotes and long notes use compact previews; the complete text remains available when needed.
 
-## Coding that survives editing
+## Demographic tables ready for writing
 
-- Appending text to a document no longer extends the last coded quote over the new text; quotes keep their exact boundaries when text is inserted at their edge.
-- Editing a Windows (CRLF) source no longer drops coded passages that span a line break. Stored sources and comparisons now agree on line endings.
-- CSV import never rewrites an existing transcript: an unmatched quote is reported and the source is left untouched. Flat codebooks (no parent column) keep their definitions and summaries, an optional coder column is preserved, and UTF-16 “Unicode text” files are decoded correctly.
+- Filter participants by folders, documents and source groups; select the attributes to report. A participant counts once in the selected scope.
+- Choose sectioned summaries, merged variable/category tables, comparison columns or participant profiles.
+- Rename and combine categories without changing participant profiles. Numeric categorisation supports greater/less than, inclusive comparisons, equality, ranges, cutoff splits and equal-width groups, with overlap checks.
+- Choose counts, percentages and their denominator, missing-value handling, mean/sample SD, median/quartiles or minimum/maximum.
+- Edit labels, type, sizes and table styles in a resizable right-hand drawer. Save named table configurations in the project.
+- Export Word, Excel or HTML, or copy a formatted table. Wide tables keep a readable background across every column.
 
-## Exchange and merging
+## Frameworks, evidence and return navigation
 
-- QDPX carries starred evidence, analysis periods, folder paths, code order and coder identity in the eQc appendix, and restores them on import; the standard REFI-QDA elements other applications read are unchanged.
-- Consolidating codes remaps case × theme framework summaries, ICR settings and decisions, saved queries, canvas drafts and annotations, and removes duplicate excerpts left on the surviving code. Previously the case-framework memos were deleted on the next save.
-- Re-merging a project no longer duplicates the folder tree, and a source memo or period on an incoming document is kept.
+- Compare cases across themes or compare whole documents in separate framework views.
+- Framework summaries and co-occurrence memos open in collapsible, resizable drawers, with writing beside independently scrolling evidence.
+- Frozen matrix labels, search/jump, keyboard navigation, compact spacing and drag-to-pan make large matrices easier to use.
+- Open a supporting source and return to the retained Analysis, Memo-Book or Visualization view. Working navigation state lasts while that project stays open; saved summaries and named drafts remain in the project.
 
-## Numbers that agree
+## A cleaner, lighter workspace
 
-The dashboard and HTML report co-occurrence matrix now count identical ranges once across pooled coders, matching the heat map, network and Sankey views. Two coders coding the same two passages show 1 pair, not 4. Single-coder projects are unaffected.
+- Analysis opens with a card grid, matching the Visualization library, with distinct icons.
+- Compact, wrapping command ribbons give more room to content. Fixed Memo-Book controls reserve their own height, and pagination and source filters retain their padding.
+- Native dropdowns, code controls and reader controls have readable light/dark colours. Reader controls follow Paperwhite, White or Dark independently of the surrounding app theme.
+- Source sorting supports both directions. Shared actions use compact icons with tooltips and accessible names.
+- Memo-Book renders fewer cards at once and opens long source-link lists on demand. Hidden views avoid unnecessary recalculation; transcript highlighting and participant-link lookup do less repeated work.
+- Memo-Book follows Codebook in the main navigation, then Auto-Code, Analysis and Visualization.
 
-## Lan sessions require a password
+## Consistent exports and reading fonts
 
-Hosting is disabled until a session password of at least four characters is entered, enforced again in the main process before the server starts. Without one, the session was reachable by any device on the network.
+- All spreadsheet export options now save genuine Excel workbooks instead of CSV. Duplicate spreadsheet choices are removed; Word, HTML and project-backup formats remain available.
+- Memo-Book has one Export menu. Project data exports are under More exports and include participant profiles, case links, groups, saved queries and notes. The project-wide HTML report is on Analysis home rather than repeated in every analysis view.
+- Case tables exported to Excel can be imported again with stable IDs, attributes and passage links. Existing delimited-file import remains supported.
+- The reading font picker searches installed families, previews them, remembers favourites and detects unavailable fonts with suggested alternatives. Failed font enumeration can be retried instead of leaving a permanently empty list.
 
-## Interface and accessibility
-
-- Confirmation dialogs close with Escape, keep keyboard focus inside, and use theme colours in light and dark mode; merge confirmations no longer look destructive, and the delete copy no longer claims it cannot be undone.
-- The duplicated export buttons in the co-occurrence view are captioned (Matrix, Relationship memos), and the codebook's project exports are grouped and renamed.
-- Interface text names the controls it describes, search results are keyboard reachable, analysis sort and filter controls are announced, and the document editor follows the chosen reading font and size.
-- PDF import disables pdf.js font-program evaluation, closing CVE-2024-4367 in the OCR path.
-
-## Documentation
-
-The in-app Help, user guide, application reference and README are updated for the new import, the required LAN password, the co-occurrence definition and the appendix contents.
-
-Windows, Intel and Apple Silicon macOS, and Linux x64 AppImage/deb packages are provided. Existing projects and profiles do not need any migration.
+Existing research text, quotes and participant profiles are not rewritten by these interface changes. Keep native JSON backups for complete project recovery.

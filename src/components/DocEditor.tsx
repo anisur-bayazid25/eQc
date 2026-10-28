@@ -52,19 +52,37 @@ function buildChunks(content: string, segments: CodedSegment[], highlightRange?:
   }
   const sorted = Array.from(points).sort((a, b) => a - b);
 
+  // Sweep interval boundaries once. Scanning every segment at every line and
+  // boundary made long, densely coded transcripts increasingly expensive.
+  function intervalIndex<T extends {start:number;end:number}>(items:T[]) {
+    const starts=new Map<number,number[]>(),ends=new Map<number,number[]>();
+    items.forEach((item,index)=>{
+      const start=Math.max(0,item.start),end=Math.min(content.length,item.end);
+      if(end<=start)return;
+      starts.set(start,[...(starts.get(start)||[]),index]);ends.set(end,[...(ends.get(end)||[]),index]);
+    });
+    const active=new Set<number>();
+    return (point:number)=>{
+      for(const index of ends.get(point)||[])active.delete(index);
+      for(const index of starts.get(point)||[])active.add(index);
+      return [...active].sort((a,b)=>a-b).map(index=>items[index]);
+    };
+  }
+  const coveringSegments=intervalIndex(segments),coveringAnnotations=intervalIndex(annotations);
+
   const chunks: Chunk[] = [];
   for (let i = 0; i < sorted.length - 1; i++) {
     const start = sorted[i];
     const end = sorted[i + 1];
     if (start === end) continue;
-    const covering = segments.filter(s => s.start <= start && s.end >= end);
+    const covering = coveringSegments(start);
     const isSearchMatch = !!highlightRange && highlightRange.start <= start && highlightRange.end >= end;
-    chunks.push({ start, end, text: content.slice(start, end), segIds: covering.map(s => s.id), annotationIds:annotations.filter(a=>a.start<=start&&a.end>=end).map(a=>a.id), isSearchMatch });
+    chunks.push({ start, end, text: content.slice(start, end), segIds: covering.map(s => s.id), annotationIds:coveringAnnotations(start).map(a=>a.id), isSearchMatch });
   }
   return chunks;
 }
 
-export default function DocEditor({
+function DocEditorView({
   doc, segments, annotations, onClickAnnotation, codesById, fontSize, fontFamily, showLineNumbers = false, onSelectionChange, onClickSegment, onDropCode,
   scrollToSegmentId, scrollNonce, highlightRange, highlightNonce
 }: Props) {
@@ -207,4 +225,19 @@ export default function DocEditor({
       )) : chunks.map(renderChunk)}
     </div>
   );
+}
+
+const MemoDocEditor = React.memo(DocEditorView);
+// The reader's text can be large. Parent UI updates (search, menus, autosave)
+// must not recreate every span or reattach the selection listener.
+export default function DocEditor(props: Props) {
+  const latest = useRef(props); latest.current = props;
+  const callbacks = useMemo(() => ({
+    onSelectionChange: (selection: SelectionOffsets | null) => latest.current.onSelectionChange(selection),
+    onClickSegment: (segments: CodedSegment[], x: number, y: number) => latest.current.onClickSegment(segments, x, y),
+    onClickAnnotation: (ids: string[]) => latest.current.onClickAnnotation?.(ids),
+    onDropCode: (id: ID) => latest.current.onDropCode?.(id)
+  }), []);
+  const highlightRange = useMemo(() => props.highlightRange ? {...props.highlightRange} : null, [props.highlightRange?.start, props.highlightRange?.end]);
+  return <MemoDocEditor {...props} {...callbacks} highlightRange={highlightRange} />;
 }

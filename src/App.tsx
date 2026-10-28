@@ -1,4 +1,16 @@
+import {saveExport} from './lib/spreadsheetExport';
 import CaseFrameworkPanel from './components/CaseFrameworkPanel';
+import DocumentFrameworkPanel from './components/DocumentFrameworkPanel';
+import ResizeHandles from './components/ResizeHandles';
+import DemographicsPanel from './components/DemographicsPanel';
+import IconButton from './components/IconButton';
+import AnalysisIcon from './components/AnalysisIcon';
+import {AnalysisActivityContext,useAnalysisScrollMemory} from './lib/analysisActivity';
+import {passagePreview,notePreview} from './lib/textPreview';
+import AnalysisDrawer from './components/AnalysisDrawer';
+import MatrixViewport from './components/MatrixViewport';
+import PassageCasePicker from './components/PassageCasePicker';
+import { CasePassage, updatePassageCases, passageCaseIds } from './lib/passageCases';
 import AnnouncementCenter from './components/AnnouncementCenter';
 import IcrWorkspace from './components/IcrWorkspace';
 import ManuscriptExportDialog from './components/ManuscriptExportDialog';
@@ -16,7 +28,7 @@ const ProfilePanel=deferPanel(()=>import('./components/ProfilePanel'),'profile')
 import { useTimeTracking } from './lib/useTimeTracking';
 import { lanActivityScope, useLanActivity } from './lib/useLanActivity';
 import type { LocalProfile } from './lib/timeTracking';
-import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef, useLayoutEffect } from 'react';
 import {
   Project, ProjectSummary, Folder, SourceDoc, Code, CodedSegment, FrameworkCell, CodeRelationNote,
   ID, uid, newProject, colorForNewCode, childCodes, descendantCodeIds, codeAncestorPath,
@@ -85,16 +97,16 @@ function IsolatedPromptModal({ isOpen, message, buttonText, defaultValue, onReso
     <>
       {/* Dark background overlay */}
       <div style={{ position: 'fixed', inset: 0, zIndex: 9998, backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => onResolve(null)} />
-      
+
       {/* Modal Box */}
       <div className="modal" role="dialog" aria-modal="true" aria-label={message} style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 9999, backgroundColor: 'var(--panel)', color: 'var(--text)', padding: '24px', borderRadius: '8px', minWidth: '300px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
         <h3 style={{ marginTop: 0 }}>{message}</h3>
-        <input 
+        <input
           aria-label={message}
           ref={inputRef}
-          type="text" 
-          value={val} 
-          onChange={e => setVal(e.target.value)} 
+          type="text"
+          value={val}
+          onChange={e => setVal(e.target.value)}
           onKeyDown={e => {
             if (e.key === 'Enter') onResolve(val);
             if (e.key === 'Escape') onResolve(null);
@@ -378,7 +390,7 @@ const MORE_COLORS = [
 const THEME_STYLES: Record<ReaderTheme, React.CSSProperties> = {
   paperwhite: {
       backgroundColor: '#f8f1e3', // Paperwhite/Warm e-reader tan
-    color: '#3c3226',           // Deep warm brown text  
+    color: '#3c3226',           // Deep warm brown text
 
   },
   white: {
@@ -395,6 +407,13 @@ export default function App() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [project, setProject] = useState<Project | null>(null);
   const [tab, setTab] = useState<Tab>('workspace');
+  const [analysisProjectId,setAnalysisProjectId]=useState<string|null>(null);
+  const [memoProjectId,setMemoProjectId]=useState<string|null>(null),[mapProjectId,setMapProjectId]=useState<string|null>(null);
+  const [returnTrail,setReturnTrail]=useState<Array<{projectId:string;tab:Tab;label:string}>>([]);
+  function rememberOrigin(){if(!project||!['memos','analysis','codemap'].includes(tab))return;const label=tab==='memos'?'Memo-Book':tab==='analysis'?'analysis draft':'visualization';setReturnTrail(trail=>trail[trail.length-1]?.tab===tab?trail:[...trail,{projectId:project.id,tab,label}]);}
+  useEffect(()=>{if(tab==='memos')setMemoProjectId(project?.id||null);if(tab==='codemap')setMapProjectId(project?.id||null);},[tab,project?.id]);
+  useEffect(()=>{setReturnTrail([]);setMemoProjectId(tab==='memos'?project?.id||null:null);setMapProjectId(tab==='codemap'?project?.id||null:null);setAnalysisProjectId(tab==='analysis'?project?.id||null:null);},[project?.id]);
+  useEffect(()=>{if(tab==='analysis')setAnalysisProjectId(project?.id||null);},[tab,project?.id]);
   const timeTracking = useTimeTracking(project,tab==='profile');
   const workspaceAnimationsRef=useRef(timeTracking.profile.workspaceAnimations===true);
   workspaceAnimationsRef.current=timeTracking.profile.workspaceAnimations===true;
@@ -524,6 +543,7 @@ useEffect(() => {
   const [documentView, setDocumentView] = useState<'formatted' | 'text'>(() => localStorage.getItem('qda-document-view') === 'text' ? 'text' : 'formatted');
   const [pendingPdfRegion, setPendingPdfRegion] = useState<PdfRegionSelection | null>(null);
   const [sortBy, setSortBy] = useState<SortKey>('name');
+  const [sourceSortDirection,setSourceSortDirection]=useState<'asc'|'desc'>('asc');
   const [memoSourceTarget, setMemoSourceTarget] = useState<{kind:string;id:string;nonce:number} | null>(null);
   const [shortcutProfile,setShortcutProfile] = useState<ShortcutProfile>(()=>readShortcutProfile(localStorage.getItem('eqc-shortcut-profile')));
   const [favoriteCodes,setFavoriteCodes] = useState<string[]>([]);
@@ -541,7 +561,10 @@ useEffect(() => {
   const [importReport, setImportReport] = useState<{ title: string; message: string } | null>(null);
   function toggleCodingStripes(value: boolean) { setCodingStripes(value); localStorage.setItem('qda-coding-stripes', String(value)); }
   const [pendingSelection, setPendingSelection] = useState<SelectionOffsets | null>(null);
+  const [casePassage, setCasePassage] = useState<CasePassage | null>(null);
+  useEffect(()=>setCasePassage(null),[project?.id]);
   const [segmentPopup, setSegmentPopup] = useState<{ segments: CodedSegment[]; x: number; y: number } | null>(null);
+  const segmentPopupRef=useRef<HTMLDivElement>(null);
   const [editingDocId, setEditingDocId] = useState<ID | null>(null);
   const [draftContent, setDraftContent] = useState('');
   const [gotoTarget, setGotoTarget] = useState<{ segId: ID; nonce: number } | null>(null);
@@ -554,7 +577,7 @@ useEffect(() => {
   const [editingRegionNoteFor, setEditingRegionNoteFor] = useState<ID | null>(null);
   const [regionNoteDraft, setRegionNoteDraft] = useState('');
   const [pendingDeleteImageId, setPendingDeleteImageId] = useState<ID | null>(null);
-  
+
 
   // Undo / redo history (per project, in-memory only)
   const [past, setPast] = useState<Project[]>([]);
@@ -968,7 +991,7 @@ useEffect(() => {
     if (!res.ok) showToast(res.error || 'Could not disconnect that client');
   }
 
-  
+
   // ---------------------------------------------------------------
   // Load project list on mount; open the most recent project, or
   // create a fresh one if this is the first launch.
@@ -988,13 +1011,6 @@ useEffect(() => {
       }
     })();
   }, []);
-
-const [minLoadingElapsed, setMinLoadingElapsed] = useState(false);
-
-useEffect(() => {
-  const t = setTimeout(() => setMinLoadingElapsed(true), 3000);
-  return () => clearTimeout(t);
-}, []);
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
@@ -1353,6 +1369,13 @@ useEffect(() => {
     setNoteDraft('');
   }, [segmentPopup]);
 
+  useLayoutEffect(()=>{
+    const popup=segmentPopupRef.current;if(!popup||!segmentPopup)return;
+    const place=()=>{const box=popup.getBoundingClientRect();popup.style.left=Math.max(12,Math.min(segmentPopup.x,window.innerWidth-box.width-12))+'px';popup.style.top=Math.max(12,Math.min(segmentPopup.y,window.innerHeight-box.height-12))+'px';};
+    place();const observer=new ResizeObserver(place);observer.observe(popup);window.addEventListener('resize',place);
+    return()=>{observer.disconnect();window.removeEventListener('resize',place);};
+  },[segmentPopup,editingNoteFor]);
+
   // Clear navigation targets when switching tabs
   useEffect(() => {
     if (tab !== 'workspace') {
@@ -1677,15 +1700,15 @@ function openProjectSettings() {
 
 async function importDroppedFiles(paths: string[], folderId: ID | null) {
   if (!project || paths.length === 0) return;
-  
+
   // Notice we call a hypothetical 'extractDroppedDocs' instead of 'pickAndExtractDocs'
-  const files = await window.qv.extractDroppedDocs(paths); 
-  
+  const files = await window.qv.extractDroppedDocs(paths);
+
   if (files.length === 0) return;
-  
+
   const newDocs: SourceDoc[] = [];
   const failures: string[] = [];
-  
+
   for (const f of files) {
     if (!f.ok) {
       failures.push(`${f.name}: ${f.error}`);
@@ -1701,7 +1724,7 @@ async function importDroppedFiles(paths: string[], folderId: ID | null) {
       ...(f.original ? { original: f.original } : {})
     });
   }
-  
+
   if (newDocs.length > 0) {
     persist({ ...project, docs: [...project.docs, ...newDocs] });
     setSelectedDocId(newDocs[0].id);
@@ -1711,10 +1734,10 @@ async function importDroppedFiles(paths: string[], folderId: ID | null) {
 
 async function importDroppedImages(paths: string[], folderId: ID | null) {
   if (!project || paths.length === 0) return;
-  
-  const images = await window.qv.extractDroppedImages(paths); 
+
+  const images = await window.qv.extractDroppedImages(paths);
   if (images.length === 0) return;
-  
+
   const failures = images.filter(img => img.ok === false);
   if (failures.length) showToast('Some images could not be imported: ' + failures.map(img => `${img.name}: ${img.error}`).join('; '));
   const newImages = images.filter(img => img.ok !== false).map(img => ({
@@ -1725,7 +1748,7 @@ async function importDroppedImages(paths: string[], folderId: ID | null) {
     addedAt: Date.now(),
     sizeBytes: img.sizeBytes
   }));
-  
+
   if (newImages.length > 0) {
     persist({ ...project, images: [...(project.images || []), ...newImages] });
     // setSelectedImageId(newImages[0].id); // Optional
@@ -1734,13 +1757,13 @@ async function importDroppedImages(paths: string[], folderId: ID | null) {
 
 async function addScannedPdf(folderId: ID | null) {
     if (!project) return;
-    
+
     // Create an invisible file input to grab the raw File object in the browser
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'application/pdf';
     input.multiple = true;
-    
+
     input.onchange = async (e: Event) => {
       const files = (e.target as HTMLInputElement).files;
       if (!files || files.length === 0) return;
@@ -1750,7 +1773,7 @@ async function addScannedPdf(folderId: ID | null) {
 
       for (let i = 0; i < files.length; i++) {
         const f = files[i];
-        
+
         try {
           // Send progress messages directly to your UI's showToast banner
           const { extractBengaliTextFromPDF }=await import('./lib/pdfExtractor');
@@ -1759,7 +1782,7 @@ async function addScannedPdf(folderId: ID | null) {
             const statusMsg = message.replace(/^Reading/i, 'Scanning');
             showToast(`[${f.name}] ${statusMsg}`);
           });
-          
+
           newDocs.push({
             id: uid('doc'),
             folderId,
@@ -1819,22 +1842,22 @@ function requestDeleteImage(id: ID) {
 // 2. This runs when they click "Yes, Delete" inside the modal
 function executeDeleteImage() {
   if (!project || !pendingDeleteImageId) return;
-  
+
   const id = pendingDeleteImageId;
   const deletedImage = project.images?.find(image => image.id === id);
   const newImages = project.images?.filter(img => img.id !== id) ?? [];
   const newRegions = project.codedRegions?.filter(r => r.imageId !== id) ?? [];
-  
-  persist({ 
-    ...project, 
-    images: newImages, 
-    codedRegions: newRegions 
+
+  persist({
+    ...project,
+    images: newImages,
+    codedRegions: newRegions
   });
 
   if (selectedImageId === id) {
     setSelectedImageId(null);
   }
-  
+
   // Close the modal
   setPendingDeleteImageId(null);
   if (deletedImage) sliceDeleted(deletedImage.name,'file');
@@ -1842,8 +1865,8 @@ function executeDeleteImage() {
 
 function renameImage(id: ID, newName: string) {
   if (!project) return;
-  
-  const updatedImages = project.images?.map(img => 
+
+  const updatedImages = project.images?.map(img =>
     img.id === id ? { ...img, name: newName } : img
   ) ?? [];
 
@@ -1912,11 +1935,11 @@ async function handleExportDocDocx(doc: SourceDoc) {
     if (!project) return;
     const name = await customPrompt('New root code', '', 'Create');
     if (!name) return;
-    const code: Code = { 
-      id: uid('code'), 
-      name, 
-      color: colorForNewCode(project.codes, null, project.codes.length), 
-      parentId: null, 
+    const code: Code = {
+      id: uid('code'),
+      name,
+      color: colorForNewCode(project.codes, null, project.codes.length),
+      parentId: null,
       summary: '',
       createdAt: Date.now()
     };
@@ -1927,11 +1950,11 @@ async function handleExportDocDocx(doc: SourceDoc) {
     if (!project) return;
     const name = await customPrompt('New subcode', '', 'Create');
     if (!name) return;
-    const code: Code = { 
-      id: uid('code'), 
-      name, 
-      color: colorForNewCode(project.codes, parentId, project.codes.length), 
-      parentId, 
+    const code: Code = {
+      id: uid('code'),
+      name,
+      color: colorForNewCode(project.codes, parentId, project.codes.length),
+      parentId,
       summary: '',
       createdAt: Date.now()
     };
@@ -1965,16 +1988,16 @@ async function exportReportImages(report: CodeReport) {
     } catch (error: any) { showToast(error.message || String(error)); }
   }
 
-async function handleExportCsv() {
+async function handleExportExcel() {
   if (!project) return;
   if (exportSelectedOnly && !selectedCodeIds.length) { showToast('Select at least one code to export.'); return; }
   const { csv } = buildScopedExport(project, exportScope, exportIds());
-  const path = await window.qv.exportText({
-    title: 'Export CSV',
-    defaultName: `${codeExportFilename(project, exportSelectedOnly ? new Set(selectedCodeIds) : undefined)}.csv`,
+  const path = await saveExport({
+    title: 'Export Excel',
+    defaultName: `${codeExportFilename(project, exportSelectedOnly ? new Set(selectedCodeIds) : undefined)}.xlsx`,
     content: csv,
-    extension: 'csv',
-    filterName: 'CSV file'
+    extension:'xlsx',
+    filterName: 'Excel workbook'
   });
   if (path) showToast(`Exported to ${path}`);
 }
@@ -2094,10 +2117,10 @@ function moveDoc(docId: ID, targetFolderId: ID | null) {
 
   function moveCode(codeId: ID, targetParentId: ID | null) {
     if (!project) return;
-    
+
     // Prevent dropping on itself
-    if (codeId === targetParentId) return; 
-    
+    if (codeId === targetParentId) return;
+
     // Prevent cyclical dependencies (dropping a code into its own subcode)
     if (targetParentId !== null) {
       const descendants = descendantCodeIds(project.codes, codeId);
@@ -2290,7 +2313,7 @@ function toggleStarSegment(segId: ID) {
     });
   }
 
-  async function handleExportStarredQuotes(kind: 'csv' | 'docx') {
+  async function handleExportStarredQuotes(kind: 'xlsx' | 'docx') {
     if (!project) return;
     const ids = exportIds();
     if (ids && !ids.size) { showToast('Select at least one code to export.'); return; }
@@ -2311,13 +2334,13 @@ function toggleStarSegment(segId: ID) {
       await exportReportImages(report);
     }
 
-    const path = kind === 'csv'
-      ? await window.qv.exportText({
-          title: 'Export Starred Quotes (CSV)',
-          defaultName: `${filenameBase}.csv`,
+    const path = kind === 'xlsx'
+      ? await saveExport({
+          title: 'Export Starred Quotes (Excel)',
+          defaultName: `${filenameBase}.xlsx`,
           content: toCsv(headers, rows.map(r => r.map(String))),
-          extension: 'csv',
-          filterName: 'CSV file'
+          extension:'xlsx',
+          filterName: 'Excel workbook'
         })
       : await window.qv.exportDocxTable(report!);
     if (path) showToast(`Exported ${starred.length + regions.length} starred excerpts to ${path}`);
@@ -2340,6 +2363,7 @@ async function handleExportManuscriptSkeleton() {
   function openMemoSource(memo: MemoRecord) {
     if (!project) return;
     const {kind,id} = memo.origin;
+    if(kind!=='case')rememberOrigin();
     setResearchOpen(false);
     const segment = project.codedSegments.find(s=>s.id===id);
     if(kind==='excerpt' && segment) { goToExcerpt(segment); return; }
@@ -2548,7 +2572,7 @@ function handleRunAutoCode() {
 
   // Global notes & memos: every non-empty doc memo, code summary, code
   // definition, excerpt note, and image-region note in one CSV.
-  async function handleExportNotesCsv() {
+  async function handleExportNotesExcel() {
     if (!project) return;
     const records=listMemoRecords(project);
     const exported=memoExportRows(project,records.map(m=>m.id));
@@ -2563,12 +2587,12 @@ function handleRunAutoCode() {
       return;
     }
     const csv = toCsv(headers, rows);
-    const path = await window.qv.exportText({
-      title: 'Export All Notes & Memos (CSV)',
-      defaultName: `${project.name.replace(/[^\w\- ]/g, '_')}_notes_and_memos.csv`,
+    const path = await saveExport({
+      title: 'Export All Notes & Memos (Excel)',
+      defaultName: `${project.name.replace(/[^\w\- ]/g, '_')}_notes_and_memos.xlsx`,
       content: csv,
-      extension: 'csv',
-      filterName: 'CSV file'
+      extension:'xlsx',
+      filterName: 'Excel workbook'
     });
     if (path) showToast(`Exported notes & memos to ${path}`);
   }
@@ -2785,7 +2809,7 @@ function openDocxCommentImport() {
   }, [project?.codes, sortOrder, codeCodedCounts]);
 
   const feedbackDialog=<FeedbackDialog open={feedbackOpen} profileName={timeTracking.profile.name} profileEmail={timeTracking.profile.email} capture={feedbackCapture} onClose={()=>setFeedbackOpen(false)} onSent={()=>{feedbackStarted.current=false;}}/>;
-  if (!project || !minLoadingElapsed || !timeTracking.ready) {
+  if (!project || !timeTracking.ready) {
     return (
       <div className="loading-screen">
         <img src="./eqc-logo.png" alt="eQc" className="loading-logo" />
@@ -2798,8 +2822,9 @@ function openDocxCommentImport() {
   }
   return (
     <div className="app-shell">
+      <ResizeHandles/>
       {feedbackDialog}
-      {researchOpen && <ResearchWorkspace onUseResults={(scope,family)=>{setResearchGraphRequest({scope,family,nonce:Date.now()});setTab('codemap');}} initialCaseId={memoSourceTarget?.kind==='case'?memoSourceTarget.id:undefined} project={project} section={researchSection} onSection={setResearchSection} onClose={() => setResearchOpen(false)} onChange={persist} actor={activeCoderName} selection={pendingSelection && selectedDoc ? { docId: selectedDoc.id, start: pendingSelection.start, end: pendingSelection.end } : null}
+      {researchOpen && <ResearchWorkspace onAssignCase={id=>{const s=project.codedSegments.find(s=>s.id===id);if(s)setCasePassage({docId:s.docId,start:s.start,end:s.end});}} onUseResults={(scope,family)=>{setResearchGraphRequest({scope,family,nonce:Date.now()});setTab('codemap');}} initialCaseId={memoSourceTarget?.kind==='case'?memoSourceTarget.id:undefined} project={project} section={researchSection} onSection={setResearchSection} onClose={() => setResearchOpen(false)} onChange={persist} actor={activeCoderName} selection={pendingSelection && selectedDoc ? { docId: selectedDoc.id, start: pendingSelection.start, end: pendingSelection.end } : null}
         onNavigate={id => {
           const seg = project.codedSegments.find(s => s.id === id);
           if (seg) { goToExcerpt(seg); return; }
@@ -2843,16 +2868,16 @@ function openDocxCommentImport() {
 {lanConflict && (
   <>
     <div style={{ position: 'fixed', inset: 0, zIndex: 11000, backgroundColor: 'rgba(15,23,42,0.7)' }} />
-    <div className="modal" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 11001, width: 520, maxWidth: '92vw', maxHeight: '85vh', overflowY: 'auto', backgroundColor: '#ffffff', color: '#0f172a', padding: '24px', borderRadius: '10px', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
+    <div className="modal" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 11001, width: 520, maxWidth: '92vw', maxHeight: '85vh', overflowY: 'auto', backgroundColor: 'var(--panel)', color: 'var(--text)', padding: '24px', borderRadius: '10px', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
         <span style={{ fontSize: 18 }}>⚠️</span>
         <h3 style={{ margin: 0, fontSize: 16 }}>Offline Edits Detected</h3>
       </div>
-      <p style={{ fontSize: 13, margin: '0 0 8px', color: '#334155' }}>
+      <p style={{ fontSize: 13, margin: '0 0 8px', color: 'var(--text-dim)' }}>
         You edited <strong>“{project?.name}”</strong> locally since your last LAN sync with{' '}
         <strong>{lanConflict.hostName}</strong>'s session. Joining normally would overwrite those changes.
       </p>
-      <p style={{ fontSize: 13, margin: '0 0 16px', color: '#334155' }}>
+      <p style={{ fontSize: 13, margin: '0 0 16px', color: 'var(--text-dim)' }}>
         What would you like to do?
       </p>
 
@@ -3022,13 +3047,13 @@ function openDocxCommentImport() {
     </div>
   </>
 )}
-      <header className="app-header" style={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
-        width: '100%', 
+      <header className="app-header" style={{
+        display: 'flex',
+        flexDirection: 'column',
+        width: '100%',
         alignItems: 'stretch' /* Forces the rows to span the entire screen width */
       }}>
-        
+
       {updateReady && (
         <div className="update-banner">
           <span>✅ Update downloaded — restart to install.</span>
@@ -3054,19 +3079,19 @@ function openDocxCommentImport() {
 
         {/* FIRST LINE: Brand & Main Navigation Tabs */}
         <div className="header-top-row">
-          
+
           {/* Brand Logo & Name */}
           <div className="brand" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button className="brand-egg-button" aria-label="eQc logo" onClick={() => logoClick('header')}><img
-              src="./eqc-logo.png" 
-              alt="EQC Logo" 
+              src="./eqc-logo.png"
+              alt="EQC Logo"
               style={{ width: 'auto', height: '40px', objectFit: 'contain' }}
             /></button>
           </div>
 
           {/* Navigation Tabs */}
           <nav className="tabs" aria-label="Main navigation">
-            {(['workspace', 'codebook', 'autocode', 'analysis', 'memos', 'codemap', 'help', 'about'] as Tab[]).map(t => (
+            {(['workspace', 'codebook', 'memos', 'autocode', 'analysis', 'codemap', 'help', 'about'] as Tab[]).map(t => (
               <button key={t} className={`tab-btn ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
                 {t === 'workspace' && 'Workspace'}
                 {t === 'codebook' && 'Codebook'}
@@ -3086,13 +3111,13 @@ function openDocxCommentImport() {
 
         {/* SECOND LINE: Project Controls & Action Buttons */}
         <div className="header-bottom-row">
-          
+
           <select aria-label="Current project" className="project-select" value={project.id} onChange={e => handleSwitchProject(e.target.value)}>
             {projects.map(p => (
               <option key={p.id} value={p.id}>{lanSession && lanSession.projectId === p.id ? `🟢 ${p.name}` : p.name}</option>
             ))}
           </select>
-          
+
           <button className="icon-btn" title="New project" onClick={handleNewProject}>➕</button>
           {isLanSharedProjectLocked
             ? <button className="icon-btn" title="The session-shared project can't be renamed" disabled>✏️</button>
@@ -3123,9 +3148,9 @@ function openDocxCommentImport() {
               {isLanSyncedView ? '🟢 Synced' : '⚪ Local only (not synced)'}
             </span>
           )}
-          
+
           <span className="header-divider" style={{ margin: '0 8px', borderLeft: '1px solid #ccc', height: '20px' }} />
-          
+
           <button className="icon-btn-sm" title="Undo (Ctrl+Z)" disabled={past.length === 0} onClick={undo}>↶</button>
           <button className="icon-btn-sm" title="Redo (Ctrl+Shift+Z)" disabled={future.length === 0} onClick={redo}>↷</button>
           <span className="header-divider" style={{ margin: '0 8px', borderLeft: '1px solid #ccc', height: '20px' }} />
@@ -3134,15 +3159,16 @@ function openDocxCommentImport() {
           <ReaderFontSize value={readerFontSize} onChange={setReaderFontSize}/>
 
           </ToolMenu>
-          <button className="icon-btn" title="Report a problem or suggest a feature (Ctrl+Shift+B)" onClick={()=>void openFeedback()}>Feedback</button>
+          <IconButton icon="feedback" label="Report a problem or suggest a feature" title="Report a problem or suggest a feature (Ctrl+Shift+B)" onClick={()=>void openFeedback()}/>
           <button className="icon-btn" title="Toggle light/dark theme" onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}>
             {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
           </button>
-          
+
           <span className="header-divider" style={{ margin: '0 8px', borderLeft: '1px solid #ccc', height: '20px' }} />
-          
-          <button className="icon-btn-sm" title="Save now" onClick={manualSave}>💾</button>
-          <span className={`save-status save-status-${saveStatus}`} style={{ marginLeft: '8px', fontSize: '0.9em', color: '#666' }}>
+
+          {returnTrail.length>0&&returnTrail[returnTrail.length-1]?.projectId===project.id&&returnTrail[returnTrail.length-1]?.tab!==tab&&<button className="analysis-return-button" onClick={()=>{const target=returnTrail[returnTrail.length-1]!;setReturnTrail(trail=>trail.slice(0,-1));setTab(target.tab);}}>Back to {returnTrail[returnTrail.length-1]?.label}</button>}
+          <IconButton icon="save" label="Save now" onClick={manualSave}/>
+          <span className={`save-status save-status-${saveStatus}`} style={{ marginLeft: '8px', fontSize: '0.9em' }}>
             {saveStatus === 'saving' && 'Saving…'}
             {saveStatus === 'saved' && '✓ Saved'}
             {saveStatus === 'error' && '⚠ Save failed'}
@@ -3152,12 +3178,12 @@ function openDocxCommentImport() {
             {lanActivity && <span key={lanActivity.id}>{lanActivity.text}</span>}
           </span>
         </div>
-        
+
       </header>
 
       {/* Remove the {tab === 'workspace' && ( wrapper and add inline style to workspace-grid */}
-      <div 
-        className="workspace-grid" 
+      <div
+        className="workspace-grid"
         style={{ display: tab === 'workspace' ? undefined : 'none' }}
       >
         <aside className="panel left-panel workspace-sources">
@@ -3173,7 +3199,7 @@ function openDocxCommentImport() {
               <ToolMenu label="Research tools">
                 {[['cases', 'Cases & attributes'], ['groups', 'Document & code groups'], ['review', 'Excerpt review & queries'], ['history', 'History & recovery']].map(([id, label]) => <button key={id} onClick={e => { e.currentTarget.closest('details')?.removeAttribute('open'); setResearchSection(id); setResearchOpen(true); }}>{label}</button>)}
               </ToolMenu>
-              <button aria-expanded={contentSearchOpen} onClick={() => setContentSearchOpen(v => !v)}>Search text</button>
+              <IconButton icon="search" label="Search text" aria-expanded={contentSearchOpen} onClick={() => setContentSearchOpen(v => !v)}/>
             </div>
             {contentSearchOpen && (
               <div className="code-search" style={{ marginBottom: 10 }}>
@@ -3205,8 +3231,8 @@ function openDocxCommentImport() {
                 )}
               </div>
             )}
-            <details className="disclosure"><summary>Sort & coder filter</summary>
-            <div className="sort-row">
+            <details className="disclosure source-sort-filter"><summary>Sort & coder filter</summary>
+            <div className="sort-row source-sort-row">
               <label>Sort by</label>
               <select aria-label="Sort by" value={sortBy} onChange={e => setSortBy(e.target.value as SortKey)}>
                 <option value="name">Name</option>
@@ -3214,6 +3240,7 @@ function openDocxCommentImport() {
                 <option value="size">Size</option>
                 <option value="coded">Amount coded</option>
               </select>
+              <IconButton icon={sourceSortDirection==='asc'?'sortAsc':'sortDesc'} label="Source sort direction" title={sourceSortDirection==='asc'?'Ascending (click for descending)':'Descending (click for ascending)'} data-direction={sourceSortDirection} aria-pressed={sourceSortDirection==='desc'} onClick={()=>setSourceSortDirection(d=>d==='asc'?'desc':'asc')}/>
             </div>
             {coderOptions.length > 1 && (
               <div className="sort-row">
@@ -3261,21 +3288,21 @@ function openDocxCommentImport() {
   images={project.images}
   selectedDocId={selectedDocId}
   selectedImageId={selectedImageId}
-  sortBy={sortBy}
+  sortBy={sortBy} sortDirection={sourceSortDirection}
   codedCount={codedCountForDoc}
   codedRegionCount={codedRegionCount}
-  onSelectDoc={d => { 
-    setSelectedDocId(d.id); 
-    setSelectedImageId(null); 
-    setPendingSelection(null); 
-    setEditingDocId(null); 
+  onSelectDoc={d => {
+    setSelectedDocId(d.id);
+    setSelectedImageId(null);
+    setPendingSelection(null);
+    setEditingDocId(null);
     window.qv.lan.setActiveDoc(d.id).catch(() => {}); // presence: "viewing this doc"
   }}
-  onSelectImage={img => { 
-    setSelectedImageId(img.id); 
-    setSelectedDocId(null); 
-    setPendingSelection(null); 
-    setEditingDocId(null); 
+  onSelectImage={img => {
+    setSelectedImageId(img.id);
+    setSelectedDocId(null);
+    setPendingSelection(null);
+    setEditingDocId(null);
     window.qv.lan.setActiveDoc(img.id).catch(() => {}); // presence: "viewing this image"
   }}
   onAddRootFolder={addRootFolder}
@@ -3291,16 +3318,16 @@ function openDocxCommentImport() {
   onMoveImage={moveImage}
   onDropFiles={(files, folderId) => {
     const fileArray = Array.from(files);
-    
+
     // 1. Separate the images from the documents
     const docPaths = fileArray
       .map(f => (f as File & { path: string }).path)
       .filter(path => !path.match(/\.(png|jpe?g|gif|webp|bmp|heic|heif)$/i));
-      
+
     const imagePaths = fileArray
       .map(f => (f as File & { path: string }).path)
       .filter(path => path.match(/\.(png|jpe?g|gif|webp|bmp|heic|heif)$/i));
-      
+
     // 2. Send them to their respective functions!
     if (docPaths.length > 0) {
       importDroppedFiles(docPaths, folderId);
@@ -3315,11 +3342,11 @@ function openDocxCommentImport() {
             )}
           </aside>
 
-          <main className="panel center-panel" style={THEME_STYLES[readerTheme]}>
+          <main className="panel center-panel" data-reader-theme={readerTheme} style={THEME_STYLES[readerTheme]}>
             {selectedDoc ? (
               <>
                 {/* Reading Theme Switcher Buttons */}
-                <div style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
+                <div className="reader-controls">
                   <span style={{ fontSize: '12px', opacity: 0.7 }}>Theme:</span>
                   <button
                     className="mini-btn"
@@ -3361,8 +3388,8 @@ function openDocxCommentImport() {
                   >
                     📊 Portrait
                   </button>
-                  <button className="mini-btn" aria-pressed={codingStripes} title="Show vertical code names and coloured stripes beside coded passages" style={{ color: readerTheme === 'dark' ? '#f8fafc' : '#0f172a', fontWeight: codingStripes ? 'bold' : 'normal', border: codingStripes ? '2px solid #3b82f6' : '1px solid #475569' }} onClick={() => toggleCodingStripes(!codingStripes)}>Codes &amp; Strips</button>
-                  <button className="mini-btn" aria-pressed={showLineNumbers} disabled={!!selectedDoc.original && documentView === 'formatted'} style={{ color: readerTheme === 'dark' ? '#f8fafc' : '#0f172a', fontWeight: showLineNumbers ? 'bold' : 'normal', border: showLineNumbers ? '2px solid #3b82f6' : '1px solid #475569' }} title={selectedDoc.original && documentView === 'formatted' ? 'Source line numbers are available in Plain text' : 'Stable source lines; numbering stays the same when text wraps or font size changes'} onClick={() => {
+                  <button className="mini-btn" aria-pressed={codingStripes} title="Show vertical code names and coloured stripes beside coded passages" style={{ fontWeight: codingStripes ? 'bold' : 'normal', border: codingStripes ? '2px solid #3b82f6' : '1px solid #475569' }} onClick={() => toggleCodingStripes(!codingStripes)}>Codes &amp; Strips</button>
+                  <button className="mini-btn" aria-pressed={showLineNumbers} disabled={!!selectedDoc.original && documentView === 'formatted'} style={{ fontWeight: showLineNumbers ? 'bold' : 'normal', border: showLineNumbers ? '2px solid #3b82f6' : '1px solid #475569' }} title={selectedDoc.original && documentView === 'formatted' ? 'Source line numbers are available in Plain text' : 'Stable source lines; numbering stays the same when text wraps or font size changes'} onClick={() => {
                     setShowLineNumbers(v => { localStorage.setItem('qda-source-lines', String(!v)); return !v; });
                   }}>Lines</button>
                 </div>
@@ -3444,16 +3471,16 @@ function openDocxCommentImport() {
                   </div>
                 )}
                 {editingDocId === selectedDoc.id && (
-  <div 
-    style={{ 
-      flex: 1, 
-      display: 'flex', 
-      flexDirection: 'column', 
-      gap: '12px', 
-      padding: '16px', 
-      boxSizing: 'border-box', 
-      width: '100%', 
-      height: '100%', 
+  <div
+    style={{
+      flex: 1,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '12px',
+      padding: '16px',
+      boxSizing: 'border-box',
+      width: '100%',
+      height: '100%',
       minHeight: 0 // Prevents flex child overflow collapsing
     }}
   >
@@ -3461,15 +3488,15 @@ function openDocxCommentImport() {
       value={draftContent}
       onChange={e => setDraftContent(e.target.value)}
       aria-label={`Edit document text: ${selectedDoc?.name || 'document'}`}
-      style={{ 
-        flex: 1, 
-        width: '100%', 
-        height: '100%', 
-        padding: '12px', 
-        fontSize: `${readerFontSize}px`, 
+      style={{
+        flex: 1,
+        width: '100%',
+        height: '100%',
+        padding: '12px',
+        fontSize: `${readerFontSize}px`,
         lineHeight: '1.5',
-        fontFamily: readerFontFamily || 'inherit', 
-        resize: 'none', 
+        fontFamily: readerFontFamily || 'inherit',
+        resize: 'none',
         boxSizing: 'border-box',
         borderRadius: '6px',
         border: '1px solid var(--border)',
@@ -3493,7 +3520,7 @@ function openDocxCommentImport() {
                   {refiningSegmentId && project.codedSegments.find(s => s.id === refiningSegmentId)?.docId === selectedDoc.id && <span className="selection-hint">Select a replacement passage, then choose Update passage. <button onClick={() => setRefiningSegmentId(null)}>Cancel adjustment</button></span>}
                   {pendingSelection && <ToolMenu label="Selection actions">
                     <button onClick={annotateSelection}>Add annotation</button>
-                    <button onClick={() => { setResearchSection('cases'); setResearchOpen(true); }}>Link to case</button>
+                    <button onClick={() => setCasePassage({docId:selectedDoc.id,start:pendingSelection.start,end:pendingSelection.end})}>Assign cases</button>
                     <button onClick={()=>createSelectionCode(true)}>Create in-vivo code</button>
                     <details><summary>Apply multiple codes</summary><div className="selection-code-list">{project.codes.map(c => <label key={c.id}><input type="checkbox" checked={multiCodes.includes(c.id)} onChange={e => setMultiCodes(e.target.checked ? [...multiCodes,c.id] : multiCodes.filter(id => id !== c.id))}/>{c.name}</label>)}</div><button disabled={!multiCodes.length} onClick={() => {
                       persist({ ...project,codedSegments:[...project.codedSegments,...multiCodes.filter(id => codesById.has(id)).map(codeId => ({ id:uid('seg'),docId:selectedDoc.id,codeId,start:pendingSelection.start,end:pendingSelection.end,text:selectedDoc.content.slice(pendingSelection.start,pendingSelection.end),createdAt:Date.now(),source:'manual' as const,coder:activeCoderName }))] });if (multiCodes.some(id => codesById.has(id))) timeTracking.markCoding();setMultiCodes([]);setPendingSelection(null);
@@ -3513,6 +3540,7 @@ function openDocxCommentImport() {
                     <textarea
                       id="document-memo-text"
                       autoFocus
+                      onFocus={e=>e.currentTarget.scrollIntoView({block:'nearest',inline:'nearest'})}
                       value={docNotesDraft}
                       onChange={e => setDocNotesDraft(e.target.value)}
                       onBlur={() => updateDocNotes(selectedDoc.id, docNotesDraft)}
@@ -3583,7 +3611,7 @@ function openDocxCommentImport() {
                 </div>
               </>
             ) : (
-              <div>No document selected</div>
+<div className="workspace-empty-state"><strong>{project.docs.length||project.images?.length?'Select a document or image on the left to begin.':'Add a document or image, then select it to begin.'}</strong>{!project.docs.length&&!project.images?.length&&<button onClick={()=>addDocs(null)}>Add document</button>}</div>
             )}
           </main>
 
@@ -3620,33 +3648,37 @@ function openDocxCommentImport() {
                 onClick={() => setSegmentPopup(null)}
               />
               <div
-                className="segment-popup"
+                ref={segmentPopupRef}
+                className={`segment-popup compact-passage-popup${editingNoteFor?' is-editing':''}`}
                 style={{ left: segmentPopup.x, top: segmentPopup.y, zIndex: 50 }}
                 onClick={e => e.stopPropagation()}
               >
-              <div className="segment-popup-title">Codes applied here</div>
+              <div className="segment-popup-heading"><strong>Codes applied here</strong><button className="mini-btn" aria-label="Close coded passage" onClick={()=>setSegmentPopup(null)}>Close</button></div>
               {segmentPopup.segments.map(snapshotSeg => {
                 const s = project.codedSegments.find(cs => cs.id === snapshotSeg.id);
                 if (!s) return null;
                 return (
-                <div key={s.id} className="segment-popup-row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                <div key={s.id} className="segment-popup-row passage-popup-entry">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span className="code-swatch" style={{ background: codesById.get(s.codeId)?.color }} />
-                    <span style={{ flex: 1 }}>
+                    <span className="passage-popup-code">
                       {codesById.get(s.codeId)?.name || 'Unknown code'}
-                      <span className="section-hint" style={{ marginLeft: 6, fontSize: 11 }}>Coded by: {normalizeCoderName(s.coder)}</span>
+                      <span className="passage-popup-coder">Coded by: {normalizeCoderName(s.coder)}</span>
                     </span>
                     <button className="mini-btn" onClick={() => toggleStarSegment(s.id)} title={s.starred ? 'Unstar' : 'Star as key quote'}>
                       {s.starred ? '⭐' : '☆'}
                     </button>
                     <button className="mini-btn" onClick={() => removeCodedSegment(s.id)}>Remove</button>
                   </div>
-
+                  <p className="passage-popup-quote" aria-label="Coded passage preview">{passagePreview(project.docs.find(d=>d.id===s.docId)?.content.slice(s.start,s.end)||s.text)}</p>
+                  <div className="passage-popup-cases"><small>Cases: {passageCaseIds(project,s).map(id=>project.cases?.find(c=>c.id===id)?.name).join(', ') || 'Unassigned'}</small>
+                  <button className="mini-btn" onClick={() => {setCasePassage({docId:s.docId,start:s.start,end:s.end});setSegmentPopup(null);}}>Assign cases</button></div>
                   {editingNoteFor === s.id ? (
                     <>
                       <textarea
                         className="modal-input"
-                        style={{ minHeight: 60, marginTop: 4 }}
+                        aria-label="Edit passage note"
+                        rows={5}
                         value={noteDraft}
                         onChange={e => setNoteDraft(e.target.value)}
                         autoFocus
@@ -3657,8 +3689,8 @@ function openDocxCommentImport() {
                       </div>
                     </>
                   ) : s.note ? (
-                    <div style={{ fontSize: 12, fontStyle: 'italic', opacity: 0.85, marginBottom: 6, display: 'flex', justifyContent: 'space-between', gap: 6, backgroundColor: 'rgba(0,0,0,0.05)', padding: '6px', borderRadius: '4px' }}>
-                      <span>📝 {s.note}</span>
+                    <div className="passage-popup-note">
+                      <span aria-label="Passage note preview">{notePreview(s.note)}</span>
                       <button className="mini-btn" onClick={() => { setEditingNoteFor(s.id); setNoteDraft(s.note || ''); }}>Edit</button>
                     </div>
                   ) : (
@@ -3673,7 +3705,6 @@ function openDocxCommentImport() {
                 </div>
                 );
               })}
-              <button className="close-popup" onClick={() => setSegmentPopup(null)}>Close</button>
               </div>
             </>
           )}
@@ -3739,7 +3770,7 @@ function openDocxCommentImport() {
             </>
           )}
         </div>
-      
+
 
       {tab === 'codebook' && (() => {
   const codePicker = <div className="code-picker">
@@ -3771,7 +3802,7 @@ function openDocxCommentImport() {
             <div style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', color: '#64748b', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
               Code Details
             </div>
-            
+
             <div>
               <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Code Name</label>
               <DebouncedCodeText
@@ -3787,9 +3818,9 @@ function openDocxCommentImport() {
                   <button
                     key={c}
                     className={`swatch-btn ${codebookCode.color === c ? 'active' : ''}`}
-                    style={{ 
-                      background: c, 
-                      width: '16px', height: '16px', 
+                    style={{
+                      background: c,
+                      width: '16px', height: '16px',
                       border: codebookCode.color === c ? '2px solid #000' : '1px solid transparent',
                       borderRadius: '3px', cursor: 'pointer', padding: 0
                     }}
@@ -3881,28 +3912,27 @@ function openDocxCommentImport() {
             </>}
             <label className="field-label" htmlFor="code-export-scope">Export contents</label>
             <select id="code-export-scope"
-              value={exportScope} 
+              value={exportScope}
               onChange={e => setExportScope(e.target.value as any)}
               style={{ width: '100%', padding: '6px', fontSize: '11px' }}
             >
               {Object.entries(SCOPE_LABELS).map(([key, label]) => (
                 <option key={key} value={key}>{label as string}</option>
               ))}
-              <option value="starred">Starred Excerpts</option>
             </select>
-            
+
             <div style={{ display: 'flex', gap: '4px' }}>
-              <button 
-                className="mini-btn" 
-                style={{ flex: 1, padding: '6px 4px' }} 
-                onClick={() => (exportScope as ExportScope | 'starred') === 'starred' ? handleExportStarredQuotes('csv') : handleExportCsv()}
+              <button
+                className="mini-btn"
+                style={{ flex: 1, padding: '6px 4px' }}
+                onClick={handleExportExcel}
               >
-                ⬇️ CSV
+                ⬇️ Excel
               </button>
-              <button 
-                className="mini-btn" 
-                style={{ flex: 1, padding: '6px 4px' }} 
-                onClick={() => (exportScope as ExportScope | 'starred') === 'starred' ? handleExportStarredQuotes('docx') : handleExportDocx()}
+              <button
+                className="mini-btn"
+                style={{ flex: 1, padding: '6px 4px' }}
+                onClick={handleExportDocx}
               >
                 ⬇️ DOCX
               </button>
@@ -3926,8 +3956,8 @@ function openDocxCommentImport() {
             📚 Codebook only (QDPX)
           </button>
 
-          <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleExportNotesCsv} title="Every note and memo as a spreadsheet">
-            📝 All notes &amp; memos (CSV)
+          <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleExportNotesExcel} title="Every note and memo as a spreadsheet">
+            📝 All notes &amp; memos (Excel)
           </button>
 
           <button className="mini-btn" style={{ padding: '6px 8px', width: '100%' }} onClick={handleExportManuscriptSkeleton} title="Word draft with code summaries and starred quotes">
@@ -3946,7 +3976,7 @@ function openDocxCommentImport() {
               </button>
               <button onClick={handleQdpxImport}>
                 <strong>REFI-QDA project (QDPX / QDC)…</strong>
-                <span>Sources, coding and codebook from NVivo, ATLAS.ti, MAXQDA or QualCoder.</span>
+                <span>Sources, coding and codebook from other qualitative analysis software.</span>
               </button>
               <button onClick={openDocxCommentImport}>
                 <strong>Word comment coding (DOCX)…</strong>
@@ -3971,10 +4001,10 @@ function openDocxCommentImport() {
       </aside>
 
       {/* 2. CENTER PANEL: Excerpts Only */}
-      <main className="panel center-panel" style={THEME_STYLES[readerTheme]}>
+      <main className="panel center-panel" data-reader-theme={readerTheme} style={THEME_STYLES[readerTheme]}>
         {codebookCode ? (
           <div className="codebook-excerpts">
-            
+
             {/* Header with Sort Dropdown */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #cbd5e1', paddingBottom: '8px', marginBottom: '16px' }}>
               <h3 style={{ margin: 0 }}>Excerpts · {codebookCode.name}</h3>
@@ -3990,8 +4020,8 @@ function openDocxCommentImport() {
                     ))}
                   </select>
                 )}
-                <select 
-                value={excerptSort} 
+                <select
+                value={excerptSort}
                 onChange={(e) => setExcerptSort(e.target.value)}
                 style={{ padding: '4px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1', backgroundColor: 'var(--bg-panel)' }}
               >
@@ -4019,8 +4049,8 @@ function openDocxCommentImport() {
                 }).map(seg => {
                   const doc = docsById.get(seg.docId);
                   return (
-                    <div 
-                      key={seg.id} 
+                    <div
+                      key={seg.id}
                       className="excerpt-card"
                       style={{
                         backgroundColor: readerTheme === 'dark' ? '#1e293b' : (readerTheme === 'white' ? '#ffffff' : '#fef3c7'),
@@ -4063,9 +4093,10 @@ function openDocxCommentImport() {
                           + Add note
                         </button>
                       )}
-                      
+
                       <div style={{ display: 'flex', gap: 6 }}>
                           <button className="mini-btn" onClick={() => goToExcerpt(seg)}>📍 Go to Document</button>
+                          <button className="mini-btn" onClick={() => setCasePassage({docId:seg.docId,start:seg.start,end:seg.end})}>Assign cases</button>
                           <button className="mini-btn" onClick={() => toggleStarSegment(seg.id)}>
                             {seg.starred ? '⭐ Starred' : '☆ Star'}
                           </button>
@@ -4082,10 +4113,10 @@ function openDocxCommentImport() {
   const image = (project.images || []).find(i => i.id === r.imageId);
   if (!image) return null;
   return (
-    <div 
-      key={r.id} 
-      className="excerpt-card" 
-      style={{ 
+    <div
+      key={r.id}
+      className="excerpt-card"
+      style={{
         display: 'flex', gap: 10, alignItems: 'flex-start',
         backgroundColor: readerTheme === 'dark' ? '#1e293b' : (readerTheme === 'white' ? '#ffffff' : '#fef3c7'),
         color: readerTheme === 'dark' ? '#f8fafc' : '#0f172a',
@@ -4116,7 +4147,7 @@ function openDocxCommentImport() {
         <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 4 }}>
           Coded by: {normalizeCoderName(r.coder)}
         </div>
-        
+
         {/* Editing Note UI for Images */}
         {editingNoteFor === r.id ? (
           <div style={{ marginBottom: 6 }}>
@@ -4159,7 +4190,7 @@ function openDocxCommentImport() {
 })}
           </div>
         ) : (
-          <div className="empty-hint center" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
+          <div className="empty-hint center" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'inherit' }}>
             Select a code on the right panel to review and edit.
           </div>
         )}
@@ -4167,33 +4198,33 @@ function openDocxCommentImport() {
 
       {/* 3. RIGHT PANEL: Code Toolbar, Search, & Sorted Tree */}
       <aside className="panel right-panel">
-        
-        <div style={{ 
-  display: 'flex', 
-  gap: '8px', 
-  alignItems: 'center', 
+
+        <div style={{
+  display: 'flex',
+  gap: '8px',
+  alignItems: 'center',
   marginBottom: '10px',
   flexWrap: 'nowrap' // Forces them to stay on the same line
 }}>
-  <button 
-    onClick={addRootCode} 
-    className="btn-primary" 
-    style={{ 
+  <button
+    onClick={addRootCode}
+    className="btn-primary"
+    style={{
       flex: '1', // Takes up remaining space
       padding: '4px 8px', // Smaller padding
-      fontSize: '13px', 
-      whiteSpace: 'nowrap' 
+      fontSize: '13px',
+      whiteSpace: 'nowrap'
     }}
   >
     + Add Root Code
   </button>
   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
     <span style={{ color: 'var(--text-dim)', fontSize: '12px' }}>↕</span>
-    <select 
-      value={sortOrder} 
+    <select
+      value={sortOrder}
       onChange={(e) => setSortOrder(e.target.value as any)}
-      style={{ 
-        padding: '2px 6px', 
+      style={{
+        padding: '2px 6px',
         fontSize: '12px',
         border: '1px solid var(--border)',
         borderRadius: '4px',
@@ -4316,13 +4347,13 @@ function openDocxCommentImport() {
   </div>
 )}
 
-{tab === 'memos' && <ResearchWorkspace memoTarget={memoTarget} onMemoTargetHandled={()=>setMemoTarget(null)} memoRequest={memoRequest} onMemoRequestHandled={()=>setMemoRequest(null)} embedded project={project} section="notes" onSection={()=>{}} onClose={()=>setTab('workspace')} onChange={persist} onNavigate={()=>{}} onAdjust={()=>{}} onMemoSource={openMemoSource} onManuscript={handleExportManuscriptSkeleton} actor={activeCoderName}/>}
+{(tab==='memos'||memoProjectId===project.id)&&<RetainedMemoBook key={'memos-'+project.id} active={tab==='memos'} memoTarget={memoTarget} onMemoTargetHandled={()=>setMemoTarget(null)} memoRequest={memoRequest} onMemoRequestHandled={()=>setMemoRequest(null)} embedded project={project} section="notes" onSection={()=>{}} onClose={()=>setTab('workspace')} onChange={persist} onNavigate={()=>{}} onAdjust={()=>{}} onMemoSource={openMemoSource} onManuscript={handleExportManuscriptSkeleton} actor={activeCoderName}/>}
 
-{tab === 'analysis' && (
-  <AnalysisTab onProjectChange={persist} onOpenIcrExcerpt={id=>{const seg=project.codedSegments.find(s=>s.id===id);if(seg){goToExcerpt(seg);return;}const region=project.codedRegions?.find(r=>r.id===id);if(region){setTab('workspace');setSelectedDocId(null);setSelectedImageId(region.imageId);}}} onIcrHelp={()=>{setHelpRequest({anchor:'icr-calculations-and-reporting',nonce:Date.now()});setTab('help');}} onIcrSettings={settings=>persist({...project,icrComparison:settings})} sourceTarget={memoSourceTarget} project={project} onExportReport={handleExportReport} onSaveCell={updateFrameworkCell} onSaveRelationNote={updateRelationNote} onDeleteSegments={deleteSegmentsByIds} showToast={showToast} />
+{(tab === 'analysis'||analysisProjectId===project.id) && (
+  <RetainedAnalysisTab key={'analysis-'+project.id} active={tab==='analysis'} onProjectChange={persist} onOpenIcrExcerpt={id=>{const seg=project.codedSegments.find(s=>s.id===id);if(seg){rememberOrigin();goToExcerpt(seg);return;}const region=project.codedRegions?.find(r=>r.id===id);if(region){rememberOrigin();setTab('workspace');setSelectedDocId(null);setSelectedImageId(region.imageId);}}} onIcrHelp={()=>{rememberOrigin();setHelpRequest({anchor:'icr-calculations-and-reporting',nonce:Date.now()});setTab('help');}} onIcrSettings={settings=>persist({...project,icrComparison:settings})} sourceTarget={memoSourceTarget} project={project} onExportReport={handleExportReport} onSaveCell={updateFrameworkCell} onSaveRelationNote={updateRelationNote} onDeleteSegments={deleteSegmentsByIds} showToast={showToast} />
 )}
 
-<div
+{(tab==='codemap'||mapProjectId===project.id)&&(<div
   className="panel codemap-panel"
   style={{
     display: tab === 'codemap' ? 'flex' : 'none',
@@ -4331,13 +4362,13 @@ function openDocxCommentImport() {
     minHeight: 0
   }}
 >
-    <CodeMap
+    <RetainedCodeMap key={'map-'+project.id}
       active={tab === 'codemap'}
       projectId={project.id}
       projectName={project.name}
       docs={project.docs}
       analysisPeriods={project.analysisPeriods}
-      onOpenDocument={id=>{setTab('workspace');setSelectedDocId(id);setSelectedImageId(null);}}
+      onOpenDocument={id=>{rememberOrigin();setTab('workspace');setSelectedDocId(id);setSelectedImageId(null);}}
       mapDesign={project.mapDesign}
       mapView={project.mapView}
       drafts={project.mapDrafts||[]}
@@ -4354,8 +4385,8 @@ function openDocxCommentImport() {
       onDeleteDraft={id=>persist({...project,mapDrafts:project.mapDrafts?.filter(d=>d.id!==id)})}
       onApplySuggestion={suggestion=>persist(applyCodeMapSuggestion(project,suggestion))}
       onResizeCanvas={(width,height,updates)=>{const patches=new Map(updates.map(u=>[u.id,u.patch]));const old=project.mapDesign;const sx=width/(old?.width||1600),sy=height/(old?.height||1000);persist({...project,codes:project.codes.map(c=>patches.has(c.id)?{...c,...patches.get(c.id)}:c),mapDesign:{...(old||{mode:'manual' as const,maxLinks:0,rootIds:[]}),width,height},mapAnnotations:project.mapAnnotations?.map(a=>({...a,x:a.x*sx,y:a.y*sy,...(a.width!==undefined?{width:a.width*sx}:{}),...(a.height!==undefined?{height:a.height*sy}:{}),...(a.x2!==undefined?{x2:a.x2*sx}:{}),...(a.y2!==undefined?{y2:a.y2*sy}:{})}))});}}
-      onOpenCode={id=>{setCodebookSelectedCodeId(id);setCodebookTask('details');setTab('codebook');}}
-      onOpenCodeMemo={id=>{setMemoTarget({id:'note:code:'+id,nonce:Date.now()});setTab('memos');}}
+      onOpenCode={id=>{rememberOrigin();setCodebookSelectedCodeId(id);setCodebookTask('details');setTab('codebook');}}
+      onOpenCodeMemo={id=>{rememberOrigin();setMemoTarget({id:'note:code:'+id,nonce:Date.now()});setTab('memos');}}
       codes={project.codes}
       codedSegments={project.codedSegments}
       researchProject={project}
@@ -4373,7 +4404,7 @@ function openDocxCommentImport() {
       onUpdateHiddenMapCodes={updateHiddenMapCodes}
       onShowToast={showToast}
     />
-</div>
+</div>)}
 
 {importReport && <div className="research-overlay" onKeyDown={e => { if(e.key === 'Escape') setImportReport(null); if(e.key === 'Tab') e.preventDefault(); }}><section className="project-export-dialog" role="dialog" aria-modal="true" aria-labelledby="import-report-title"><h2 id="import-report-title">{importReport.title}</h2><p style={{whiteSpace:'pre-wrap'}}>{importReport.message}</p><button autoFocus onClick={() => setImportReport(null)}>Close import report</button></section></div>}
 {projectExportOpen && <ProjectExportDialog getProfileBackup={timeTracking.exportProfile} project={project} onClose={() => setProjectExportOpen(false)} onMessage={showToast} />}
@@ -4421,6 +4452,12 @@ function openDocxCommentImport() {
     </div>
   </ModalFrame>
 )}
+{casePassage && (
+  <ModalFrame id="assign-passage-cases" title="Assign cases to passage" onCancel={() => setCasePassage(null)}>
+    <PassageCasePicker project={project} passage={casePassage} onCancel={() => setCasePassage(null)} onManage={() => {setCasePassage(null);setResearchSection('cases');setResearchOpen(true);}}
+      onSave={changes => {const current=projectRef.current;if(current?.id!==project.id)return;try{persist(updatePassageCases(current,casePassage,changes));setCasePassage(null);showToast('Passage case assignments saved.');}catch(e){showToast(String(e));}}} />
+  </ModalFrame>
+)}
 {confirmDialog && (
   <ModalFrame
     id="confirm-dialog-title"
@@ -4464,12 +4501,13 @@ function openDocxCommentImport() {
 </div>
   );
 }
-function FrameworkCellInput({ initialValue, onSave }: { initialValue: string; onSave: (text: string) => void }) {
+function FrameworkCellInput({ initialValue, onSave, inputId }: { initialValue: string; onSave: (text: string) => void; inputId?: string }) {
   const [value, setValue] = useState(initialValue);
   useEffect(() => setValue(initialValue), [initialValue]);
   return (
     <textarea
       className="framework-cell-input"
+      id={inputId}
       value={value}
       onChange={e => setValue(e.target.value)}
       onBlur={() => { if (value !== initialValue) onSave(value); }}
@@ -4490,14 +4528,14 @@ function AnalysisExportButtons({
    *  and without a caption the two identical CSV/DOCX pairs cannot be told apart. */
   label?: string;
 }) {
-  async function doExport(kind: 'csv' | 'docx') {
-    const path = kind === 'csv'
-      ? await window.qv.exportText({
-          title: `Export ${title} (CSV)`, 
-          defaultName: `${filenameBase}.csv`, 
+  async function doExport(kind: 'xlsx' | 'docx') {
+    const path = kind === 'xlsx'
+      ? await saveExport({
+          title: `Export ${title} (Excel)`,
+          defaultName: `${filenameBase}.xlsx`,
           content: toCsv(headers, rows.map(r => r.map(String))),
-          extension: 'csv',
-          filterName: 'CSV file'
+          extension:'xlsx',
+          filterName: 'Excel workbook'
         })
       : await window.qv.exportDocxTable({
           kind: 'table',
@@ -4512,10 +4550,10 @@ function AnalysisExportButtons({
     <div className="export-group">
       {label && <span className="export-group-label">{label}</span>}
       <button
-        title={`Export ${title} as CSV`}
-        aria-label={`Export ${title} as CSV`}
-        onClick={() => doExport('csv')}
-      >⬇️ CSV</button>
+        title={`Export ${title} as Excel`}
+        aria-label={`Export ${title} as Excel`}
+        onClick={() => doExport('xlsx')}
+      >⬇️ Excel</button>
       <button
         title={`Export ${title} as Word`}
         aria-label={`Export ${title} as Word`}
@@ -4525,8 +4563,18 @@ function AnalysisExportButtons({
   );
 }
 
-function AnalysisTab({ onProjectChange,onOpenIcrExcerpt,onIcrHelp,onIcrSettings, sourceTarget, project, onExportReport, onSaveCell, onSaveRelationNote, onDeleteSegments, showToast }: { onProjectChange:(p:Project)=>void;onOpenIcrExcerpt:(id:string)=>void;onIcrHelp:()=>void;onIcrSettings:(settings:import('./lib/icrComparisons').IcrComparisonSettings)=>void; sourceTarget?: {kind:string;id:string;nonce:number} | null; project: Project; onExportReport: (extras?: ReportExtras) => void; onSaveCell: (docId: ID, codeId: ID, text: string) => void; onSaveRelationNote: (codeAId: ID, codeBId: ID, note: string) => void; onDeleteSegments: (ids: ID[]) => void; showToast: (msg: string) => void }) {
-  const [subTab, setSubTab] = useState<'frequency' | 'docMatrix' | 'coMatrix' | 'framework' | 'words' | 'kwic' | 'icr' | 'consensus'>('frequency');
+const RetainedCodeMap=React.memo(CodeMap,(before,after)=>!before.active&&!after.active&&before.projectId===after.projectId);
+const RetainedMemoBook=React.memo(ResearchWorkspace,(before,after)=>!before.active&&!after.active&&before.project.id===after.project.id);
+
+const RetainedAnalysisTab=React.memo(AnalysisTab,(before,after)=>!before.active&&!after.active&&before.project.id===after.project.id);
+
+function AnalysisTab({ active, onProjectChange,onOpenIcrExcerpt,onIcrHelp,onIcrSettings, sourceTarget, project, onExportReport, onSaveCell, onSaveRelationNote, onDeleteSegments, showToast }: { active:boolean;onProjectChange:(p:Project)=>void;onOpenIcrExcerpt:(id:string)=>void;onIcrHelp:()=>void;onIcrSettings:(settings:import('./lib/icrComparisons').IcrComparisonSettings)=>void; sourceTarget?: {kind:string;id:string;nonce:number} | null; project: Project; onExportReport: (extras?: ReportExtras) => void; onSaveCell: (docId: ID, codeId: ID, text: string) => void; onSaveRelationNote: (codeAId: ID, codeBId: ID, note: string) => void; onDeleteSegments: (ids: ID[]) => void; showToast: (msg: string) => void }) {
+  const analysisRoot=useRef<HTMLDivElement>(null);
+  const rememberScroll=useAnalysisScrollMemory(analysisRoot,active);
+  const openSupportingSource=(id:string)=>{rememberScroll();onOpenIcrExcerpt(id);};
+  const [subTab, setSubTab] = useState<'home'|'demographics'|'frequency' | 'docMatrix' | 'coMatrix' | 'framework' | 'words' | 'kwic' | 'icr' | 'consensus'>('home');
+  const [frameworkUnit,setFrameworkUnit] = useState<'cases'|'documents'>('cases');
+  useEffect(()=>{if(sourceTarget?.kind==='case-framework')setFrameworkUnit('cases');if(sourceTarget?.kind==='framework')setFrameworkUnit('documents');},[sourceTarget]);
   const codesByIdLocal = useMemo(() => new Map(project.codes.map(c => [c.id, c])), [project.codes]);
 
   useEffect(()=>{if(sourceTarget?.kind==='documentMatrix')setSubTab('docMatrix');if(sourceTarget?.kind==='cooccurrence')setSubTab('coMatrix');if(sourceTarget?.kind==='framework'||sourceTarget?.kind==='case-framework')setSubTab('framework');if(sourceTarget?.kind==='relationship')setSubTab('coMatrix');},[sourceTarget]);
@@ -4599,28 +4647,28 @@ function AnalysisTab({ onProjectChange,onOpenIcrExcerpt,onIcrHelp,onIcrSettings,
   const icrEffA = (icrCoderA && icrSelCoders.includes(icrCoderA) ? icrCoderA : icrSelCoders[0]) || '';
   const icrEffB = (icrCoderB && icrSelCoders.includes(icrCoderB) ? icrCoderB : (icrSelCoders[1] ?? icrSelCoders[0])) || '';
   const icrPair = useMemo(
-    () => (icrEffA && icrEffB && icrEffA !== icrEffB ? computePairwiseIcr(project, icrEffA, icrEffB, icrScope) : null),
-    [project, icrEffA, icrEffB, icrScope]
+    () => (subTab==='icr' && icrEffA && icrEffB && icrEffA !== icrEffB ? computePairwiseIcr(project, icrEffA, icrEffB, icrScope) : null),
+    [project, icrEffA, icrEffB, icrScope,subTab]
   );
   const icrFleiss = useMemo(
-    () => (icrSelCoders.length >= 3 ? computeFleissIcr(project, icrSelCoders, icrScope) : null),
-    [project, icrSelCoders, icrScope]
+    () => (subTab==='icr' && icrSelCoders.length >= 3 ? computeFleissIcr(project, icrSelCoders, icrScope) : null),
+    [project, icrSelCoders, icrScope,subTab]
   );
   const icrBinary = useMemo(
-    () => (icrSelCoders.length >= 2 ? computeBinaryAlpha(project, icrSelCoders, icrScope) : null),
-    [project, icrSelCoders, icrScope]
+    () => (subTab==='icr' && icrSelCoders.length >= 2 ? computeBinaryAlpha(project, icrSelCoders, icrScope) : null),
+    [project, icrSelCoders, icrScope,subTab]
   );
   const icrCu = useMemo(
-    () => (icrSelCoders.length >= 2 && icrScope.docIds.length > 0 ? computeCuAlpha(project, icrSelCoders, icrScope.docIds) : null),
-    [project, icrSelCoders, icrScope]
+    () => (subTab==='icr' && icrSelCoders.length >= 2 && icrScope.docIds.length > 0 ? computeCuAlpha(project, icrSelCoders, icrScope.docIds) : null),
+    [project, icrSelCoders, icrScope,subTab]
   );
   const consensusSegById = useMemo(() => new Map(project.codedSegments.map(s => [s.id, s])), [project.codedSegments]);
   // Consensus review: only quotes at least two scoped coders coded. A quote one
   // coder marked alone has nobody to disagree with, so it is not an
   // adjudication item and is counted separately for disclosure.
   const consensusAllUnits = useMemo(
-    () => (icrSelCoders.length >= 2 && icrScope.docIds.length > 0 ? buildCodingUnits(project, icrSelCoders, icrScope.docIds) : []),
-    [project, icrSelCoders, icrScope]
+    () => (subTab==='consensus' && icrSelCoders.length >= 2 && icrScope.docIds.length > 0 ? buildCodingUnits(project, icrSelCoders, icrScope.docIds) : []),
+    [project, icrSelCoders, icrScope,subTab]
   );
   const consensusUnits = useMemo(
     () => consensusAllUnits.filter(u => u.distinctCoders >= 2),
@@ -4726,9 +4774,9 @@ function AnalysisTab({ onProjectChange,onOpenIcrExcerpt,onIcrHelp,onIcrSettings,
   }
 
   const [freqSort, setFreqSort] = useState<FreqSortKey>('groupedNameAsc');
-  const freqTree = useMemo(() => sortFrequencyTree(project, freqSort), [project, freqSort]);
+  const freqTree = useMemo(() => subTab==='frequency'?sortFrequencyTree(project, freqSort):[], [project.codes,project.codedSegments, freqSort,subTab]);
 
-  const docMatrix = useMemo(() => codeDocumentMatrix(project), [project]);
+  const docMatrix = useMemo(() => subTab==='docMatrix'?codeDocumentMatrix(project):new Map<string,Map<string,number>>(), [project.codes,project.codedSegments,subTab]);
   const [docMatrixCodeSort, setDocMatrixCodeSort] = useState<NameCountSort>('nameAsc');
   const [docMatrixDocSort, setDocMatrixDocSort] = useState<NameCountSort>('nameAsc');
   const docMatrixCodeTotal = (codeId: ID) => project.docs.reduce((sum, d) => sum + (docMatrix.get(codeId)?.get(d.id) || 0), 0);
@@ -4742,7 +4790,7 @@ function AnalysisTab({ onProjectChange,onOpenIcrExcerpt,onIcrHelp,onIcrSettings,
     [project.docs, docMatrix, docMatrixDocSort]
   );
 
-  const coMatrix = useMemo(() => codeCooccurrenceMatrix(project), [project]);
+  const coMatrix = useMemo(() => subTab==='coMatrix'?codeCooccurrenceMatrix(project):new Map<string,Map<string,number>>(), [project.codes,project.codedSegments,subTab]);
   const activeCoocCodes = useMemo(
     () => project.codes.filter(code =>
       project.codes.some(other => other.id !== code.id && (coMatrix.get(code.id)?.get(other.id) || 0) > 0)
@@ -4750,6 +4798,7 @@ function AnalysisTab({ onProjectChange,onOpenIcrExcerpt,onIcrHelp,onIcrSettings,
     [project.codes, coMatrix]
   );
   const [coocSort, setCoocSort] = useState<NameCountSort>('nameAsc');
+  const [coocEvidenceLimit,setCoocEvidenceLimit]=useState(50);
   const coocTotal = (codeId: ID) => activeCoocCodes.reduce((sum, c) => sum + (c.id === codeId ? 0 : (coMatrix.get(codeId)?.get(c.id) || 0)), 0);
   const sortedCoocCodes = useMemo(
     () => sortByNameOrCount(activeCoocCodes, c => c.name, c => coocTotal(c.id), coocSort),
@@ -4762,6 +4811,7 @@ function AnalysisTab({ onProjectChange,onOpenIcrExcerpt,onIcrHelp,onIcrSettings,
   }, [project.relationNotes]);
   const [coocView, setCoocView] = useState<{ codeAId: ID; codeBId: ID; codeAName: string; codeBName: string; excerpts: Array<{ docName: string; text: string }> } | null>(null);
 
+  useEffect(()=>setCoocEvidenceLimit(50),[coocView?.codeAId,coocView?.codeBId]);
   useEffect(()=>{if(sourceTarget?.kind!=='relationship')return;const note=project.relationNotes?.find(n=>n.id===sourceTarget.id);if(!note)return;setCoocView({codeAId:note.codeAId,codeBId:note.codeBId,codeAName:codesByIdLocal.get(note.codeAId)?.name||'Unavailable code',codeBName:codesByIdLocal.get(note.codeBId)?.name||'Unavailable code',excerpts:findCooccurringExcerpts(project,note.codeAId,note.codeBId)});},[sourceTarget]);
   useEffect(()=>{if(sourceTarget?.kind==='relationship')document.querySelector<HTMLTextAreaElement>('.cooc-memo-panel textarea')?.focus();},[coocView]);
   const frameworkRows = useMemo(() => {const roots=childCodes(project.codes,null);const target=sourceTarget?.kind==='framework'?project.frameworkCells?.find(f=>f.id===sourceTarget.id):undefined;const code=project.codes.find(c=>c.id===target?.codeId);return code&&!roots.some(c=>c.id===code.id)?[...roots,code]:roots;}, [project.codes,sourceTarget,project.frameworkCells]);
@@ -4783,6 +4833,17 @@ function AnalysisTab({ onProjectChange,onOpenIcrExcerpt,onIcrHelp,onIcrSettings,
     [project.docs, frameworkCellMap, fwColSort]
   );
 
+  const analysisViews=[
+    {id:'demographics',name:'Demographics',text:'Participant attributes and demographic tables by source.'},
+    {id:'frequency',name:'Frequency',text:'Direct and nested coding counts.'},
+    {id:'docMatrix',name:'Documents',text:'Compare codes across documents.'},
+    {id:'coMatrix',name:'Co-occurrence',text:'Explore overlapping coding and relationship memos.'},
+    {id:'framework',name:'Framework',text:'Summarise cases or documents across themes.'},
+    {id:'words',name:'Word frequencies',text:'Count words in the project text.'},
+    {id:'kwic',name:'KWIC',text:'Read a keyword in its surrounding context.'},
+    {id:'icr',name:'ICR',text:'Calculate and preserve coder agreement statistics.'},
+    {id:'consensus',name:'Consensus',text:'Review jointly coded passages and disagreements.'}
+  ] as const;
   const SORT_OPTIONS = (
     <>
       <option value="nameAsc">A → Z</option>
@@ -4793,10 +4854,10 @@ function AnalysisTab({ onProjectChange,onOpenIcrExcerpt,onIcrHelp,onIcrSettings,
   );
 
   return (
-    <div className="analysis-panel panel">
+    <AnalysisActivityContext.Provider value={active}><div ref={analysisRoot} onScrollCapture={rememberScroll} className="analysis-panel panel" style={{display:active?undefined:'none'}} aria-hidden={!active}>
       <div className="analysis-header">
-        <h2>Analysis Dashboard</h2>
-        <button onClick={() => onExportReport({
+        <div className="analysis-title-group"><h2>{subTab==='home'?'Analysis':analysisViews.find(v=>v.id===subTab)?.name}</h2>{subTab!=='home'&&<IconButton icon="grid" label="All analysis types" onClick={()=>setSubTab('home')}/>}</div>
+        {subTab==='home'&&<IconButton icon="download" label="HTML Report" onClick={() => onExportReport({
           icr: { coders: icrSelCoders, scope: icrScope, coderA: icrEffA, coderB: icrEffB },
           wordFrequencies: wordFreqs,
           stopWordsText:wordFreqSettings?.stopWords||stopWordsText,
@@ -4804,20 +4865,11 @@ function AnalysisTab({ onProjectChange,onOpenIcrExcerpt,onIcrHelp,onIcrSettings,
           kwicKeyword: activeSearch,
           kwicWindow,
           kwicResults
-        })}>⬇️ HTML Report</button>
+        })}/>}
       </div>
 
-      <nav className="subtabs analysis-navigation" aria-label="Analysis views">
-        {[
-          { label: 'Coding', views: [['frequency', 'Frequency', 'Coding Frequency'], ['docMatrix', 'Documents', 'Code × Document Matrix'], ['coMatrix', 'Co-occurrence', 'Code Co-occurrence Matrix'], ['framework', 'Framework', 'Framework Matrix']] },
-          { label: 'Text', views: [['words', 'Word frequencies', 'Word Frequencies'], ['kwic', 'KWIC', 'Keyword in Context']] },
-          { label: 'Team', views: [['icr', 'ICR', 'Inter-Coder Reliability'], ['consensus', 'Consensus', 'Consensus']] }
-        ].map(group => <div key={group.label} className="analysis-nav-group">
-          <span>{group.label}</span>
-          {group.views.map(([id, label, title]) => <button key={id} title={title} aria-current={subTab === id ? 'page' : undefined}
-            className={`subtab-btn ${subTab === id ? 'active' : ''}`} onClick={() => setSubTab(id as typeof subTab)}>{label}</button>)}
-        </div>)}
-      </nav>
+      {subTab==='home'&&<div className="analysis-card-grid visualization-grid">{analysisViews.map(view=><button className="analysis-type-card visualization-card" key={view.id} aria-label={view.name} onClick={()=>setSubTab(view.id)}><AnalysisIcon type={view.id}/><strong>{view.name}</strong><span>{view.text}</span></button>)}</div>}
+      {subTab==='demographics'&&<DemographicsPanel project={project} onMessage={showToast} onChange={onProjectChange}/>}
 
       {subTab === 'frequency' && (
         <section>
@@ -4882,17 +4934,17 @@ function AnalysisTab({ onProjectChange,onOpenIcrExcerpt,onIcrHelp,onIcrSettings,
               showToast={showToast}
             />
           </div>
-          <div className="matrix-wrap">
+          <MatrixViewport label="Code document matrix" rows={sortedDocMatrixCodes} columns={sortedDocMatrixDocs}>
             <table className="matrix-table">
               <thead>
                 <tr>
                   <th />
-                  {sortedDocMatrixDocs.map(d => <th key={d.id}>{d.name}</th>)}
+                  {sortedDocMatrixDocs.map(d => <th key={d.id} data-matrix-column={d.id}>{d.name}</th>)}
                 </tr>
               </thead>
               <tbody>
                 {sortedDocMatrixCodes.map(code => (
-                  <tr key={code.id}>
+                  <tr key={code.id} data-matrix-row={code.id}>
                     <td className="matrix-code-cell"><span className="code-swatch" style={{ background: code.color }} />{code.name}</td>
                     {sortedDocMatrixDocs.map(d => (
                       <td key={d.id}>{docMatrix.get(code.id)?.get(d.id) || 0}</td>
@@ -4902,7 +4954,7 @@ function AnalysisTab({ onProjectChange,onOpenIcrExcerpt,onIcrHelp,onIcrSettings,
               </tbody>
             </table>
             {project.codes.length === 0 && <div className="empty-hint">No codes yet.</div>}
-          </div>
+          </MatrixViewport>
         </section>
       )}
 
@@ -4941,27 +4993,31 @@ function AnalysisTab({ onProjectChange,onOpenIcrExcerpt,onIcrHelp,onIcrSettings,
           </div>
 
           <div className="cooc-grid">
-            <div className="cooc-matrix-panel" style={{ width: coocView ? '50%' : '100%' }}>
+            <div className="cooc-matrix-panel">
               {sortedCoocCodes.length === 0 ? (
                 <div className="empty-hint">
                   No overlapping codes yet — co-occurrence appears once two different codes are applied to the exact same excerpt.
                 </div>
               ) : (
-                <div className="matrix-wrap">
+                <MatrixViewport label="Co-occurrence matrix" rows={sortedCoocCodes} columns={sortedCoocCodes}>
                   <table className="matrix-table">
                     <thead>
                       <tr>
                         <th />
-                        {sortedCoocCodes.map(c => <th key={c.id}>{c.name}</th>)}
+                        {sortedCoocCodes.map(c => <th key={c.id} data-matrix-column={c.id}>{c.name}</th>)}
                       </tr>
                     </thead>
                     <tbody>
                       {sortedCoocCodes.map(rowCode => (
-                        <tr key={rowCode.id}>
+                        <tr key={rowCode.id} data-matrix-row={rowCode.id}>
                           <td className="matrix-code-cell"><span className="code-swatch" style={{ background: rowCode.color }} />{rowCode.name}</td>
                           {sortedCoocCodes.map(colCode => (
                             <td
                               key={colCode.id}
+                              tabIndex={rowCode.id===colCode.id?undefined:0} role={rowCode.id===colCode.id?undefined:'button'}
+                              aria-label={rowCode.name+' × '+colCode.name+': '+(coMatrix.get(rowCode.id)?.get(colCode.id)||0)+' shared excerpts'}
+                              onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.currentTarget.click();}}}
+                              data-selected={coocView&&[coocView.codeAId,coocView.codeBId].includes(rowCode.id)&&[coocView.codeAId,coocView.codeBId].includes(colCode.id)&&rowCode.id!==colCode.id?'true':undefined}
                               className={rowCode.id === colCode.id ? 'diag-cell' : 'matrix-cell-clickable'}
                               onClick={() => {
                                 if (rowCode.id === colCode.id) return;
@@ -4982,51 +5038,34 @@ function AnalysisTab({ onProjectChange,onOpenIcrExcerpt,onIcrHelp,onIcrSettings,
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </MatrixViewport>
               )}
             </div>
 
             {coocView && (
-              <>
-                <div className="cooc-excerpts-panel">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                    <h3 style={{ margin: 0 }}>{coocView.codeAName} × {coocView.codeBName}</h3>
-                    <button className="mini-btn" onClick={() => setCoocView(null)}>Close</button>
-                  </div>
-                  <div className="section-hint" style={{ margin: '4px 0 10px' }}>
-                    {coocView.excerpts.length} shared excerpt{coocView.excerpts.length === 1 ? '' : 's'}
-                  </div>
-                  {coocView.excerpts.length === 0 ? (
-                    <div className="empty-hint">No shared excerpts.</div>
-                  ) : (
-                    coocView.excerpts.map((e, i) => (
-                      <div key={i} className="excerpt-card" style={{ marginBottom: 8 }}>
-                        <div className="excerpt-doc">{e.docName}</div>
-                        <div className="excerpt-text">"{e.text}"</div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
+              <AnalysisDrawer name="Co-occurrence editor" title={coocView.codeAName+' × '+coocView.codeBName} subtitle="RELATIONSHIP & EVIDENCE" onClose={()=>setCoocView(null)}>
                 <div className="cooc-memo-panel">
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-dim)', marginBottom: 4 }}>
-                    Relationship memo
-                  </label>
-                  <FrameworkCellInput
-                    initialValue={relationNotesMap.get(`${coocView.codeAId}::${coocView.codeBId}`) || ''}
-                    onSave={text => onSaveRelationNote(coocView.codeAId, coocView.codeBId, text)}
-                  />
+                  <label htmlFor="cooc-relationship-memo">Relationship memo</label>
+                  <FrameworkCellInput inputId="cooc-relationship-memo" key={coocView.codeAId+'::'+coocView.codeBId} initialValue={relationNotesMap.get(`${coocView.codeAId}::${coocView.codeBId}`)||''} onSave={text=>onSaveRelationNote(coocView.codeAId,coocView.codeBId,text)}/>
+                  <p className="section-hint">Describe the connection between these themes. Saves when you leave the field.</p>
                 </div>
-              </>
+                <div className="cooc-excerpts-panel">
+                  <h4>Supporting evidence</h4><p className="section-hint">{coocView.excerpts.length} shared excerpt{coocView.excerpts.length===1?'':'s'}</p>
+                  {!coocView.excerpts.length&&<p className="empty-hint">No shared excerpts.</p>}
+                  {coocView.excerpts.slice(0,coocEvidenceLimit).map((e,i)=><article key={i} className="case-framework-evidence excerpt-card"><strong className="excerpt-doc">{e.docName}</strong><p className="excerpt-text">{e.text}</p></article>)}
+                  {coocView.excerpts.length>coocEvidenceLimit&&<button onClick={()=>setCoocEvidenceLimit(n=>n+50)}>Show next 50 excerpts</button>}
+                </div>
+              </AnalysisDrawer>
             )}
           </div>
         </section>
       )}
 
       {subTab === 'framework' && (
-        <section><CaseFrameworkPanel focusTarget={sourceTarget?.kind==='case-framework'?sourceTarget:undefined} project={project} onChange={onProjectChange} onOpen={onOpenIcrExcerpt} onMessage={showToast}/>
-          <div className="sort-row">
-            <span className="section-hint">One short summary per theme, per case. Click a cell to write or edit — saves when you click away.</span>
+        <section className="framework-analysis-section">
+          <div className="framework-analysis-toolbar">
+          <label className="framework-unit-control">Framework by <select aria-label="Framework unit" value={frameworkUnit} onChange={e=>setFrameworkUnit(e.target.value as 'cases'|'documents')}><option value="cases">Cases / participants</option><option value="documents">Documents</option></select></label>
+          {frameworkUnit==='documents'&&(          <div className="sort-row">
             <label>Sort themes</label>
             <select aria-label="Sort themes" value={fwRowSort} onChange={e => setFwRowSort(e.target.value as NameCountSort)}>
               <option value="nameAsc">A → Z</option>
@@ -5052,36 +5091,9 @@ function AnalysisTab({ onProjectChange,onOpenIcrExcerpt,onIcrHelp,onIcrSettings,
               showToast={showToast}
             />
           </div>
-          <div className="matrix-wrap">
-            <table className="matrix-table framework-matrix-table">
-              <thead>
-                <tr>
-                  <th>Theme</th>
-                  {sortedFrameworkDocs.map(d => <th key={d.id}>{d.name}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {sortedFrameworkRows.map(code => (
-                  <tr key={code.id}>
-                    <td className="matrix-code-cell"><span className="code-swatch" style={{ background: code.color }} />{code.name}</td>
-                    {sortedFrameworkDocs.map(d => {
-                      const existing = frameworkCellMap.get(`${d.id}::${code.id}`);
-                      return (
-                        <td key={d.id} id={existing ? 'analysis-memo-'+existing.id : undefined} className="framework-cell">
-                          <FrameworkCellInput
-                            initialValue={existing?.text || ''}
-                            onSave={text => onSaveCell(d.id, code.id, text)}
-                          />
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {sortedFrameworkRows.length === 0 && <div className="empty-hint">No top-level (theme) codes yet — add a root code to use the framework matrix.</div>}
-            {project.docs.length === 0 && <div className="empty-hint">No documents yet.</div>}
+)}
           </div>
+          {frameworkUnit==='cases' ? <CaseFrameworkPanel focusTarget={sourceTarget?.kind==='case-framework'?sourceTarget:undefined} project={project} onChange={onProjectChange} onOpen={openSupportingSource} onMessage={showToast}/> : <DocumentFrameworkPanel project={project} rows={sortedFrameworkRows} docs={sortedFrameworkDocs} cells={frameworkCellMap} onSave={onSaveCell} onOpen={openSupportingSource} focusTarget={sourceTarget?.kind==='framework'?sourceTarget:undefined}/>}
         </section>
       )}
 
@@ -5188,7 +5200,7 @@ function AnalysisTab({ onProjectChange,onOpenIcrExcerpt,onIcrHelp,onIcrSettings,
         </section>
       )}
 
-      {subTab === 'icr' && <IcrWorkspace onProjectChange={onProjectChange} onOpen={onOpenIcrExcerpt} project={project} coders={icrSelCoders} scope={icrScope} scopePicker={renderIcrScopePicker()} pair={icrPair} fleiss={icrFleiss} binary={icrBinary} cu={icrCu} coderA={icrEffA} coderB={icrEffB} onCoderA={setIcrCoderA} onCoderB={setIcrCoderB} onSettings={onIcrSettings} onHelp={onIcrHelp} onMessage={showToast}/>}
+      {subTab === 'icr' && <IcrWorkspace onProjectChange={onProjectChange} onOpen={openSupportingSource} project={project} coders={icrSelCoders} scope={icrScope} scopePicker={renderIcrScopePicker()} pair={icrPair} fleiss={icrFleiss} binary={icrBinary} cu={icrCu} coderA={icrEffA} coderB={icrEffB} onCoderA={setIcrCoderA} onCoderB={setIcrCoderB} onSettings={onIcrSettings} onHelp={onIcrHelp} onMessage={showToast}/>}
 
       {subTab === 'consensus' && (
         <section>
@@ -5199,7 +5211,7 @@ function AnalysisTab({ onProjectChange,onOpenIcrExcerpt,onIcrHelp,onIcrSettings,
             same as the Workspace inspector's Remove (undo with Ctrl+Z). Image regions are not part of this
             review — see them in the Codebook excerpts.
           </div>
-          <details className="analysis-counts"><summary>How to review Consensus, with an example</summary><p>Select the coders and documents they reviewed independently. Open a jointly coded passage, compare the code names and surrounding text, and discuss which interpretation follows your code definitions. Keep the chosen coder’s coding, remove individual entries, or leave the passage unchanged. Save a recovery checkpoint before substantial changes.</p><p><strong>Example:</strong> Amina labels “The pump is too far away” as Water access; Ravi labels overlapping words as Transport. The passage appears as one disagreement group. If both use only Water access, it is an agreement. A third coder who did not code that passage is excluded. One-coder passages and image regions are outside this review.</p><p>Consensus decisions change your project. Export ICR results before adjudication if you need a record of independent agreement; Undo reverses coding removal.</p></details>
+
           {renderIcrScopePicker()}
           <div className="analysis-counts" role="status"><strong>{consensusAllUnits.reduce((count,unit)=>count+unit.segmentIds.length,0)} text coding entries → {consensusAllUnits.length} passage groups</strong><p>{consensusUnits.length} groups coded by two or more people are available for review; {consensusSoloCount} single-coder groups are hidden. Overlapping entries, including several codes on the same words, form one passage group. Image regions are excluded.</p><details><summary>Counts by coder in the current scope</summary>{icrSelCoders.map(name=>{const counts=scopedCoderCounts(project,name,icrScope.docIds,icrScope.includeImages);return <p key={name}>{name}: {counts.segments} text coding entries; {counts.regions} image regions included in ICR only.</p>;})}</details></div>
           {icrSelCoders.length < 2 ? (
@@ -5293,6 +5305,6 @@ function AnalysisTab({ onProjectChange,onOpenIcrExcerpt,onIcrHelp,onIcrSettings,
           )}
         </section>
       )}
-    </div>
+    </div></AnalysisActivityContext.Provider>
   );
 }

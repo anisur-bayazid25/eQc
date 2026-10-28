@@ -40,9 +40,9 @@ const path = require('node:path');
       const pdfImported = newProject('PDF imported');
       await importQdpx(pdfImported, pdfPayload);
       const qdc = newProject('Codebook');
-      await importQdpx(qdc, { fileName: 'reference.qdc', qdeXml: '<CodeBook xmlns="urn:QDA-XML:codebook:0:4" origin="ATLAS.ti Win 26.1.1"><Codes><Code guid="p" name="Parent" isCodable="true"><Description>Comment</Description><Code guid="c" name="Child" isCodable="true"/></Code></Codes></CodeBook>', sourceFiles: {} });
+      await importQdpx(qdc, { fileName: 'reference.qdc', qdeXml: '<CodeBook xmlns="urn:QDA-XML:codebook:0:4" origin="external software Win 26.1.1"><Codes><Code guid="p" name="Parent" isCodable="true"><Description>Comment</Description><Code guid="c" name="Child" isCodable="true"/></Code></Codes></CodeBook>', sourceFiles: {} });
       const legacyMemos=[];
-      for (const origin of ['eQc','NVivo','MAXQDA']) {
+      for (const origin of ['eQc','external software','external software']) {
         const recovered=newProject(origin);
         await importQdpx(recovered,{qdeXml:`<Project xmlns="urn:QDA-XML:project:1.0" origin="${origin}"><CodeBook><Codes><Code guid="legacy" name="Legacy"><Description>Legacy interpretation</Description></Code></Codes></CodeBook></Project>`,sourceFiles:{}});
         await importQdpx(recovered,{qdeXml:`<Project xmlns="urn:QDA-XML:project:1.0" origin="${origin}"><CodeBook><Codes><Code guid="legacy" name="Legacy"><Description>Legacy interpretation</Description></Code></Codes></CodeBook></Project>`,sourceFiles:{}});

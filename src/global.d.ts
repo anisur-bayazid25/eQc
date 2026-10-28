@@ -210,12 +210,12 @@ export interface QvBridge {
   pickMultipleForMerge(): Promise<Project[]>;
 
   exportDocAsDocx(payload: { name: string; content: string }): Promise<string | null>;
-  exportMemoWorkbook(payload: { filenameBase: string; sheets: Array<{ name: string; headers: string[]; rows: string[][] }> }): Promise<string | null>;
+  exportMemoWorkbook(payload: { title?:string; filenameBase: string; sheets: Array<{ name: string; headers: string[]; rows: string[][];autoFilter?:boolean;freezeHeader?:boolean }> }): Promise<string | null>;
   
   exportText(payload: { title: string; defaultName: string; content: string; extension: string; filterName: string }): Promise<string | null>;
   exportDocxTable: (payload:
     | import('./lib/codeReport').CodeReport
-    | { kind: 'table'; title: string; headers: string[]; rows: (string | number)[][]; imageCells?: Array<{ row: number; column: number; base64: string; width: number; height: number }>; filenameBase: string }
+    | { kind: 'table'; publication?:import('./lib/demographicOutput').DemographicOutput; title: string; headers: string[]; rows: (string | number)[][]; imageCells?: Array<{ row: number; column: number; base64: string; width: number; height: number }>; filenameBase: string }
     | { kind: 'outline'; manuscript?:boolean; title: string; outline: Array<{ name: string; depth: number; summary?: string; definition?: string; quotes?: string[]; attributedQuotes?: Array<{text:string;attribution:string}>; imageQuotes?: Array<{ base64: string; width: number; height: number; caption: string }> }>; filenameBase: string }
   ) => Promise<string | null>;
 

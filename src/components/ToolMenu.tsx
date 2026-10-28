@@ -1,8 +1,10 @@
 import React, { useEffect, useRef } from 'react';
+import {Icon,AppIcon} from './IconButton';
 
 /** Native disclosure with an anchored, keyboard-accessible tool panel. */
-export default function ToolMenu({ label, children }: { label: string; children: React.ReactNode }) {
+export default function ToolMenu({ label, children, icon, iconOnly=false, shortLabel }: { label: string; children: React.ReactNode;icon?:AppIcon;iconOnly?:boolean;shortLabel?:string }) {
   const ref = useRef<HTMLDetailsElement>(null);
+  const menuIcon=icon||(/^Export\b/.test(label)?'download':/^Import\b/.test(label)?'upload':undefined);
   const contentRef = useRef<HTMLDivElement>(null);
   function positionMenu() {
     const details = ref.current;
@@ -47,7 +49,7 @@ export default function ToolMenu({ label, children }: { label: string; children:
       ref.current.querySelector('summary')?.focus();
     }
   }}>
-    <summary data-tool={label}>{label}</summary>
+    <summary data-tool={label} aria-label={label} title={label} className={iconOnly?'tool-menu-icon':''}>{menuIcon&&<Icon name={menuIcon}/>}<span className={iconOnly?'sr-only':''}>{shortLabel||label}</span></summary>
     <div ref={contentRef} className="tool-menu-content">{children}</div>
   </details>;
 }

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import {sortSources,SortDirection} from '../lib/sourceSorting';
 import { Folder, SourceDoc, ImageSource, ID } from '../domain';
 import type { LanCoder } from '../global';
 
@@ -11,6 +12,7 @@ interface Props {
   selectedDocId: ID | null;
   selectedImageId?: ID | null;
   sortBy: SortKey;
+  sortDirection?:SortDirection;
   codedCount: (docId: ID) => number;
   codedRegionCount: (imageId: ID) => number;
   onSelectDoc: (doc: SourceDoc) => void;
@@ -32,20 +34,6 @@ interface Props {
   // people are looking at this".
   lanCoders?: LanCoder[];
   lanMyName?: string;
-}
-
-function sortDocs(docs: SourceDoc[], sortBy: SortKey, codedCount: (id: ID) => number): SourceDoc[] {
-  const copy = [...docs];
-  switch (sortBy) {
-    case 'name':
-      return copy.sort((a, b) => a.name.localeCompare(b.name));
-    case 'date':
-      return copy.sort((a, b) => b.addedAt - a.addedAt);
-    case 'size':
-      return copy.sort((a, b) => b.sizeBytes - a.sizeBytes);
-    case 'coded':
-      return copy.sort((a, b) => codedCount(b.id) - codedCount(a.id));
-  }
 }
 
 // One stable dot color per coder name, cycled deterministically so the
@@ -85,8 +73,8 @@ function FolderNode(props: Props & { folder: Folder; depth: number }) {
   const [isDragOver, setIsDragOver] = useState(false);
   
   const childFolders = props.folders.filter(f => f.parentId === folder.id);
-  const childDocs = sortDocs(props.docs.filter(d => d.folderId === folder.id), props.sortBy, props.codedCount);
-  const childImages = (props.images || []).filter(img => img.folderId === folder.id);
+  const childDocs = sortSources(props.docs.filter(d => d.folderId === folder.id), props.sortBy, props.codedCount,props.sortDirection);
+  const childImages = sortSources((props.images || []).filter(img => img.folderId === folder.id),props.sortBy,props.codedRegionCount,props.sortDirection);
 
   return (
     <div>
@@ -272,8 +260,8 @@ function ImageRow(props: Props & { image: ImageSource; depth: number }) {
 export default function DocTree(props: Props) {
   const folderIds = new Set(props.folders.map(f => f.id));
   const rootFolders = props.folders.filter(f => !f.parentId || !folderIds.has(f.parentId));
-  const rootDocs = sortDocs(props.docs.filter(d => !d.folderId || !folderIds.has(d.folderId)), props.sortBy, props.codedCount);
-  const rootImages = (props.images || []).filter(img => !img.folderId || !folderIds.has(img.folderId));
+  const rootDocs = sortSources(props.docs.filter(d => !d.folderId || !folderIds.has(d.folderId)), props.sortBy, props.codedCount,props.sortDirection);
+  const rootImages = sortSources((props.images || []).filter(img => !img.folderId || !folderIds.has(img.folderId)),props.sortBy,props.codedRegionCount,props.sortDirection);
 
   return (
     <div 

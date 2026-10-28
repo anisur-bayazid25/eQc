@@ -233,6 +233,7 @@ export interface ProjectSnapshot { id: number; at: number; label: string; automa
 
 export interface Announcement {id:ID;text:string;retention:'project'|'session';createdAt:number;authorName:string;authorId:string;}
 export interface Project {
+  demographicTables?: import('./lib/demographicTable').DemographicTableDraft[];
   icrRuns?: import('./lib/icrRuns').IcrRun[];
   icrSetups?: Array<{id:ID;name:string;settings:import('./lib/icrComparisons').IcrComparisonSettings}>;
   reviewedSources?: Array<{sourceId:ID;coder:string;reviewedAt:number}>;

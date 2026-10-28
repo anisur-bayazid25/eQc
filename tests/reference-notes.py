@@ -1,4 +1,4 @@
-"""Exercise QualCoder's actual parse_notes method without its Qt application.
+"""Exercise external software's actual parse_notes method without its Qt application.
 
 Provide an unmodified upstream refi.py path; project payload arrives on stdin.
 Only the method is compiled, using an isolated journal and temporary sources.
@@ -24,7 +24,7 @@ exec(compile(ast.Module(body=[method], type_ignores=[]), sys.argv[1], 'exec'), n
 root = ET.fromstring(payload['qdeXml'])
 notes = root.find('{urn:QDA-XML:project:1.0}Notes')
 assert notes is not None and len(notes)
-with tempfile.TemporaryDirectory(prefix='eqc-qualcoder-notes-') as directory:
+with tempfile.TemporaryDirectory(prefix='eqc-external software-notes-') as directory:
     folder = Path(directory) / 'sources'
     folder.mkdir()
     for note in notes:

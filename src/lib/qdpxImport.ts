@@ -697,7 +697,7 @@ export async function importQdpx(project: Project, payload: QdpxParsePayload): P
       const data=JSON.parse(text);
       if(data.format!=='eQc-research'||data.version!==1||!data.records||!data.references)throw new Error('Unsupported research archive.');
       const refs=new Map<string,string>(Object.entries(data.references).flatMap(([id,guid])=>guidMap.has(String(guid))?[[id,guidMap.get(String(guid))!]]:[]));
-      for(const key of ['cases','groups','annotations','memos','queries','codedSegments','codedRegions','icrRuns','reviewedSources','icrSetups','caseFrameworkCells','icrResolutions','mapDrafts','visualizationNotes','frameworkCells','relationNotes'])if(data.records[key]!==undefined&&!Array.isArray(data.records[key]))throw new Error('Invalid research archive collection.');
+      for(const key of ['demographicTables','cases','groups','annotations','memos','queries','codedSegments','codedRegions','icrRuns','reviewedSources','icrSetups','caseFrameworkCells','icrResolutions','mapDrafts','visualizationNotes','frameworkCells','relationNotes'])if(data.records[key]!==undefined&&!Array.isArray(data.records[key]))throw new Error('Invalid research archive collection.');
       mergeResearch(project,{...data.records,docs:[],codes:[],folders:[],codedSegments:data.records.codedSegments||[]} as Project,refs,refs,refs,refs,true);
       restoreExchangeMetadata(project,data.records,refs);
     }

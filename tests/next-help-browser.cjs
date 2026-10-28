@@ -42,8 +42,7 @@ const { chromium } = require(process.env.EQC_PLAYWRIGHT_PATH || 'playwright');
       await page.getByRole('button', { name: button, exact: true }).click();
       const modal = page.getByRole('dialog', { name: 'Research tools', exact: true });
       assert.equal(await modal.getByRole('tab', { name: tab, exact: true }).getAttribute('aria-selected'), 'true');
-      await modal.getByText(`Using ${tab}, with an example`, { exact: true }).click();
-      assert.ok((await modal.locator('.disclosure').textContent()).includes(example));
+      assert.equal(await modal.getByText(`Using ${tab}, with an example`, { exact: true }).count(),0);
       await modal.getByRole('button', { name: 'Close research tools' }).click();
     }
     fs.mkdirSync('release/next-help-qa', { recursive: true });
@@ -62,9 +61,8 @@ const { chromium } = require(process.env.EQC_PLAYWRIGHT_PATH || 'playwright');
     await page.getByRole('button', {name:'ICR help',exact:true}).click();
     await page.getByText('Source-level example:', { exact: false }).waitFor();
     await page.locator('.tabs').getByRole('button', {name:'Analysis',exact:true}).click();
-    await page.getByRole('button', { name: 'Consensus', exact: true }).click();
-    await page.getByText('How to review Consensus, with an example', { exact: true }).click();
-    await page.getByText('The pump is too far away', { exact: false }).waitFor();
+    await page.getByRole('button',{name:'All analysis types',exact:true}).click();await page.getByRole('button', { name: 'Consensus', exact: true }).click();
+    assert.equal(await page.getByText('How to review Consensus, with an example', { exact: true }).count(),0);await page.locator('.tabs').getByRole('button',{name:'Help',exact:true}).click();await page.getByLabel('Search documentation').fill('pump');await page.getByText('The pump is too far away', { exact: false }).first().waitFor();
     assert.deepEqual(errors, []);
     console.log('Help contents/links/Markdown tables, four Research tools sections and Memo-Book, responsive menus and ICR/Consensus examples passed.');
   } finally { await browser.close(); }

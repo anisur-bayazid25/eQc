@@ -23,8 +23,22 @@ export function emptyQuery(): ResearchQuery {
   return { id: uid('query'), name: '', operator: 'any', codeIds: [], excludeCodeIds: [], codeGroupIds: [], descendants: false, docIds: [], documentGroupIds: [], caseIds: [], coder: '', text: '', distance: 100, starredOnly: false };
 }
 export interface RetrievedExcerpt { id: ID; type: 'text' | 'image'; sourceId: ID; sourceName: string; codeId: ID; coder: string; text: string; segment?: CodedSegment; region?: CodedRegion; caseIds: ID[] }
+// Cases can contain thousands of speaker turns. Index once per immutable cases
+// collection, rather than scanning every participant's links for every quote.
+const caseSourceIndexes = new WeakMap<ResearchCase[], Map<string, Array<{value:ResearchCase;links:ResearchCase['links']}>>>();
 export function casesForSegment(project: Project, segment: CodedSegment): ResearchCase[] {
-  return (project.cases || []).filter(c => c.links.some(l => l.docId === segment.docId && (l.start === undefined || (segment.start < l.end! && segment.end > l.start))));
+  if (!project.cases) return [];
+  let index = caseSourceIndexes.get(project.cases);
+  if (!index) {
+    index = new Map();
+    for (const value of project.cases) {
+      const bySource = new Map<string,ResearchCase['links']>();
+      for (const link of value.links) { const links=bySource.get(link.docId)||[];links.push(link);bySource.set(link.docId,links); }
+      for (const [docId,links] of bySource) { const entries=index.get(docId)||[];entries.push({value,links});index.set(docId,entries); }
+    }
+    caseSourceIndexes.set(project.cases,index);
+  }
+  return (index.get(segment.docId)||[]).filter(c=>c.links.some(l=>l.start===undefined || segment.start<l.end! && segment.end>l.start)).map(c=>c.value);
 }
 function attributeMatches(c: ResearchCase, query: ResearchQuery): boolean {
   const rule = query.attribute; if (!rule || !rule.name) return true;
@@ -50,16 +64,19 @@ export function retrieveExcerpts(project: Project, query: ResearchQuery): Retrie
   const eligibleCases = new Set((project.cases || []).filter(c => (!query.caseIds.length || query.caseIds.includes(c.id)) && attributeMatches(c, query)).map(c => c.id));
   const docById = new Map(project.docs.map(d => [d.id, d]));
   const images = new Map((project.images || []).map(i => [i.id, i]));
-  const common = (codeId: ID, coder: string | undefined, starred?: boolean) => project.codes.some(c => c.id === codeId) && (!query.coder || normalizeCoderName(coder) === normalizeCoderName(query.coder)) && (!query.starredOnly || starred);
+  const validCodes = new Set(project.codes.map(c=>c.id));
+  const common = (codeId: ID, coder: string | undefined, starred?: boolean) => validCodes.has(codeId) && (!query.coder || normalizeCoderName(coder) === normalizeCoderName(query.coder)) && (!query.starredOnly || starred);
   // Apply source/case/coder scopes BEFORE boolean conditions. A participant's
   // coding must not acquire another FGD speaker's code through source-level AND.
   const textRows: RetrievedExcerpt[] = project.codedSegments.flatMap(segment => {
+    if (query.operator === 'any' && restrictCodes && !codes.has(segment.codeId)) return [];
     const doc = docById.get(segment.docId); if (!doc || !common(segment.codeId, segment.coder, segment.starred) || (restrictSources && !sourceIds.has(doc.id))) return [];
     const memberships = casesForSegment(project, segment).map(c => c.id);
     if (restrictCases && !memberships.some(id => eligibleCases.has(id))) return [];
     return [{ id: segment.id, type: 'text' as const, sourceId: doc.id, sourceName: doc.name, codeId: segment.codeId, coder: normalizeCoderName(segment.coder), text: doc.content.slice(segment.start, segment.end), segment, caseIds: memberships }];
   });
   const imageRows: RetrievedExcerpt[] = (project.codedRegions || []).flatMap(region => {
+    if (query.operator === 'any' && restrictCodes && !codes.has(region.codeId)) return [];
     const image = images.get(region.imageId); if (!image || !common(region.codeId, region.coder, region.starred)) return [];
     if (restrictSources && !sourceIds.has(image.id) && !sourceIds.has(image.pdfPage?.docId || '')) return [];
     const memberships = (project.cases || []).filter(c => c.links.some(l => (l.docId === image.id || l.docId === image.pdfPage?.docId) && l.start === undefined)).map(c => c.id);
@@ -112,15 +129,20 @@ export function resizeExcerpt(project: Project, id: ID, start: number, end: numb
   return { ...project, codedSegments: project.codedSegments.map(s => s.id === id ? { ...s, start, end, text: doc.content.slice(start, end) } : s) };
 }
 export function cleanResearchLinks(project: Project): Project {
+  const retain = <T,>(items: T[], predicate: (item:T)=>boolean): T[] => { const next=items.filter(predicate);return next.length===items.length?items:next; };
+  const mapRetain = <T,>(items: T[], map: (item:T)=>T): T[] => { const next=items.map(map);return next.every((item,i)=>item===items[i])?items:next; };
   const docs = new Set(project.docs.map(d => d.id)), codes = new Set(project.codes.map(c => c.id)), images = new Set(project.images?.map(i => i.id)), segments = new Set([...project.codedSegments,...(project.codedRegions||[])].map(s => s.id)), cases = new Set(project.cases?.map(c => c.id));
   return { ...project,
-    caseFrameworkCells:project.caseFrameworkCells?.filter(c=>cases.has(c.caseId)&&codes.has(c.codeId)),
-    reviewedSources:project.reviewedSources?.filter(r=>docs.has(r.sourceId)||images.has(r.sourceId)),
-    frameworkCells: project.frameworkCells?.filter(cell => docs.has(cell.docId) && codes.has(cell.codeId)),
-    cases: project.cases?.map(c => ({ ...c, links: c.links.filter(l => docs.has(l.docId) || images.has(l.docId)) })),
-    groups: project.groups?.map(g => ({ ...g, memberIds: g.memberIds.filter(id => g.kind === 'codes' ? codes.has(id) : docs.has(id) || images.has(id)) })),
-    annotations: project.annotations?.filter(a => docs.has(a.docId)),
-    memos: project.memos?.map(m => ({ ...m, docIds: m.docIds.filter(id => docs.has(id) || images.has(id)), codeIds: m.codeIds.filter(id => codes.has(id)), caseIds: m.caseIds.filter(id => cases.has(id)), segmentIds: m.segmentIds.filter(id => segments.has(id)) })),
+    caseFrameworkCells:project.caseFrameworkCells&&retain(project.caseFrameworkCells,c=>cases.has(c.caseId)&&codes.has(c.codeId)),
+    reviewedSources:project.reviewedSources&&retain(project.reviewedSources,r=>docs.has(r.sourceId)||images.has(r.sourceId)),
+    frameworkCells: project.frameworkCells&&retain(project.frameworkCells,cell => docs.has(cell.docId) && codes.has(cell.codeId)),
+    cases: project.cases&&mapRetain(project.cases,c=>{const links=retain(c.links,l=>docs.has(l.docId)||images.has(l.docId));return links===c.links?c:{...c,links};}),
+    groups: project.groups&&mapRetain(project.groups,g=>{const memberIds=retain(g.memberIds,id=>g.kind==='codes'?codes.has(id):docs.has(id)||images.has(id));return memberIds===g.memberIds?g:{...g,memberIds};}),
+    annotations: project.annotations&&retain(project.annotations,a => docs.has(a.docId)),
+    memos: project.memos&&mapRetain(project.memos,m=>{
+      const docIds=retain(m.docIds,id=>docs.has(id)||images.has(id)),codeIds=retain(m.codeIds,id=>codes.has(id)),caseIds=retain(m.caseIds,id=>cases.has(id)),segmentIds=retain(m.segmentIds,id=>segments.has(id));
+      return docIds===m.docIds&&codeIds===m.codeIds&&caseIds===m.caseIds&&segmentIds===m.segmentIds?m:{...m,docIds,codeIds,caseIds,segmentIds};
+    }),
     // Saved query references deliberately remain: deleting their final scoped
     // item must produce no results rather than silently broaden to all items.
     queries: project.queries

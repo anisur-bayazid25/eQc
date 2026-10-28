@@ -91,7 +91,7 @@ Use **Undo/Redo** after changing coding, codes or memos. Changes made in a text 
 
 Use folders to organise sources. Select a document or image in the Sources panel. Search text to find passages across documents.
 
-**Reading** lets you choose the reading theme, font and size. Add preferred installed fonts to **My fonts**. **Codes & Strips** shows code labels beside the viewer. **Lines** adds source line numbers.
+**Reading** lets you choose the reading theme, font and size. The font picker lists the fonts actually installed on this computer with a preview of each, so you pick a real family name instead of typing one; used fonts are kept under **My fonts**. If a saved font is not installed — for example after moving a project to another computer — the picker says so and offers the closest installed family to switch to. **Codes & Strips** shows code labels beside the viewer. **Lines** adds source line numbers.
 
 For retained Word/PDF files, switch between the original view and plain text. Zoom changes the original view; it does not change coding text. If an edited document no longer matches its retained original, use the plain-text view for coding. Scanned PDFs can use local OCR; review the extracted text before coding.
 
@@ -139,7 +139,7 @@ Import a codebook or coded data from the Import tab: CSV, tab-separated text, an
 
 ### 4.3 Export tab
 
-Choose **All codes** or **Selected codes**; optionally include child codes. Choose the content scope, then export **CSV** or **DOCX**. **Starred Images** and **Starred Quotes** sit side by side. Starred Quotes downloads only starred text as Word: choose **Manuscript format** for quotes with the same italic participant attribution as the manuscript skeleton, or **Document, code & all case attributes** for source names, code paths and every attribute of linked cases. Both choices respect the code selection, omit memos and images, and show repeated coding of the same quote once per code. The existing **Starred Excerpts** content scope still exports both text and image excerpts.
+Choose **All codes** or **Selected codes**; optionally include child codes. Choose the content scope, then export **Excel** or **DOCX**. **Starred Images** and **Starred Quotes** sit side by side. Starred Quotes downloads only starred text as Word: choose **Manuscript format** for quotes with the same italic participant attribution as the manuscript skeleton, or **Document, code & all case attributes** for source names, code paths and every attribute of linked cases. Both choices respect the code selection, omit memos and images, and show repeated coding of the same quote once per code. Use the dedicated starred-evidence options; the duplicate Starred Excerpts dropdown entry has been removed.
 
 Under **Project and codebook files**, export the whole project or just the codebook as REFI-QDA (QDPX), all notes as a spreadsheet, or a **Manuscript Skeleton**. The skeleton uses code summaries, linked memos, analysis notes and starred evidence as material for writing. It is an editable outline, not a finished report. The same writing export is available in Memo-Book. These exports always cover the whole project, not the code selection above.
 
@@ -150,6 +150,16 @@ Choose words or phrases, set matching options and target codes, then preview the
 
 
 ## 6. Analysis
+
+Opening supporting evidence keeps your analysis working state while the current project stays open. Use **Back to analysis draft** in the workspace toolbar to return to the same matrix, selected cell, memo, filters, drawer size, and scroll position. This temporary working state is cleared on switching projects or restarting; summary text saved on leaving the field remains in the project.
+
+Resizable text areas use a bottom drag handle when hovered or focused. Sidebars use a visible edge handle; analysis editors use their existing left-edge handle. Drag a handle or focus it and use arrow keys. Fields that fill a resizable analysis drawer adjust with the drawer. Coded-passage popups show the first and last four quote words, and long note previews show the first eight words; Edit opens the full note.
+
+For an FGD, create one case per participant with a stable identifier such as `FGD1_P1`. Select their spoken text and choose **Selection actions → Assign cases**, before or after coding. You can also choose **Assign cases** from a coded passage popup, a Codebook excerpt or a Review result. The picker shows surrounding transcript context; search by participant name, ID or profile attribute, with cases linked to this document shown by default. Uncheck **Only cases linked to this document** to include other participants. The wider picker keeps its action buttons visible; **Profile** reveals full attributes and **Full passage & context** reveals the complete quote. A participant is different from the analyst shown as **Coded by**. Case links belong to text ranges and apply to all codes on that text. Untoggled cases keep their existing links; removing an attribution preserves the participant's linked text outside the selected range. A partially overlapping coding entry can still belong to that participant through its remaining linked text.
+
+In **Framework**, choose **Cases / participants** to compare people across themes, or **Documents** to compare whole sources. Each view keeps its own summaries. Selecting a participant/theme cell opens a side editor containing an analytic summary and the supporting coded passages, including subcodes. Drag its left edge or focus the resize separator and press Left/Right to resize; collapse it to give the matrix more room. Summaries save when you leave the text field. Co-occurrence uses the same side-editor pattern for relationship memos and shared quotes. All three editors place the writing area beside the evidence in independently scrolling columns, with wider resizable drawers. Document framework cells open their own summary/evidence drawer.
+
+Large matrices keep column headers and row names visible. Use **Find row** or **Find column**, then **Go** or Enter to jump directly; participant row jumps also change the case page. **Pan** enables dragging, and **Compact** reduces spacing. **Expand** fills the workspace; **Restore** or Escape returns to the normal view. Case search filters the case framework and its Excel/Word exports. Case and evidence pages bound the amount displayed without dropping entries from the saved project.
 
 | View | What it shows |
 | --- | --- |
@@ -166,29 +176,57 @@ Click a co-occurrence pair to inspect shared excerpts and write a relationship m
 
 In **Word frequencies**, choose the language and minimum base-letter length, edit stop words and click **Generate List**. A value of 3 keeps words with at least 4 base letters; Bengali vowel/combining signs do not add letters. In **KWIC**, enter a keyword, choose the context size and click **Search**. These views include document text, including interview questions. Generate them again after changing documents or settings.
 
-Use view export controls for Word/CSV tables, or **HTML Report** for a combined offline report. HTML export options show the selected ICR coder/source scope and saved comparison method. Source-level results include every selected coder pair and available multi-coder measures; the saved additional comparison includes its settings, warnings and calculation details. Select which saved graph drafts to embed, with visualization notes optional and off by default. Figures capture saved canvases; regenerate a graph before exporting if its analysis needs updating.
+Use view export controls for Word/Excel tables, or **HTML Report** for a combined offline report. HTML export options show the selected ICR coder/source scope and saved comparison method. Source-level results include every selected coder pair and available multi-coder measures; the saved additional comparison includes its settings, warnings and calculation details. Select which saved graph drafts to embed, with visualization notes optional and off by default. Figures capture saved canvases; regenerate a graph before exporting if its analysis needs updating.
 
 The HTML report opens with a contents list. Tables and individual code summaries/memos start collapsed; research records have separate tables for cases/attributes, annotations, memo types, source/code groups and saved queries. Expand only what you need, search within any table, or use **Expand all sections** / **Collapse all sections**. Wide tables scroll within their section. **Print report** temporarily expands all details and includes all rows, then restores your view. Figures and report controls work offline; native disclosure controls also work when scripts are disabled.
 
 ### ICR and Consensus
 
+For a passage review example, Amina labels “The pump is too far away” as Water access; Ravi labels overlapping words as Transport. It appears as a disagreement group. Discuss the code definitions, keep the chosen coding or leave the passage unchanged, and save a linked methodological memo. A third coder who did not code the passage is excluded. One-coder passages and image regions are outside this review. Export ICR results and save a recovery checkpoint before adjudication removes coding.
+
+
 For ICR, select the same sources and coders being compared, then choose Coder A and B. Compare percent agreement, Holsti, Cohen's kappa and the available multi-coder measures. Codes assigned once or many times to a source count as presence for source × code agreement.
 
-The ICR workspace has one **Comparison method** selector. Open Scope to change coders or documents, select the method and click **Calculate agreement** or **Calculate ICR comparison**. Summary cards show the main figures. Open Pairwise comparison, Results by code, Detailed results or Overlapping-passage diagnostic only when needed. Tables have search and 20-row pages; CSV/Word exports contain all rows, not just the current page or search. Changing inputs clears the displayed calculation. **ICR help** opens the calculation reference below in the top Help tab.
+The ICR workspace has one **Comparison method** selector. Open Scope to change coders or documents, select the method and click **Calculate agreement** or **Calculate ICR comparison**. Summary cards show the main figures. Open Pairwise comparison, Results by code, Detailed results or Overlapping-passage diagnostic only when needed. Tables have search and 20-row pages; Excel/Word exports contain all rows, not just the current page or search. Changing inputs clears the displayed calculation. **ICR help** opens the calculation reference below in the top Help tab.
 
 ### Connected research workflows
 
+#### Cases, groups and review examples
+
+Create Participant 01 with Village=Khalilnagar and Age group=Adult. Link their interview; in a focus group, link only their selected passages. Whole-document links include every coded passage in that document.
+
+Put women’s focus groups in a document group and Water access, Cost and Safety in a code group. These reusable groups narrow Review queries. A source or code can belong to more than one group.
+
+Choose Water access in Review, run the query and read each quote with its context. Narrow to a village using case attributes, or save the query for use after more coding. Check cards to export or refine a subset.
+
+#### History and recovery example
+
+Create a checkpoint named Before merging access codes, then reorganise the codebook. Restore it if needed; restoring first saves a recovery point. Recovery history stays on this computer, so export regular JSON backups too.
+
+#### Demographic table
+
+Open Analysis → Demographics. Choose folders (including their subfolders), documents or document groups, then select the participant attributes. Source selections are combined: a participant linked to several selected sources counts once. With no source filters, all cases are included, including unlinked cases.
+
+Choose Sectioned summary, Variable & category, Compare groups or Participant profiles. Edit table opens a resizable, collapsible right drawer beside the paper preview. Layout & labels controls the title, labels, typeface, table rules or banded/grid style, decimal places, counts/percentages and missing-value handling. Percentages can use all participants or non-missing values for each variable. Reporting missing values explicitly is preferable to silently treating them as a demographic category.
+
+In Variables & statistics, select a variable and rename or combine its source categories without changing participant profiles. Numeric rules / bands supports greater than, at least, less than, at most, equal to and between. Between offers independent Include start and Include end options; square brackets include endpoints and round brackets exclude them. Split at value creates two groups: below the cutoff and at least the cutoff. Equal-width groups generates intervals from the available numeric data and replaces the current numeric groups. For example, choose a cutoff of 30 to create <30 and ≥30, or use inclusive 20–29 followed by inclusive 30–39 for integer ages. Categories must not overlap. Unmatched numbers appear in Other values; uncertain text such as “about 45” is not silently converted to a number. Category labels remain editable.
+
+Numeric summary offers mean and sample SD (n−1), median with Q1–Q3, or minimum–maximum, with the valid numeric N. Quartiles use linear interpolation (R7); an undefined statistic is shown as a dash. See the [NIST guidance on measures of scale](https://www.itl.nist.gov/div898/handbook/eda/section3/eda356.htm). Comparison groups can use an attribute or custom named participant selections; each group is intersected with the chosen source scope. A case counts once per column, and custom groups may overlap. These are descriptive summaries, without significance tests.
+
+Saved tables retains named configurations in the project, including category rules and source/group selections. Saving the same name updates its draft. Word and HTML exports preserve table styling and merged headings; Excel includes the complete filtered table and notes across all displayed pages. Copy formatted table provides HTML and plain text for pasting into a document. [COREQ](https://www.equator-network.org/reporting-guidelines/coreq/) provides reporting guidance for interview and focus-group studies; choose attributes and categories that suit your research design.
+
+
 **Case tables:** Export cases CSV creates a matching import template with stable Case IDs, one attribute per column, attribute types, and explicit source/passage links. Import previews additions, updates and unmatched sources before applying changes. Choose update matching IDs/unique names or add separate cases. Duplicate identities, ambiguous names and invalid typed values are rejected. Cases can link text, images or selected FGD passages. This case-table format differs from the long research-records CSV.
 
-**Research selections:** In Excerpt review, run a query, optionally check individual entries, choose a graph and click Use results in graph. Visualization settings also offer cases, source/code groups, saved queries and attribute filters under Research scope. The scope retains exact coding entries and never expands a selected passage to all coding in its document. Scoped word clouds use coded text. An empty or image-only selection cannot generate a text graph. Existing results CSV/Word exports retain the selected entries and their source information.
+**Research selections:** In Excerpt review, run a query, optionally check individual entries, choose a graph and click Use results in graph. Visualization settings also offer cases, source/code groups, saved queries and attribute filters under Research scope. The scope retains exact coding entries and never expands a selected passage to all coding in its document. Scoped word clouds use coded text. An empty or image-only selection cannot generate a text graph. Existing results Excel/Word exports retain the selected entries and their source information.
 
 **Reviewed sources:** In ICR, select a source and mark each coder who independently reviewed it. Missing review confirmations stay visible; an absent code alone cannot establish that a source was reviewed.
 
 **Disagreements and resolutions:** Inspect disagreements provides coder selectors, distinguishes source-level presence differences from boundary/region differences, and opens the actual passages or image sources. A resolution is saved as a linked methodological memo without modifying the original coding. Fixed-excerpt CSV units are separate from project-source coding.
 
-**Saved ICR runs:** Name and save a run to preserve its results, coders, source/code scope, settings and review confirmations. Later source/coding changes mark it historical; graph movement and memo edits do not. CSV/Word exports are available inside Saved run statistics. HTML report and manuscript export let you choose a historical run explicitly. The methodology paragraph and copy-paragraph option remain in manuscript export only. Imported conflicting settings are kept as selectable setups; loading settings does not change coding.
+**Saved ICR runs:** Name and save a run to preserve its results, coders, source/code scope, settings and review confirmations. Later source/coding changes mark it historical; graph movement and memo edits do not. Excel/Word exports are available inside Saved run statistics. HTML report and manuscript export let you choose a historical run explicitly. The methodology paragraph and copy-paragraph option remain in manuscript export only. Imported conflicting settings are kept as selectable setups; loading settings does not change coding.
 
-**Case framework:** Analysis → Framework → Case × theme framework provides summaries for cases that span sources or selected passages. Choose participant attribute columns, click a case/theme cell, inspect supporting excerpts and linked memos, then save the summary. CSV/Word exports include case identifiers and selected attributes. Summaries also appear in Memo-Book and analytical HTML reports; the manuscript's optional framework section includes summary text without adding operational notes.
+**Case framework:** Analysis → Framework → Case × theme framework provides summaries for cases that span sources or selected passages. Choose participant attribute columns, click a case/theme cell, inspect supporting excerpts and linked memos, then save the summary. Excel/Word exports include case identifiers and selected attributes. Summaries also appear in Memo-Book and analytical HTML reports; the manuscript's optional framework section includes summary text without adding operational notes.
 
 **Exchange:** The project export dialog shows a preservation inventory. QDPX uses structured cases, typed variables and source/code sets, plus an eQc appendix for saved queries, graph drafts, ICR runs, starred evidence, analysis periods, folder paths, code order and coder identity. Sources, coding positions, the code hierarchy and coder attribution stay in the standard parts, so other applications read them normally; appendix information may appear there as notes instead of recreating eQc tools. Import reports list research-object counts and unresolved/unsupported references. Merge previews changes, keeps the working canvas, remaps research links and preserves conflicting ICR settings separately. Local recovery history stays on its original computer.
 
@@ -237,7 +275,7 @@ Export ICR and create a checkpoint before adjudication. Keeping one coder's codi
 
 ## 7. Memo-Book
 
-Memo-Book is the top tab after Analysis. It gathers project memos, source notes, code summaries, quote/region notes, passage annotations, case notes, framework summaries, co-occurrence memos and code-map notes.
+Memo-Book is the top tab after Codebook, followed by Auto-Code, Analysis and Visualization. It gathers project memos, source notes, code summaries, quote/region notes, passage annotations, case notes, framework summaries, co-occurrence memos and code-map notes.
 
 ### Find and select
 
@@ -245,19 +283,22 @@ Search the text or choose **Memo source** to filter by category. Check individua
 
 ### Write and return to evidence
 
+For example, write Distance and safety, link the relevant codes and participants, and explain your interpretation. Source links are grouped under a compact searchable disclosure; they remain individually accessible. Long memo text is previewed until Read full memo or Edit memo is selected. Memo-Book shows 20 records per page and offers export controls in its compact header. Opening a source, analysis or visualization offers Back to Memo-Book; source navigation from those views offers its corresponding return action. The temporary view state is retained for the current open project, including filters, page, scroll position and unfinished memo editing.
+
+
 Choose **New memo**, add a title and purpose, write your text, link relevant documents/codes/cases/quotes, and save. For example, create **Distance and safety** and link the supporting code and interview passages.
 
 Use **Edit memo** to update a note. Attached notes update their original source field. **Go to source** opens the document, code, passage, case, map or relevant matrix. Project memos show a separate link for each attached item.
 
 ### Export and write a report
 
-Export a single card, selected memos or all memos to **Word** or **Excel**. Word groups them by category. Excel uses separate sheets for document, code, framework, co-occurrence and other memo types. Every export identifies the memo source. Quote notes include document names, quotation text, code names, coder and character range; matrix notes identify their source/theme or code pair. Related documents and missing-link IDs are retained where available. Very long Excel text continues on another row.
+The header has one **Export** menu. Choose **All memos & notes**, **Selected memos** or the manuscript skeleton. Memo exports support Word and Excel. **More exports → Project data** includes participant profiles, attributes, links, groups, saved queries and notes in Excel, Word or HTML. Single-card Word/Excel shortcuts are also available. Word groups memos by category. Excel uses separate sheets for document, code, framework, co-occurrence and other memo types. Every export identifies the memo source. Quote notes include document names, quotation text, code names, coder and character range; matrix notes identify their source/theme or code pair. Related documents and missing-link IDs are retained where available. Very long Excel text continues on another row.
 
 Choose **Manuscript skeleton Word** to preview options for a project-wide writing outline, regardless of the memo selection. An optional ICR Methodology paragraph precedes Results; review its coders, sources and comparison method. Code summaries omit generated document lists. Starred quotes omit coder names and excerpt notes; a separate italic line uses linked case name/pseudonym, age, gender, occupation and area/country, or falls back to the source name. Framework and co-occurrence memos are optional and selected by default. Analytic project memos are optional; linked memos appear once. Source/case memos, annotations, visualization labels and visualization notes are omitted. Other exports retain their source metadata. Authored memo text is kept as written.
 
 ### Combine related memos
 
-Select at least two memos, open **Export or merge selected memos**, choose a new or selected project memo as the destination, and review the confirmation. Merging combines text and links, consolidates project memos and clears the selected attached note fields. Sources and coding remain. Use Undo if you need to restore the original notes.
+Select at least two memos, open **Selection & merge**, choose a new or selected project memo as the destination, and review the confirmation. Merging combines text and links, consolidates project memos and clears the selected attached note fields. Sources and coding remain. Use Undo if you need to restore the original notes.
 
 ## 8. Visualization
 

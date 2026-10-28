@@ -28,7 +28,7 @@ export interface CaseImportPlan {cases:ResearchCase[];added:number;updated:numbe
 export function previewCaseImport(project: Project, rows: Record<string,unknown>[], mode:'update'|'add'='update'):CaseImportPlan {
   const cases=[...(project.cases||[])], warnings:string[]=[]; let added=0,updated=0,unchanged=0;
   const seen=new Set<string>(), sources=[...project.docs,...(project.images||[])];
-  if(!rows.length||!Object.prototype.hasOwnProperty.call(rows[0],'Case'))throw Error('CSV needs a Case column. Use Export cases CSV for a matching template.');
+  if(!rows.length||!Object.prototype.hasOwnProperty.call(rows[0],'Case'))throw Error('The table needs a Case column. Use Export cases Excel for a matching template.');
   for(const [index,raw] of rows.entries()) {
     const row=Object.fromEntries(Object.entries(raw).map(([k,v])=>[k,String(v??'')]));
     const name=row.Case?.trim();if(!name)throw Error(`Row ${index+2}: case name is missing.`);

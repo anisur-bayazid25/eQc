@@ -57,7 +57,7 @@ test('single characters, emoji, Bengali and CRLF ranges use inclusive Unicode co
   assert.equal(qdaToUtf16Range(text, 3, 2), null);
 });
 
-test('all exported notes have QualCoder-compatible dates, user references and memo files', async () => {
+test('all exported notes have external software-compatible dates, user references and memo files', async () => {
   const p = fixture();
   p.codes[1].name = p.codes[0].name;
   p.memos = [{ id: 'm', title: 'Team note', text: 'Keep the research memo', kind: 'analytic', docIds: [], codeIds: [], caseIds: [], segmentIds: [], createdAt: 1, updatedAt: 2 }];
@@ -75,8 +75,8 @@ test('all exported notes have QualCoder-compatible dates, user references and me
       const name = /plainTextPath="internal:\/\/([^"]+)"/.exec(note)?.[1];
       assert.ok(name && payload.sourceFiles['sources/' + name]);
     }
-    if (process.env.EQC_QUALCODER_REFI) {
-      const result = spawnSync(process.env.EQC_PYTHON || 'python', ['-X', 'utf8', path.join(__dirname, 'qualcoder-notes.py'), process.env.EQC_QUALCODER_REFI], { input: JSON.stringify(payload), encoding: 'utf8' });
+    if (process.env.EQC_REFERENCE_IMPORTER) {
+      const result = spawnSync(process.env.EQC_PYTHON || 'python', ['-X', 'utf8', path.join(__dirname, 'external software-notes.py'), process.env.EQC_REFERENCE_IMPORTER], { input: JSON.stringify(payload), encoding: 'utf8' });
       assert.equal(result.status, 0, result.stderr || result.error?.message);
       assert.equal(JSON.parse(result.stdout).importedNotes, notes.length);
     }

@@ -9,8 +9,10 @@ const isDev = process.env.NODE_ENV === 'development';
 
 const JSZip = require('jszip');
 const { buildMemoWorkbook } = require('./memoWorkbook.cjs');
+const {buildSpreadsheetExport}=require('./spreadsheetExport.cjs');
+const Papa=require('papaparse');
 ipcMain.handle('export:memoWorkbook', async (_e, payload) => {
-  const {canceled,filePath} = await dialog.showSaveDialog({title:'Export memos to Excel',defaultPath:safeFilename(payload.filenameBase)+'.xlsx',filters:[{name:'Excel workbook',extensions:['xlsx']}]});
+  const {canceled,filePath} = await dialog.showSaveDialog({title:payload.title||'Export memos to Excel',defaultPath:safeFilename(payload.filenameBase)+'.xlsx',filters:[{name:'Excel workbook',extensions:['xlsx']}]});
   if(canceled || !filePath) return null;
   fs.writeFileSync(filePath, await buildMemoWorkbook(payload.sheets));
   return filePath;
@@ -580,16 +582,19 @@ ipcMain.handle('docs:exportDocx', async (_e, { name, content }) => {
 });
 
 // ---------------------------------------------------------------------
-// IPC: generic plain-text file export (CSV, etc.)
+// IPC: text exports and the shared tabular Excel export path.
 // ---------------------------------------------------------------------
 ipcMain.handle('export:saveText', async (_e, { title, defaultName, content, extension, filterName }) => {
+  const spreadsheet=['csv','xlsx'].includes(String(extension).toLowerCase());
+  if(spreadsheet){extension='xlsx';defaultName=String(defaultName).replace(/\.(csv|xlsx)$/i,'');filterName='Excel workbook';title=String(title||'Export spreadsheet').replace(/\bCSV\b/g,'Excel');}
   const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
     title: title || 'Export',
     defaultPath: `${safeFilename(String(defaultName).endsWith('.'+extension) ? String(defaultName).slice(0,-extension.length-1) : defaultName)}.${extension}`,
     filters: [{ name: filterName || 'File', extensions: [extension || 'txt'] }]
   });
   if (canceled || !filePath) return null;
-  fs.writeFileSync(filePath, content, 'utf-8');
+  if(spreadsheet)fs.writeFileSync(filePath,await buildSpreadsheetExport(content));
+  else fs.writeFileSync(filePath, content, 'utf-8');
   return filePath;
 });
 
@@ -698,6 +703,8 @@ ipcMain.handle('export:docx', async (_e, payload) => {
     ? buildOutlineDocx(payload.title, payload.outline, payload.manuscript)
     : payload.kind === 'imageGallery'
     ? buildImageGalleryDocx(payload.title, payload.items)
+    : payload.publication
+    ? require('./demographicTable.cjs').buildDemographicDocx(payload.publication)
     : buildTableDocx(payload.title, payload.headers, payload.rows, payload.imageCells);
 
   const buffer = await Packer.toBuffer(doc);
@@ -813,13 +820,20 @@ ipcMain.handle('import:pickTable', async () => {
 
 ipcMain.handle('csv:pickAndParse', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
-    title: 'Import dataset or codebook',
+    title: 'Import cases table',
     properties: ['openFile'],
-    filters: [{ name: 'CSV / tab-separated codebook', extensions: ['csv', 'tsv', 'txt'] }]
+    filters: [{ name: 'Cases spreadsheet', extensions: ['xlsx', 'xlsm', 'csv', 'tsv', 'txt'] }]
   });
   if (canceled || filePaths.length === 0) return null;
 
-  const raw = readCsvSmart(filePaths[0]);
+  let raw;
+  if(/\.xls[xm]$/i.test(filePaths[0])){
+    const sheets=await readWorkbook(fs.readFileSync(filePaths[0]));
+    const candidates=sheets.filter(sheet=>gridToTable(sheet.rows).fields.includes('Case'));
+    if(candidates.length>1)throw Error('This workbook has multiple case tables. Keep the table to import on one sheet.');
+    const sheet=candidates[0]||sheets[0];if(!sheet)throw Error('This workbook has no readable sheets.');
+    raw=Papa.unparse(sheet.rows);
+  }else raw=readCsvSmart(filePaths[0]);
   return parseCsvDataset(raw, path.basename(filePaths[0]));
 });
 

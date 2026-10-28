@@ -18,7 +18,7 @@ async function buildMemoWorkbook(sheets) {
       // memo never loses its provenance when rows are filtered or copied.
       return Array.from({length:parts},(_,part)=>chunks.map(c=>c.length===1?c[0]:c[part] || ''));
     });
-    zip.file(`xl/worksheets/sheet${i+1}.xml`, `<worksheet xmlns="${ns}"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetData>${rows.map((row,r)=>`<row r="${r+1}">${row.map((v,c)=>`<c r="${column(c)}${r+1}" t="inlineStr"><is><t xml:space="preserve">${escape(v)}</t></is></c>`).join('')}</row>`).join('')}</sheetData><autoFilter ref="A1:${column(s.headers.length-1)}${rows.length}"/></worksheet>`);
+    zip.file(`xl/worksheets/sheet${i+1}.xml`, `<worksheet xmlns="${ns}"><sheetViews><sheetView workbookViewId="0">${s.freezeHeader===false?'':'<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>'}</sheetView></sheetViews><sheetData>${rows.map((row,r)=>`<row r="${r+1}">${row.map((v,c)=>`<c r="${column(c)}${r+1}" t="inlineStr"><is><t xml:space="preserve">${escape(v)}</t></is></c>`).join('')}</row>`).join('')}</sheetData>${s.autoFilter===false?'':`<autoFilter ref="A1:${column(s.headers.length-1)}${rows.length}"/>`}</worksheet>`);
   });
   return zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'});
 }

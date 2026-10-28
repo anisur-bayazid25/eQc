@@ -5,8 +5,8 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 (async () => {
-  if (!process.env.EQC_ATLAS_REFERENCE) throw new Error('Set EQC_ATLAS_REFERENCE to the supplied project.qde path.');
-  const reference = path.resolve(process.env.EQC_ATLAS_REFERENCE);
+  if (!process.env.EQC_REFERENCE_PROJECT) throw new Error('Set EQC_REFERENCE_PROJECT to the supplied project.qde path.');
+  const reference = path.resolve(process.env.EQC_REFERENCE_PROJECT);
   const xml = fs.readFileSync(reference, 'utf8');
   const browser = await chromium.launch({ channel: 'msedge', headless: true });
   try {
@@ -46,8 +46,8 @@ const { spawnSync } = require('node:child_process');
     assert.equal(result.repeat.segmentsCreated, 0);
     const validation = spawnSync(process.env.EQC_PYTHON || 'python', [path.join(__dirname, 'validate-qdpx.py')], { input: JSON.stringify(result.exported), encoding: 'utf8', maxBuffer: 20 * 1024 * 1024 });
     assert.equal(validation.status, 0, validation.stderr);
-    if (process.env.EQC_ATLAS_CODEBOOK) {
-      const qdcXml = fs.readFileSync(process.env.EQC_ATLAS_CODEBOOK, 'utf8');
+    if (process.env.EQC_REFERENCE_CODEBOOK) {
+      const qdcXml = fs.readFileSync(process.env.EQC_REFERENCE_CODEBOOK, 'utf8');
       const count = await page.evaluate(async xml => {
         const { newProject } = await import('/src/domain.ts');
         const { importQdpx } = await import('/src/lib/qdpxImport.ts');

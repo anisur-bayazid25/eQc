@@ -91,14 +91,14 @@ function buildNotesXml(memos: QdpxMemo[], files: Record<string, string>, creator
   const usedNames = new Set<string>();
   const notes = memos
     .map(m => {
-      // QualCoder stores notes as journals with globally unique names.
+      // external software stores notes as journals with globally unique names.
       // Number repeated titles without changing memo contents or references.
       const baseName = m.name || 'Memo';
       let name = baseName, suffix = 2;
       while (usedNames.has(name)) name = `${baseName} (${suffix++})`;
       usedNames.add(name);
       files[`sources/${m.guid}.txt`] = m.text;
-      // QualCoder assumes each Note has a creation/modification date even
+      // external software assumes each Note has a creation/modification date even
       // though REFI-QDA makes it optional. These memo records are created at export.
       return `<Note guid="${m.guid}" name="${esc(name)}" plainTextPath="internal://${m.guid}.txt" creatingUser="${creator}" creationDateTime="${exportedAt}"/>`;
     })
@@ -303,7 +303,7 @@ export async function buildQdpxExport(project: Project): Promise<QdpxExportPaylo
   };
   const hasArchiveContent = (
     [project.cases, project.groups, project.annotations, project.memos, project.queries, project.icrRuns,
-      project.mapDrafts, project.frameworkCells, project.caseFrameworkCells, project.visualizationNotes,
+      project.demographicTables, project.mapDrafts, project.frameworkCells, project.caseFrameworkCells, project.visualizationNotes,
       project.reviewedSources].some(items => items?.length)
     || project.icrComparison
     // Exchange fidelity for plain coding projects too: without this, stars,
@@ -321,7 +321,7 @@ export async function buildQdpxExport(project: Project): Promise<QdpxExportPaylo
     for(const row of rows.slice(1).filter(r=>['Case','Attribute','Case link','Group','Annotation','Saved query','ICR run','Case framework summary','Framework memo','Relationship memo'].includes(r[0])||r[0].startsWith('Memo:')))
       memos.push({guid:uuid(),name:'eQc research record — '+row[0]+' — '+row[1],text:row.map((v,i)=>v?rows[0][i]+': '+v:'').filter(Boolean).join('\n')});
     const references=Object.fromEntries([...codeGuids,...sourceGuids]);
-    const records={name:project.name,icrComparison:project.icrComparison,icrSetups:project.icrSetups,icrRuns:project.icrRuns,reviewedSources:project.reviewedSources,icrResolutions:project.icrResolutions,caseFrameworkCells:project.caseFrameworkCells,mapDrafts:project.mapDrafts,visualizationNotes:project.visualizationNotes,frameworkCells:project.frameworkCells,relationNotes:project.relationNotes,cases:project.cases,groups:project.groups,annotations:project.annotations,memos:project.memos,queries:project.queries,
+    const records={name:project.name,demographicTables:project.demographicTables,icrComparison:project.icrComparison,icrSetups:project.icrSetups,icrRuns:project.icrRuns,reviewedSources:project.reviewedSources,icrResolutions:project.icrResolutions,caseFrameworkCells:project.caseFrameworkCells,mapDrafts:project.mapDrafts,visualizationNotes:project.visualizationNotes,frameworkCells:project.frameworkCells,relationNotes:project.relationNotes,cases:project.cases,groups:project.groups,annotations:project.annotations,memos:project.memos,queries:project.queries,
       coderName:project.coderName,
       analysisPeriods:project.analysisPeriods,
       codeMeta:project.codes.map(c=>({id:c.id,sortIndex:c.sortIndex,createdAt:c.createdAt})),
